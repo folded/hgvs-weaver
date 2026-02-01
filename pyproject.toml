@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "hgvs-weaver"
-version = "0.1.0"
+version = "0.1.1"
 description = "High-performance HGVS parser for Python (Rust powered)"
 dependencies = [
     "maturin>=1.11.5",

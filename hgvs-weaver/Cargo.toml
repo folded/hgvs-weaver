@@ -1,7 +1,14 @@
 [package]
 name = "hgvs-weaver"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
+authors = ["The folded team"]
+description = "High-performance HGVS variant mapping and validation engine."
+license = "Apache-2.0"
+repository = "https://github.com/folded/hgvs-weaver"
+readme = "../README.md"
+keywords = ["hgvs", "variant", "bioinformatics", "genomics", "mapping"]
+categories = ["science"]
 
 [dependencies]
 pest = "2.7"
