@@ -1,0 +1,109 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "hgvs-weaver"
+version = "0.1.0"
+description = "High-performance HGVS parser for Python (Rust powered)"
+dependencies = [
+    "maturin>=1.11.5",
+]
+requires-python = ">=3.10"
+
+[project.optional-dependencies]
+validation = [
+    "pysam",
+    "tqdm",
+    "parsley",
+    "bioutils",
+]
+
+[project.scripts]
+weaver-validate = "weaver.cli.validate:main"
+weaver-analyze = "weaver.cli.analyze:main"
+weaver-categorize = "weaver.cli.categorize:main"
+weaver-contingency = "weaver.cli.contingency:main"
+weaver-extract = "weaver.cli.extract:main"
+
+[dependency-groups]
+dev = [
+    "mypy",
+    "myst-parser",
+    "pytest>=8.4.1",
+    "ruff",
+    "sphinx",
+    "sphinx-rtd-theme",
+    "twine",
+]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+manifest-path = "./Cargo.toml"
+python-source = "./"
+module-name = "weaver._weaver"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+indent-width = 4
+
+[tool.ruff.lint]
+select = ["A", "B", "C",  "E", "F", "G", "I", "N", "Q", "S", "W", "ANN", "ARG", "BLE", "COM", "DJ", "DTZ", "ERA", "EXE", "ICN", "ISC", "NPY", "PD", "PGH", "PIE", "PL", "PT", "PYI", "RET", "RSE", "RUF", "SIM", "SLF", "TCH", "TID", "UP", "YTT"]
+ignore = [
+    "PD011",   # pandas-use-of-dot-values (false positive)
+]
+fixable = ["A", "B", "C", "D", "E", "F", "G", "I", "N", "Q", "S", "T", "W", "ANN", "ARG", "BLE", "COM", "DJ", "DTZ", "ERA", "EXE", "FBT", "ICN", "ISC", "NPY", "PD", "PGH", "PIE", "PL", "PT", "PYI", "RET", "RSE", "RUF", "SIM", "SLF", "TCH", "TID", "UP", "YTT"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["weaver"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+    "S101",     # asserts.
+    "S102",     # exec().
+    "PLR2004",  # magic value comparisons.
+    "SLF001",   # private method access.
+]
+"weaver/cli/*" = [
+    "BLE001",   # blind except.
+    "G004",     # logging f-strings.
+    "PLR0911",  # too many return statements.
+    "PLR0912",  # too many branches.
+    "PLR0915",  # too many statements.
+    "PLR2004",  # magic values.
+    "C901",     # complexity.
+    "E501",     # line length.
+    "PLW0603",  # global statement.
+    "ANN401",   # Any type.
+]
+"hgvs-weaver/tests/*" = [
+    "S101",
+    "ANN401",
+]
+"docs/*" = [
+    "A001"
+]
+"weaver/_weaver.pyi" = [
+    "ANN401",   # Any in stubs.
+    "A002",     # Shadowing builtin.
+    "PYI021",   # Docstrings in stubs.
+]
+
+[tool.mypy]
+python_version = "3.11"
+explicit_package_bases = true
+ignore_missing_imports = true
+
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-* cp313-*"
+skip = "*-musllinux*"
+
+[tool.cibuildwheel.linux]
+archs = ["x86_64", "aarch64"]
+
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]

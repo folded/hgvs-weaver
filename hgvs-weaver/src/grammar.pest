@@ -1,0 +1,142 @@
+WHITESPACE = _{
+    " " | "\t"
+}
+
+hgvs_variant = { SOI ~ (g_variant | m_variant | c_variant | n_variant | r_variant | p_variant) ~ EOI }
+
+c_variant = { accn ~ opt_gene_expr ~ ":" ~ "c" ~ "." ~ c_posedit }
+g_variant = { accn ~ opt_gene_expr ~ ":" ~ "g" ~ "." ~ g_posedit }
+m_variant = { accn ~ opt_gene_expr ~ ":" ~ "m" ~ "." ~ m_posedit }
+n_variant = { accn ~ opt_gene_expr ~ ":" ~ "n" ~ "." ~ n_posedit }
+r_variant = { accn ~ opt_gene_expr ~ ":" ~ "r" ~ "." ~ r_posedit }
+p_variant = { accn ~ opt_gene_expr ~ ":" ~ "p" ~ "." ~ p_posedit }
+
+// PosEdits
+c_posedit = { c_interval ~ dna_edit }
+g_posedit = { g_interval ~ dna_edit }
+m_posedit = { m_interval ~ dna_edit }
+n_posedit = { n_interval ~ dna_edit }
+r_posedit = { (r_interval ~ rna_edit) | ("(" ~ r_interval ~ rna_edit ~ ")") }
+p_posedit = { (p_interval ~ pro_edit) | ("(" ~ p_interval ~ pro_edit ~ ")") | p_posedit_special }
+
+p_posedit_special = {
+      "="
+    | "(" ~ "=" ~ ")"
+    | "0" ~ "?"
+    | "0"
+    | "?"
+}
+
+// Edits
+dna_edit = { dna_subst | dna_delins | dna_del | dna_ins | dna_dup | dna_inv | dna_con | dna_repeat | dna_copy | dna_ident }
+dna_ident  = { dna? ~ "=" }
+dna_subst  = { dna ~ ">" ~ dna }
+dna_delins = { "del" ~ (num | dna)? ~ "ins" ~ dna }
+dna_del    = { "del" ~ (num | dna)? }
+dna_ins    = { "ins" ~ dna }
+dna_dup    = { "dup" ~ dna? }
+dna_inv    = { "inv" ~ (num | dna)? }
+dna_con    = { "con" ~ hgvs_position }
+dna_copy   = { "copy" ~ num }
+dna_repeat = { dna? ~ (("[" ~ num ~ "]") | ("(" ~ num ~ "_" ~ num ~ ")")) }
+
+rna_edit = { rna_subst | rna_delins | rna_del | rna_ins | rna_dup | rna_inv | rna_con | rna_repeat | rna_ident }
+rna_ident  = { rna ~ "=" }
+rna_subst  = { rna ~ ">" ~ rna }
+rna_delins = { "del" ~ (num | rna)? ~ "ins" ~ rna }
+rna_del    = { "del" ~ (num | rna)? }
+rna_ins    = { "ins" ~ rna }
+rna_dup    = { "dup" ~ rna? }
+rna_inv    = { "inv" ~ (num | rna)? }
+rna_con    = { "con" ~ hgvs_position }
+rna_repeat = { rna? ~ (("[" ~ num ~ "]") | ("(" ~ num ~ "_" ~ num ~ ")")) }
+
+pro_edit   = { pro_fs | pro_ext | pro_subst | pro_delins | pro_ins | pro_del | pro_dup | pro_ident }
+pro_ident  = { "=" }
+pro_subst  = { (aat13 | "?") }
+pro_delins = { "delins" ~ aat13_seq }
+pro_del    = { "del" }
+pro_ins    = { "ins" ~ aat13_seq }
+pro_dup    = { "dup" }
+pro_fs     = { (aat13 | "") ~ fs }
+pro_ext    = { aat13? ~ ext }
+
+// Intervals
+c_interval = { def_c_interval | ("(" ~ def_c_interval ~ ")") }
+g_interval = { uncertain_g_interval | def_g_interval }
+m_interval = { def_m_interval | ("(" ~ def_m_interval ~ ")") }
+n_interval = { def_n_interval | ("(" ~ def_n_interval ~ ")") }
+p_interval = { def_p_interval | ("(" ~ def_p_interval ~ ")") }
+r_interval = { def_r_interval | ("(" ~ def_r_interval ~ ")") }
+
+def_c_interval = { c_pos ~ ("_" ~ c_pos)? }
+def_g_interval = { g_pos ~ ("_" ~ g_pos)? }
+def_m_interval = { m_pos ~ ("_" ~ m_pos)? }
+def_n_interval = { n_pos ~ ("_" ~ n_pos)? }
+def_p_interval = { p_pos ~ ("_" ~ p_pos)? }
+def_r_interval = { r_pos ~ ("_" ~ r_pos)? }
+
+uncertain_g_interval = {
+    ("(" ~ def_g_interval ~ ")" ~ "_" ~ "(" ~ def_g_interval ~ ")") |
+    (def_g_interval ~ "_" ~ "(" ~ def_g_interval ~ ")") |
+    ("(" ~ def_g_interval ~ ")" ~ "_" ~ def_g_interval) |
+    ("(" ~ def_g_interval ~ ")")
+}
+
+// Positions
+c_pos = { ("*" ~ num ~ offset) | (base ~ offset) }
+g_pos = { num | "?" }
+m_pos = { num | "?" }
+n_pos = { base ~ offset }
+p_pos = { (term13 | aa13) ~ num }
+r_pos = { base ~ offset }
+
+// Primitives and Basics
+accn = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_" | "-")* ~ ("." ~ ASCII_DIGIT+)? }
+opt_gene_expr = { ("(" ~ gene_symbol ~ ")")? }
+gene_symbol = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | (("-" | "_" | ".") ~ &ASCII_ALPHANUMERIC))* }
+
+// Numbers
+num = @{ ASCII_DIGIT+ }
+snum = @{ ("+" | "-")? ~ num }
+offset = { snum? }
+
+// Sequences
+dna = @{ dna_char+ }
+dna_char = { "A" | "C" | "G" | "T" | "N" | "a" | "c" | "g" | "t" | "n" }
+
+rna = @{ rna_char+ }
+rna_char = { "A" | "C" | "G" | "U" | "N" | "a" | "c" | "g" | "u" | "n" }
+
+// Amino Acids
+aa1 = { "A" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "K" | "L" | "M" | "N" | "P" | "Q" | "R" | "S" | "T" | "V" | "W" | "Y" | "B" | "Z" | "X" | "U" }
+aa3 = { "Ala"|"Cys"|"Asp"|"Glu"|"Phe"|"Gly"|"His"|"Ile"|"Lys"|"Leu"|"Met"|"Asn"|"Pro"|"Gln"|"Arg"|"Ser"|"Thr"|"Val"|"Trp"|"Tyr" | "Asx" | "Glx" | "Xaa" | "Sec" }
+aa13 = { aa3 | aa1 }
+
+term1 = { "X" | "*" }
+term3 = { "Ter" }
+term13 = { term3 | term1 }
+
+
+aat1 = { term1 | aa1 }
+aat3 = { term3 | aa3 }
+aat13 = { aat3 | aat1 }
+
+
+aat13_seq = { aat3+ | aat1+ }
+
+fs = { "fs" ~ (aa13_fs | "") }
+ext = { "ext" ~ (aa13_ext | "") }
+aa13_fs = { term13 ~ fsext_offset }
+aa13_ext = { (term13 ~ fsext_offset) | ((aa13 | "") ~ num) }
+fsext_offset = { num | "?" | "" }
+
+base = { snum }
+
+hgvs_position = { c_hgvs_position | g_hgvs_position | m_hgvs_position | n_hgvs_position | r_hgvs_position | p_hgvs_position }
+c_hgvs_position = { accn ~ opt_gene_expr ~ ":" ~ "c" ~ "." ~ c_interval }
+g_hgvs_position = { accn ~ opt_gene_expr ~ ":" ~ "g" ~ "." ~ g_interval }
+m_hgvs_position = { accn ~ opt_gene_expr ~ ":" ~ "m" ~ "." ~ m_interval }
+n_hgvs_position = { accn ~ opt_gene_expr ~ ":" ~ "n" ~ "." ~ n_interval }
+r_hgvs_position = { accn ~ opt_gene_expr ~ ":" ~ "r" ~ "." ~ r_interval }
+p_hgvs_position = { accn ~ opt_gene_expr ~ ":" ~ "p" ~ "." ~ p_interval }

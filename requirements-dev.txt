@@ -1,0 +1,12 @@
+maturin>=1.11.5
+pre-commit
+ruff
+mypy
+pytest
+tqdm
+pysam
+parsley
+bioutils
+sphinx
+sphinx-rtd-theme
+myst-parser

@@ -1,0 +1,243 @@
+{
+  "sequences": {
+    "NC_TOY.1": "AAAAAAAAAAAAAAAAAAAAAAAAAATGCGTACGTAGCTAGCTAGCTAGCTAGTAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGCGCTAGCTAGCTAGCTAGCTACGTACTGCATAAAAAAAAAAAAAAAAAAAA",
+    "NM_PLUS.1": "AAAAATGCGTACGTAGCTAGCTAGCTAGCTAGTAAGCGCTAGCTAGCTAGCTAGCTACGTACTGCATAAAAA",
+    "NM_MINUS.1": "AAAAATGCGTACGTAGCTAGCTAGCTAGCTAGTAAGCGCTAGCTAGCTAGCTAGCTACGTACTGCATAAAAA",
+    "NM_999999.1": "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGCGAAATAGGGG",
+    "NM_999998.1": "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGCGAAATAGAGGAGGTAGTTTCGC",
+    "NM_999997.1": "AAAATCAAAATGAAAGCGAAAGCGTTTCGCGTAGAATAGAGGAGGCAGTTTCGC",
+    "NM_999996.1": "AAAATCAAAATGAAATCGAAAGCGTTTCGCGCGAAATAGAGGAGGCAGTTTCGC",
+    "NM_999995.1": "AAAATCAAAATGAAAAAATCGAAAGCGTTTCGCGCGAAATAGAGGAGGCAGTTTCGC",
+    "NM_999994.1": "AAAATCAAAATGAAAAAAAAATCGAAAGCGTTTCGCGCGAAATAGAGGAGGCAGTTTCGC",
+    "NM_999993.1": "AAAATCAAAATGGGGAGGGCCCGGCAGCCAGCTTTATAGAGGAGGCAGTTTCGC",
+    "NM_999992.1": "AAAATCAAAATGGGGTAGGCCCGGCAGCCAGCTTTATAGAGGAGGCAGTTTCGC",
+    "NM_999992.2": "AAAATCAAAATGGGGTAGGCCCGGCAGCCAGCTTTATAGAGGAGGCAGTTTCGCC"
+  },
+  "transcripts": {
+    "NM_PLUS.1": {
+      "ac": "NM_PLUS.1",
+      "gene": "PLUSGENE",
+      "cds_start_index": 4,
+      "cds_end_index": 67,
+      "strand": 1,
+      "reference_accession": "NC_TOY.1",
+      "reference_alignment_method": "splign",
+      "exons": [
+        {
+          "transcript_start": 0,
+          "transcript_end": 36,
+          "reference_start": 20,
+          "reference_end": 56,
+          "cigar": "36=",
+          "alt_strand": 1
+        },
+        {
+          "transcript_start": 36,
+          "transcript_end": 72,
+          "reference_start": 200,
+          "reference_end": 236,
+          "cigar": "36=",
+          "alt_strand": 1
+        }
+      ]
+    },
+    "NM_MINUS.1": {
+      "ac": "NM_MINUS.1",
+      "gene": "MINUSGENE",
+      "cds_start_index": 4,
+      "cds_end_index": 67,
+      "strand": -1,
+      "reference_accession": "NC_TOY.1",
+      "reference_alignment_method": "splign",
+      "exons": [
+        {
+          "transcript_start": 0,
+          "transcript_end": 36,
+          "reference_start": 200,
+          "reference_end": 236,
+          "cigar": "36=",
+          "alt_strand": 1
+        },
+        {
+          "transcript_start": 36,
+          "transcript_end": 72,
+          "reference_start": 20,
+          "reference_end": 56,
+          "cigar": "36=",
+          "alt_strand": 1
+        }
+      ]
+    },
+    "NM_999999.1": {
+      "ac": "NM_999999.1",
+      "gene": "S9",
+      "cds_start_index": 9,
+      "cds_end_index": 39,
+      "strand": 1,
+      "reference_accession": "NC",
+      "reference_alignment_method": "splign",
+      "exons": [
+        {
+          "transcript_start": 0,
+          "transcript_end": 42,
+          "reference_start": 0,
+          "reference_end": 42,
+          "alt_strand": 1,
+          "cigar": ""
+        }
+      ]
+    },
+    "NM_999998.1": {
+      "ac": "NM_999998.1",
+      "gene": "S8",
+      "cds_start_index": 9,
+      "cds_end_index": 39,
+      "strand": 1,
+      "reference_accession": "NC",
+      "reference_alignment_method": "splign",
+      "exons": [
+        {
+          "transcript_start": 0,
+          "transcript_end": 54,
+          "reference_start": 0,
+          "reference_end": 54,
+          "alt_strand": 1,
+          "cigar": ""
+        }
+      ]
+    },
+    "NM_999997.1": {
+      "ac": "NM_999997.1",
+      "gene": "S7",
+      "cds_start_index": 9,
+      "cds_end_index": 39,
+      "strand": 1,
+      "reference_accession": "NC",
+      "reference_alignment_method": "splign",
+      "exons": [
+        {
+          "transcript_start": 0,
+          "transcript_end": 54,
+          "reference_start": 0,
+          "reference_end": 54,
+          "alt_strand": 1,
+          "cigar": ""
+        }
+      ]
+    },
+    "NM_999996.1": {
+      "ac": "NM_999996.1",
+      "gene": "S6",
+      "cds_start_index": 9,
+      "cds_end_index": 39,
+      "strand": 1,
+      "reference_accession": "NC",
+      "reference_alignment_method": "splign",
+      "exons": [
+        {
+          "transcript_start": 0,
+          "transcript_end": 54,
+          "reference_start": 0,
+          "reference_end": 54,
+          "alt_strand": 1,
+          "cigar": ""
+        }
+      ]
+    },
+    "NM_999995.1": {
+      "ac": "NM_999995.1",
+      "gene": "S5",
+      "cds_start_index": 9,
+      "cds_end_index": 42,
+      "strand": 1,
+      "reference_accession": "NC",
+      "reference_alignment_method": "splign",
+      "exons": [
+        {
+          "transcript_start": 0,
+          "transcript_end": 57,
+          "reference_start": 0,
+          "reference_end": 57,
+          "alt_strand": 1,
+          "cigar": ""
+        }
+      ]
+    },
+    "NM_999994.1": {
+      "ac": "NM_999994.1",
+      "gene": "S4",
+      "cds_start_index": 9,
+      "cds_end_index": 45,
+      "strand": 1,
+      "reference_accession": "NC",
+      "reference_alignment_method": "splign",
+      "exons": [
+        {
+          "transcript_start": 0,
+          "transcript_end": 60,
+          "reference_start": 0,
+          "reference_end": 60,
+          "alt_strand": 1,
+          "cigar": ""
+        }
+      ]
+    },
+    "NM_999993.1": {
+      "ac": "NM_999993.1",
+      "gene": "S3",
+      "cds_start_index": 9,
+      "cds_end_index": 39,
+      "strand": 1,
+      "reference_accession": "NC",
+      "reference_alignment_method": "splign",
+      "exons": [
+        {
+          "transcript_start": 0,
+          "transcript_end": 54,
+          "reference_start": 0,
+          "reference_end": 54,
+          "alt_strand": 1,
+          "cigar": ""
+        }
+      ]
+    },
+    "NM_999992.1": {
+      "ac": "NM_999992.1",
+      "gene": "S2",
+      "cds_start_index": 9,
+      "cds_end_index": 39,
+      "strand": 1,
+      "reference_accession": "NC",
+      "reference_alignment_method": "splign",
+      "exons": [
+        {
+          "transcript_start": 0,
+          "transcript_end": 54,
+          "reference_start": 0,
+          "reference_end": 54,
+          "alt_strand": 1,
+          "cigar": ""
+        }
+      ]
+    },
+    "NM_999992.2": {
+      "ac": "NM_999992.2",
+      "gene": "S2.2",
+      "cds_start_index": 9,
+      "cds_end_index": 40,
+      "strand": 1,
+      "reference_accession": "NC",
+      "reference_alignment_method": "splign",
+      "exons": [
+        {
+          "transcript_start": 0,
+          "transcript_end": 55,
+          "reference_start": 0,
+          "reference_end": 55,
+          "alt_strand": 1,
+          "cigar": ""
+        }
+      ]
+    }
+  }
+}
