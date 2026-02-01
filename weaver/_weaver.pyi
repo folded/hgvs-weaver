@@ -12,6 +12,27 @@ class Variant:
     Variants can be formatted back to HGVS strings or converted to JSON/dict representations.
     """
 
+    @property
+    def ac(self) -> builtins.str:
+        """The primary accession of the variant (e.g., 'NM_000051.3')."""
+
+    @property
+    def gene(self) -> builtins.str | None:
+        """The gene symbol associated with the variant, if available."""
+
+    @property
+    def coordinate_type(self) -> builtins.str:
+        """The coordinate type of the variant ('g', 'c', 'p', etc.)."""
+
+    def format(self) -> builtins.str:
+        """Formats the variant back into a standard HGVS string."""
+
+    def to_json(self) -> builtins.str:
+        """Returns a JSON string representation of the internal variant structure."""
+
+    def to_dict(self) -> builtins.dict:
+        """Returns a dictionary representation of the internal variant structure."""
+
 @typing.final
 class VariantMapper:
     r"""
@@ -21,6 +42,24 @@ class VariantMapper:
     and projects cDNA variants onto protein sequences (c. to p.).
     Requires a DataProvider to retrieve transcript and sequence information.
     """
+
+    def __init__(self, provider: typing.Any) -> None:
+        """Creates a new VariantMapper with the given DataProvider."""
+
+    def g_to_c(self, var_g: Variant, transcript_ac: builtins.str) -> Variant:
+        """Maps a genomic variant (g.) to a coding cDNA variant (c.) for a specific transcript."""
+
+    def g_to_c_all(self, var_g: Variant, searcher: typing.Any) -> list[Variant]:
+        """Maps a genomic variant (g.) to all overlapping transcripts discovered via the searcher."""
+
+    def c_to_g(self, var_c: Variant, reference_ac: builtins.str) -> Variant:
+        """Maps a coding cDNA variant (c.) to a genomic variant (g.) on a specific reference."""
+
+    def c_to_p(self, var_c: Variant, protein_ac: builtins.str | None = None) -> Variant:
+        """Projects a coding cDNA variant (c.) to its protein consequence (p.)."""
+
+    def normalize_variant(self, var: Variant) -> Variant:
+        """Normalizes a variant by shifting it to its 3'-most position."""
 
 def parse(input: builtins.str) -> Variant:
     r"""
