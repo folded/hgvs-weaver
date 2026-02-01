@@ -4,7 +4,7 @@ build:
   os: ubuntu-lts-latest
   tools:
     python: "3.11"
-    rust: "stable"
+    rust: "latest"
 
 sphinx:
   configuration: docs/source/conf.py
