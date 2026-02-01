@@ -4,6 +4,7 @@ build:
   os: ubuntu-lts-latest
   tools:
     python: "3.11"
+    rust: "stable"
 
 sphinx:
   configuration: docs/source/conf.py
@@ -13,3 +14,7 @@ formats: all
 python:
   install:
     - requirements: docs/requirements.txt
+    - method: pip
+      path: .
+      extra_requirements:
+        - validation

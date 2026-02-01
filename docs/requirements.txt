@@ -1,4 +1,8 @@
 sphinx
 sphinx-rtd-theme
 myst-parser
-numpy
+maturin
+pysam
+tqdm
+parsley
+bioutils
