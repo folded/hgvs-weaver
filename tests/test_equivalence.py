@@ -1,6 +1,7 @@
 """Tests for the variant equivalence functionality."""
 
 import typing
+
 import weaver
 
 
@@ -37,12 +38,9 @@ class MockProvider:
     def get_symbol_accessions(self, symbol: str, _s: str, t: str) -> list[str]:
         """Maps mock symbols."""
         if symbol == "BRAF":
-            if t == "p":
-                return ["NP_BRAF.1"]
-            return ["NM_BRAF.1"]
-        if symbol == "NM_TEST":
-            if t == "p":
-                return ["NP_TEST.1"]
+            return ["NP_BRAF.1"] if t == "p" else ["NM_BRAF.1"]
+        if symbol == "NM_TEST" and t == "p":
+            return ["NP_TEST.1"]
         return [symbol]
 
     def get_transcripts_for_region(self, _chrom: str, _start: int, _end: int) -> list[str]:
@@ -61,7 +59,7 @@ def test_equivalence_g_vs_g() -> None:
     v2 = weaver.parse("NC_TEST.1:g.1006_1007insA")
 
     # These should be equivalent because of 3' shifting in A homopolymer
-    assert mapper.are_equivalent(v1, v2, provider)
+    assert mapper.equivalent(v1, v2, provider)  # type: ignore[attr-defined]
 
 
 def test_equivalence_g_vs_c() -> None:
@@ -73,7 +71,7 @@ def test_equivalence_g_vs_c() -> None:
     vg = weaver.parse("NC_TEST.1:g.1011A>G")
     vc = weaver.parse("NM_TEST:c.1A>G")
 
-    assert mapper.are_equivalent(vg, vc, provider)
+    assert mapper.equivalent(vg, vc, provider)  # type: ignore[attr-defined]
 
 
 def test_equivalence_c_vs_p() -> None:
@@ -85,7 +83,7 @@ def test_equivalence_c_vs_p() -> None:
     vc = weaver.parse("NM_TEST:c.1A>G")
     vp = weaver.parse("NP_TEST.1:p.Met1Val")
 
-    assert mapper.are_equivalent(vc, vp, provider)
+    assert mapper.equivalent(vc, vp, provider)  # type: ignore[attr-defined]
 
 
 def test_equivalence_g_vs_p() -> None:
@@ -97,7 +95,7 @@ def test_equivalence_g_vs_p() -> None:
     vg = weaver.parse("NC_TEST.1:g.1011A>G")
     vp = weaver.parse("NP_TEST.1:p.Met1Val")
 
-    assert mapper.are_equivalent(vg, vp, provider)
+    assert mapper.equivalent(vg, vp, provider)  # type: ignore[attr-defined]
 
 
 def test_equivalence_gene_symbol() -> None:
@@ -109,4 +107,4 @@ def test_equivalence_gene_symbol() -> None:
     v1 = weaver.parse("BRAF:p.Val600Glu")
     v2 = weaver.parse("NP_BRAF.1:p.Val600Glu")
 
-    assert mapper.are_equivalent(v1, v2, provider)
+    assert mapper.equivalent(v1, v2, provider)  # type: ignore[attr-defined]

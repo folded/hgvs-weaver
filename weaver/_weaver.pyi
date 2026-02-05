@@ -11,27 +11,40 @@ class Variant:
     Provides access to the variant's accession, gene symbol, and coordinate type.
     Variants can be formatted back to HGVS strings or converted to JSON/dict representations.
     """
-
     @property
     def ac(self) -> builtins.str:
-        """The primary accession of the variant (e.g., 'NM_000051.3')."""
-
+        r"""
+        The primary accession of the variant (e.g., 'NM_000051.3').
+        """
     @property
     def gene(self) -> builtins.str | None:
-        """The gene symbol associated with the variant, if available."""
-
+        r"""
+        The gene symbol associated with the variant, if available.
+        """
     @property
     def coordinate_type(self) -> builtins.str:
-        """The coordinate type of the variant ('g', 'c', 'p', etc.)."""
-
+        r"""
+        The coordinate type of the variant ('g', 'c', 'p', etc.).
+        """
     def format(self) -> builtins.str:
-        """Formats the variant back into a standard HGVS string."""
-
+        r"""
+        Formats the variant back into a standard HGVS string.
+        """
     def to_json(self) -> builtins.str:
-        """Returns a JSON string representation of the internal variant structure."""
+        r"""
+        Returns a JSON string representation of the internal variant structure.
+        """
+    def to_dict(self) -> typing.Any:
+        r"""
+        Returns a dictionary representation of the internal variant structure.
+        """
+    def validate(self, provider: typing.Any) -> builtins.bool:
+        r"""
+        Validates the variant's reference sequence against the provided DataProvider.
 
-    def to_dict(self) -> builtins.dict:
-        """Returns a dictionary representation of the internal variant structure."""
+        Returns True if the reference sequence matches, False otherwise.
+        May raise ValueError if coordinates are out of bounds.
+        """
 
 @typing.final
 class VariantMapper:
@@ -42,24 +55,80 @@ class VariantMapper:
     and projects cDNA variants onto protein sequences (c. to p.).
     Requires a DataProvider to retrieve transcript and sequence information.
     """
-
-    def __init__(self, provider: typing.Any) -> None:
-        """Creates a new VariantMapper with the given DataProvider."""
-
+    def __new__(cls, provider: typing.Any) -> VariantMapper:
+        r"""
+        Creates a new VariantMapper with the given DataProvider.
+        """
     def g_to_c(self, var_g: Variant, transcript_ac: builtins.str) -> Variant:
-        """Maps a genomic variant (g.) to a coding cDNA variant (c.) for a specific transcript."""
+        r"""
+        Maps a genomic variant (g.) to a coding cDNA variant (c.) for a specific transcript.
 
-    def g_to_c_all(self, var_g: Variant, searcher: typing.Any) -> list[Variant]:
-        """Maps a genomic variant (g.) to all overlapping transcripts discovered via the searcher."""
+        Args:
+            var_g: The genomic Variant to map.
+            transcript_ac: The accession of the target transcript.
 
+        Returns:
+            A new Variant object in 'c.' coordinates.
+        """
+    def g_to_c_all(self, var_g: Variant, searcher: typing.Any) -> builtins.list[Variant]:
+        r"""
+        Maps a genomic variant (g.) to all overlapping transcripts discovered via the searcher.
+
+        Args:
+            var_g: The genomic Variant to map.
+            searcher: An object implementing the TranscriptSearch protocol.
+
+        Returns:
+            A list of Variant objects in 'c.' coordinates.
+        """
     def c_to_g(self, var_c: Variant, reference_ac: builtins.str) -> Variant:
-        """Maps a coding cDNA variant (c.) to a genomic variant (g.) on a specific reference."""
+        r"""
+        Maps a coding cDNA variant (c.) to a genomic variant (g.) on a specific reference.
 
+        Args:
+            var_c: The coding Variant to map.
+            reference_ac: The accession of the target genomic reference.
+
+        Returns:
+            A new Variant object in 'g.' coordinates.
+        """
     def c_to_p(self, var_c: Variant, protein_ac: builtins.str | None = None) -> Variant:
-        """Projects a coding cDNA variant (c.) to its protein consequence (p.)."""
+        r"""
+        Projects a coding cDNA variant (c.) to its protein consequence (p.).
 
+        Args:
+            var_c: The coding Variant to project.
+            protein_ac: Optional protein accession. If not provided, it will be retrieved from the DataProvider.
+
+        Returns:
+            A new Variant object in 'p.' coordinates.
+        """
     def normalize_variant(self, var: Variant) -> Variant:
-        """Normalizes a variant by shifting it to its 3'-most position."""
+        r"""
+        Normalizes a variant by shifting it to its 3'-most position.
+
+        Normalization is performed in the coordinate space of the input variant.
+
+        Args:
+            var: The Variant object to normalize.
+
+        Returns:
+            A new normalized Variant object.
+        """
+    def equivalent(self, var1: Variant, var2: Variant, searcher: typing.Any) -> builtins.bool:
+        r"""
+        Determines if two variants are biologically equivalent.
+
+        Handles normalization, cross-coordinate mapping (g. vs c.), and gene symbol expansion.
+
+        Args:
+            var1: The first Variant object.
+            var2: The second Variant object.
+            searcher: An object implementing the TranscriptSearch protocol.
+
+        Returns:
+            True if the variants are equivalent, False otherwise.
+        """
 
 def parse(input: builtins.str) -> Variant:
     r"""

@@ -18,7 +18,7 @@ impl<'a> VariantEquivalence<'a> {
         }
     }
 
-    pub fn are_equivalent(&self, var1: &SequenceVariant, var2: &SequenceVariant) -> Result<bool, HgvsError> {
+    pub fn equivalent(&self, var1: &SequenceVariant, var2: &SequenceVariant) -> Result<bool, HgvsError> {
         // Expand gene symbols if present
         let vars1 = self.expand_if_gene_symbol(var1)?;
         let vars2 = self.expand_if_gene_symbol(var2)?;
@@ -45,7 +45,7 @@ impl<'a> VariantEquivalence<'a> {
             if accessions.is_empty() {
                 return Ok(vec![var.clone()]);
             }
-            
+
             let mut expanded = Vec::new();
             for new_ac in accessions {
                 let mut v = var.clone();
