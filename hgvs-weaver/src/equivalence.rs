@@ -37,32 +37,47 @@ impl<'a> VariantEquivalence<'a> {
         let ac = var.ac();
 
         // Use DataProvider to determine if this is a symbol or an accession.
-        let id_type = self.hdp.get_identifier_type(ac).unwrap_or(crate::data::IdentifierType::Unknown);
+        let id_type = self.hdp.get_identifier_type(ac)?;
 
         if id_type == crate::data::IdentifierType::GeneSymbol {
             let target_kind = match var {
                 SequenceVariant::Protein(_) => IdentifierKind::Protein,
-                _ => IdentifierKind::Transcript,
+                SequenceVariant::Coding(_) | SequenceVariant::NonCoding(_) | SequenceVariant::Rna(_) => IdentifierKind::Transcript,
+                _ => IdentifierKind::Genomic,
             };
 
             // Try symbol expansion.
-            let accessions = self.hdp.get_symbol_accessions(ac, IdentifierKind::Genomic, target_kind).unwrap_or_default();
+            let accessions = self.hdp.get_symbol_accessions(ac, IdentifierKind::Genomic, target_kind)?;
 
             if !accessions.is_empty() {
                 let mut expanded = Vec::new();
-                for new_ac in accessions {
-                    let mut v = var.clone();
-                    match &mut v {
-                        SequenceVariant::Genomic(v_g) => v_g.ac = new_ac,
-                        SequenceVariant::Coding(v_c) => v_c.ac = new_ac,
-                        SequenceVariant::Protein(v_p) => v_p.ac = new_ac,
-                        SequenceVariant::Mitochondrial(v_m) => v_m.ac = new_ac,
-                        SequenceVariant::NonCoding(v_n) => v_n.ac = new_ac,
-                        SequenceVariant::Rna(v_r) => v_r.ac = new_ac,
+                for (ac_type, new_ac) in accessions {
+                    // Only expand into compatible types.
+                    let is_compatible = match (var, ac_type) {
+                        (SequenceVariant::Protein(_), crate::data::IdentifierType::ProteinAccession) => true,
+                        (SequenceVariant::Coding(_) | SequenceVariant::NonCoding(_) | SequenceVariant::Rna(_), crate::data::IdentifierType::TranscriptAccession) => true,
+                        (SequenceVariant::Genomic(_) | SequenceVariant::Mitochondrial(_), crate::data::IdentifierType::GenomicAccession) => true,
+                        // Allow g. on transcripts if specifically provided
+                        (SequenceVariant::Genomic(_), crate::data::IdentifierType::TranscriptAccession) => true,
+                        _ => false,
+                    };
+
+                    if is_compatible {
+                        let mut v = var.clone();
+                        match &mut v {
+                            SequenceVariant::Genomic(v_g) => v_g.ac = new_ac,
+                            SequenceVariant::Coding(v_c) => v_c.ac = new_ac,
+                            SequenceVariant::Protein(v_p) => v_p.ac = new_ac,
+                            SequenceVariant::Mitochondrial(v_m) => v_m.ac = new_ac,
+                            SequenceVariant::NonCoding(v_n) => v_n.ac = new_ac,
+                            SequenceVariant::Rna(v_r) => v_r.ac = new_ac,
+                        }
+                        expanded.push(v);
                     }
-                    expanded.push(v);
                 }
-                return Ok(expanded);
+                if !expanded.is_empty() {
+                    return Ok(expanded);
+                }
             }
         }
 

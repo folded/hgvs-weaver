@@ -151,11 +151,11 @@ impl<'a> VariantMapper<'a> {
             self.hdp.get_symbol_accessions(transcript_ac, IdentifierKind::Transcript, IdentifierKind::Protein)?
                 .first()
                 .ok_or_else(|| HgvsError::ValidationError(format!("No protein accession found for {}", transcript_ac)))?
-                .clone()
+                .1.clone()
         };
 
         let transcript = self.hdp.get_transcript(transcript_ac, None)?;
-        let ref_seq = self.hdp.get_seq(transcript_ac, 0, -1, IdentifierKind::Transcript)?;
+        let ref_seq = self.hdp.get_seq(transcript_ac, 0, -1, IdentifierKind::Transcript.into_identifier_type())?;
 
         let cds_start_idx = transcript.cds_start_index().ok_or_else(|| HgvsError::ValidationError("Missing CDS start".into()))?.0 as usize;
         let cds_end_idx = transcript.cds_end_index().ok_or_else(|| HgvsError::ValidationError("Missing CDS end".into()))?.0 as usize;
@@ -244,7 +244,7 @@ impl<'a> VariantMapper<'a> {
 
         const CHUNK_SIZE: usize = 4096;
         let mut chunk_start = curr_end;
-        let mut chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + CHUNK_SIZE) as i32, kind)?;
+        let mut chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + CHUNK_SIZE) as i32, kind.into_identifier_type())?;
         let mut chunk_bytes = chunk.as_bytes();
 
         match edit {
@@ -266,7 +266,7 @@ impl<'a> VariantMapper<'a> {
                         if offset >= chunk_bytes.len() {
                             if chunk_bytes.len() < CHUNK_SIZE { break; } // End of sequence
                             chunk_start += chunk_bytes.len();
-                            chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + CHUNK_SIZE) as i32, kind)?;
+                            chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + CHUNK_SIZE) as i32, kind.into_identifier_type())?;
                             chunk_bytes = chunk.as_bytes();
                             if chunk_bytes.is_empty() { break; }
                             continue;
@@ -281,7 +281,7 @@ impl<'a> VariantMapper<'a> {
                     }
                 } else if !ref_str.is_empty() && alt_str.is_empty() {
                     // Deletion
-                    let mut ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind)?;
+                    let mut ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind.into_identifier_type())?;
                     if ref_chunk.is_empty() { return Ok((curr_start, curr_end)); }
                     let mut ref_byte = ref_chunk.as_bytes()[0];
 
@@ -290,7 +290,7 @@ impl<'a> VariantMapper<'a> {
                         if offset >= chunk_bytes.len() {
                             if chunk_bytes.len() < CHUNK_SIZE { break; }
                             chunk_start += chunk_bytes.len();
-                            chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + CHUNK_SIZE) as i32, kind)?;
+                            chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + CHUNK_SIZE) as i32, kind.into_identifier_type())?;
                             chunk_bytes = chunk.as_bytes();
                             if chunk_bytes.is_empty() { break; }
                             continue;
@@ -298,7 +298,7 @@ impl<'a> VariantMapper<'a> {
                         if ref_byte == chunk_bytes[offset] {
                             curr_start += 1;
                             curr_end += 1;
-                            ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind)?;
+                            ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind.into_identifier_type())?;
                             if ref_chunk.is_empty() { break; }
                             ref_byte = ref_chunk.as_bytes()[0];
                         } else {
@@ -308,7 +308,7 @@ impl<'a> VariantMapper<'a> {
                 }
             }
             crate::edits::NaEdit::Del { .. } => {
-                let mut ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind)?;
+                let mut ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind.into_identifier_type())?;
                 if !ref_chunk.is_empty() {
                     let mut ref_byte = ref_chunk.as_bytes()[0];
                     loop {
@@ -316,7 +316,7 @@ impl<'a> VariantMapper<'a> {
                         if offset >= chunk_bytes.len() {
                             if chunk_bytes.len() < CHUNK_SIZE { break; }
                             chunk_start += chunk_bytes.len();
-                            chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + CHUNK_SIZE) as i32, kind)?;
+                            chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + CHUNK_SIZE) as i32, kind.into_identifier_type())?;
                             chunk_bytes = chunk.as_bytes();
                             if chunk_bytes.is_empty() { break; }
                             continue;
@@ -324,7 +324,7 @@ impl<'a> VariantMapper<'a> {
                         if ref_byte == chunk_bytes[offset] {
                             curr_start += 1;
                             curr_end += 1;
-                            ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind)?;
+                            ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind.into_identifier_type())?;
                             if ref_chunk.is_empty() { break; }
                             ref_byte = ref_chunk.as_bytes()[0];
                         } else {
@@ -342,7 +342,7 @@ impl<'a> VariantMapper<'a> {
                     if offset >= chunk_bytes.len() {
                         if chunk_bytes.len() < CHUNK_SIZE { break; }
                         chunk_start += chunk_bytes.len();
-                        chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + CHUNK_SIZE) as i32, kind)?;
+                        chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + CHUNK_SIZE) as i32, kind.into_identifier_type())?;
                         chunk_bytes = chunk.as_bytes();
                         if chunk_bytes.is_empty() { break; }
                         continue;
@@ -357,7 +357,7 @@ impl<'a> VariantMapper<'a> {
                 }
             }
             crate::edits::NaEdit::Dup { .. } => {
-                let mut ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind)?;
+                let mut ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind.into_identifier_type())?;
                 if !ref_chunk.is_empty() {
                     let mut ref_byte = ref_chunk.as_bytes()[0];
                     loop {
@@ -365,7 +365,7 @@ impl<'a> VariantMapper<'a> {
                         if offset >= chunk_bytes.len() {
                             if chunk_bytes.len() < CHUNK_SIZE { break; }
                             chunk_start += chunk_bytes.len();
-                            chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + CHUNK_SIZE) as i32, kind)?;
+                            chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + CHUNK_SIZE) as i32, kind.into_identifier_type())?;
                             chunk_bytes = chunk.as_bytes();
                             if chunk_bytes.is_empty() { break; }
                             continue;
@@ -373,7 +373,7 @@ impl<'a> VariantMapper<'a> {
                         if ref_byte == chunk_bytes[offset] {
                             curr_start += 1;
                             curr_end += 1;
-                            ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind)?;
+                            ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind.into_identifier_type())?;
                             if ref_chunk.is_empty() { break; }
                             ref_byte = ref_chunk.as_bytes()[0];
                         } else {

@@ -67,8 +67,8 @@ impl Transcript for TranscriptData {
 /// Interface for retrieving transcript and sequence data.
 pub trait DataProvider {
     fn get_transcript(&self, transcript_ac: &str, reference_ac: Option<&str>) -> Result<Box<dyn Transcript>, HgvsError>;
-    fn get_seq(&self, ac: &str, start: i32, end: i32, kind: IdentifierKind) -> Result<String, HgvsError>;
-    fn get_symbol_accessions(&self, symbol: &str, source_kind: IdentifierKind, target_kind: IdentifierKind) -> Result<Vec<String>, HgvsError>;
+    fn get_seq(&self, ac: &str, start: i32, end: i32, kind: IdentifierType) -> Result<String, HgvsError>;
+    fn get_symbol_accessions(&self, symbol: &str, source_kind: IdentifierKind, target_kind: IdentifierKind) -> Result<Vec<(IdentifierType, String)>, HgvsError>;
     fn get_identifier_type(&self, identifier: &str) -> Result<IdentifierType, HgvsError>;
 }
 
@@ -82,6 +82,16 @@ pub enum IdentifierKind {
     Genomic,
     Transcript,
     Protein,
+}
+
+impl IdentifierKind {
+    pub fn into_identifier_type(&self) -> IdentifierType {
+        match self {
+            IdentifierKind::Genomic => IdentifierType::GenomicAccession,
+            IdentifierKind::Transcript => IdentifierType::TranscriptAccession,
+            IdentifierKind::Protein => IdentifierType::ProteinAccession,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

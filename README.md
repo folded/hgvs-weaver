@@ -87,12 +87,16 @@ class DataProvider(Protocol):
         """Return a dictionary matching the TranscriptData structure."""
         ...
 
-    def get_seq(self, ac: str, start: int, end: int, kind: str) -> str:
-        """Fetch sequence for an accession. kind is 'g', 'c', or 'p'."""
+    def get_seq(self, ac: str, start: int, end: int, kind: str | IdentifierType) -> str:
+        """Fetch sequence for an accession. kind is an IdentifierType."""
         ...
 
-    def get_symbol_accessions(self, symbol: str, source_kind: str, target_kind: str) -> list[str]:
-        """Map gene symbols to accessions (e.g., 'ATM' -> ['NM_000051.3'])."""
+    def get_symbol_accessions(self, symbol: str, source_kind: str, target_kind: str) -> list[tuple[str, str]] | list[tuple[IdentifierType, str]]:
+        """Map gene symbols to accessions (e.g., 'ATM' -> [('transcript_accession', 'NM_000051.3')])."""
+        ...
+
+    def get_identifier_type(self, identifier: str) -> str | IdentifierType:
+        """Identify what type of identifier a string is (e.g., 'genomic_accession', 'gene_symbol')."""
         ...
 ```
 
@@ -167,20 +171,20 @@ To rerun the validation, you need the RefSeq annotation and genomic sequence fil
 Summary of results comparing `weaver` and `ref-hgvs` (`biocommons.hgvs`) against ClinVar ground truth:
 
 | Implementation | Protein Match | SPDI Match |
-| :--- | :---: | :---: |
-| **weaver** | **92.3%** | **91.1%** |
-| ref-hgvs | 89.1% | 91.1% |
+| :------------- | :-----------: | :--------: |
+| **weaver**     |   **92.3%**   | **91.1%**  |
+| ref-hgvs       |     89.1%     |   91.1%    |
 
 #### Protein Translation Agreement
 
-| | ref-hgvs Match | ref-hgvs Mismatch |
-| :--- | :---: | :---: |
-| **weaver Match** | 86,634 | 5,682 |
-| **weaver Mismatch** | 2,480 | 5,204 |
+|                     | ref-hgvs Match | ref-hgvs Mismatch |
+| :------------------ | :------------: | :---------------: |
+| **weaver Match**    |     86,634     |       5,682       |
+| **weaver Mismatch** |     2,480      |       5,204       |
 
 #### SPDI Mapping Agreement
 
-| | ref-hgvs Match | ref-hgvs Mismatch |
-| :--- | :---: | :---: |
-| **weaver Match** | 91,059 | 8 |
-| **weaver Mismatch** | 1 | 8,932 |
+|                     | ref-hgvs Match | ref-hgvs Mismatch |
+| :------------------ | :------------: | :---------------: |
+| **weaver Match**    |     91,059     |         8         |
+| **weaver Mismatch** |       1        |       8,932       |

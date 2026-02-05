@@ -1,8 +1,44 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use pyo3::{PyErr, Bound};
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::*};
 use ::hgvs_weaver::{SequenceVariant, Variant as VariantTrait, VariantMapper, DataProvider, TranscriptSearch, Transcript, IdentifierKind, HgvsError};
 use serde_json;
+
+#[gen_stub_pyclass_enum]
+#[pyclass(name = "IdentifierType")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PyIdentifierType {
+    GenomicAccession,
+    TranscriptAccession,
+    ProteinAccession,
+    GeneSymbol,
+    Unknown,
+}
+
+impl From<PyIdentifierType> for ::hgvs_weaver::data::IdentifierType {
+    fn from(it: PyIdentifierType) -> Self {
+        match it {
+            PyIdentifierType::GenomicAccession => ::hgvs_weaver::data::IdentifierType::GenomicAccession,
+            PyIdentifierType::TranscriptAccession => ::hgvs_weaver::data::IdentifierType::TranscriptAccession,
+            PyIdentifierType::ProteinAccession => ::hgvs_weaver::data::IdentifierType::ProteinAccession,
+            PyIdentifierType::GeneSymbol => ::hgvs_weaver::data::IdentifierType::GeneSymbol,
+            PyIdentifierType::Unknown => ::hgvs_weaver::data::IdentifierType::Unknown,
+        }
+    }
+}
+
+impl From<::hgvs_weaver::data::IdentifierType> for PyIdentifierType {
+    fn from(it: ::hgvs_weaver::data::IdentifierType) -> Self {
+        match it {
+            ::hgvs_weaver::data::IdentifierType::GenomicAccession => PyIdentifierType::GenomicAccession,
+            ::hgvs_weaver::data::IdentifierType::TranscriptAccession => PyIdentifierType::TranscriptAccession,
+            ::hgvs_weaver::data::IdentifierType::ProteinAccession => PyIdentifierType::ProteinAccession,
+            ::hgvs_weaver::data::IdentifierType::GeneSymbol => PyIdentifierType::GeneSymbol,
+            ::hgvs_weaver::data::IdentifierType::Unknown => PyIdentifierType::Unknown,
+        }
+    }
+}
 
 #[gen_stub_pyclass]
 #[pyclass(name = "Variant")]
@@ -82,7 +118,7 @@ impl PyVariant {
         let start_0 = pos.start.base.to_index();
         let end_0 = pos.end.as_ref().map_or(start_0 + 1, |e| e.base.to_index() + 1);
 
-        let ref_seq = bridge.get_seq(&v.ac, start_0.0, end_0.0, IdentifierKind::Genomic)?;
+        let ref_seq = bridge.get_seq(&v.ac, start_0.0, end_0.0, IdentifierKind::Genomic.into_identifier_type())?;
 
         match &v.posedit.edit {
             ::hgvs_weaver::edits::NaEdit::RefAlt { ref_: Some(r), .. } => {
@@ -98,7 +134,7 @@ impl PyVariant {
 
         let pos = v.posedit.pos.as_ref().ok_or_else(|| HgvsError::ValidationError("Missing position".into()))?;
 
-        let ref_seq = bridge.get_seq(&v.ac, 0, -1, IdentifierKind::Transcript)?;
+        let ref_seq = bridge.get_seq(&v.ac, 0, -1, IdentifierKind::Transcript.into_identifier_type())?;
 
         if pos.start.offset.is_some() || pos.end.as_ref().and_then(|e| e.offset).is_some() {
             return Ok(true);
@@ -139,6 +175,7 @@ fn parse(input: &str) -> PyResult<PyVariant> {
     }
 }
 
+
 // --- Mapper and DataProvider Bridge ---
 
 pub struct PyDataProviderBridge {
@@ -146,41 +183,32 @@ pub struct PyDataProviderBridge {
 }
 
 impl DataProvider for PyDataProviderBridge {
-    fn get_seq(&self, ac: &str, start: i32, end: i32, kind: IdentifierKind) -> Result<String, HgvsError> {
-        Python::attach(|py| {
-            let kind_str = match kind {
-                IdentifierKind::Genomic => "g",
-                IdentifierKind::Transcript => "c",
-                IdentifierKind::Protein => "p",
-            };
-            let res = self.provider.bind(py).call_method1("get_seq", (ac, start, end, kind_str))
-                .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
-            res.extract::<String>().map_err(|e| HgvsError::DataProviderError(e.to_string()))
-        })
-    }
-
     fn get_transcript(&self, transcript_ac: &str, reference_ac: Option<&str>) -> Result<Box<dyn Transcript>, HgvsError> {
         Python::attach(|py| {
             let res = self.provider.bind(py).call_method1("get_transcript", (transcript_ac, reference_ac))
                 .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
-
-            let json_str: String = match res.call_method0("to_json") {
-                Ok(val) => val.extract::<String>().map_err(|e| HgvsError::DataProviderError(e.to_string()))?,
-                Err(_) => {
-                    let dict = res.cast::<PyDict>().map_err(|e| HgvsError::DataProviderError(format!("Failed to extract transcript: {}", e)))?;
-                    let json_mod = py.import("json").map_err(|e| HgvsError::Other(e.to_string()))?;
-                    let s = json_mod.call_method1("dumps", (dict,)).map_err(|e| HgvsError::Other(e.to_string()))?;
-                    s.extract::<String>().map_err(|e| HgvsError::Other(e.to_string()))?
-                }
-            };
-
-            let td: ::hgvs_weaver::data::TranscriptData = serde_json::from_str(&json_str).map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
-            let boxed: Box<dyn Transcript> = Box::new(td);
-            Ok(boxed)
+            let dict = res.cast_into::<PyDict>().map_err(|e| HgvsError::DataProviderError(format!("Failed to cast to PyDict: {}", e)))?;
+            let json_mod = py.import("json").map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
+            let json_str: String = json_mod.call_method1("dumps", (dict,))
+                .map_err(|e| HgvsError::DataProviderError(e.to_string()))?
+                .extract::<String>()
+                .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
+            let data: ::hgvs_weaver::data::TranscriptData = serde_json::from_str(&json_str)
+                .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
+            Ok(Box::new(data) as Box<dyn Transcript>)
         })
     }
 
-    fn get_symbol_accessions(&self, symbol: &str, source_kind: IdentifierKind, target_kind: IdentifierKind) -> Result<Vec<String>, HgvsError> {
+    fn get_seq(&self, ac: &str, start: i32, end: i32, kind: ::hgvs_weaver::data::IdentifierType) -> Result<String, HgvsError> {
+        Python::attach(|py| {
+            let py_kind: PyIdentifierType = kind.into();
+            let res = self.provider.bind(py).call_method1("get_seq", (ac, start, end, py_kind))
+                .map_err(|e: PyErr| HgvsError::DataProviderError(e.to_string()))?;
+            res.extract::<String>().map_err(|e: PyErr| HgvsError::DataProviderError(e.to_string()))
+        })
+    }
+
+    fn get_symbol_accessions(&self, symbol: &str, source_kind: IdentifierKind, target_kind: IdentifierKind) -> Result<Vec<(::hgvs_weaver::data::IdentifierType, String)>, HgvsError> {
         Python::attach(|py| {
             let sk = match source_kind {
                 IdentifierKind::Genomic => "g",
@@ -193,8 +221,27 @@ impl DataProvider for PyDataProviderBridge {
                 IdentifierKind::Protein => "p",
             };
             let res = self.provider.bind(py).call_method1("get_symbol_accessions", (symbol, sk, tk))
-                .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
-            res.extract::<Vec<String>>().map_err(|e| HgvsError::DataProviderError(e.to_string()))
+                .map_err(|e: PyErr| HgvsError::DataProviderError(e.to_string()))?;
+            let raw_list: Vec<(Bound<'_, PyAny>, String)> = res.extract::<Vec<(Bound<'_, PyAny>, String)>>().map_err(|e: PyErr| HgvsError::DataProviderError(format!("Failed to extract symbol accessions: {}", e)))?;
+
+            let mut result = Vec::new();
+            for (type_any, ac) in raw_list {
+                let it = if let Ok(s) = type_any.extract::<String>() {
+                    match s.as_str() {
+                        "genomic_accession" => ::hgvs_weaver::data::IdentifierType::GenomicAccession,
+                        "transcript_accession" => ::hgvs_weaver::data::IdentifierType::TranscriptAccession,
+                        "protein_accession" => ::hgvs_weaver::data::IdentifierType::ProteinAccession,
+                        "gene_symbol" => ::hgvs_weaver::data::IdentifierType::GeneSymbol,
+                        _ => ::hgvs_weaver::data::IdentifierType::Unknown,
+                    }
+                } else if let Ok(py_it) = type_any.extract::<PyIdentifierType>() {
+                    py_it.into()
+                } else {
+                    ::hgvs_weaver::data::IdentifierType::Unknown
+                };
+                result.push((it, ac));
+            }
+            Ok(result)
         })
     }
 
@@ -202,14 +249,21 @@ impl DataProvider for PyDataProviderBridge {
         Python::attach(|py| {
             let res = self.provider.bind(py).call_method1("get_identifier_type", (identifier,))
                 .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
-            let s: String = res.extract::<String>().map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
-            match s.as_str() {
-                "genomic_accession" => Ok(::hgvs_weaver::data::IdentifierType::GenomicAccession),
-                "transcript_accession" => Ok(::hgvs_weaver::data::IdentifierType::TranscriptAccession),
-                "protein_accession" => Ok(::hgvs_weaver::data::IdentifierType::ProteinAccession),
-                "gene_symbol" => Ok(::hgvs_weaver::data::IdentifierType::GeneSymbol),
-                _ => Ok(::hgvs_weaver::data::IdentifierType::Unknown),
+
+            // Try to extract as String first (for backward compatibility or simpler mocks)
+            if let Ok(s) = res.extract::<String>() {
+                return Ok(match s.as_str() {
+                    "genomic_accession" => ::hgvs_weaver::data::IdentifierType::GenomicAccession,
+                    "transcript_accession" => ::hgvs_weaver::data::IdentifierType::TranscriptAccession,
+                    "protein_accession" => ::hgvs_weaver::data::IdentifierType::ProteinAccession,
+                    "gene_symbol" => ::hgvs_weaver::data::IdentifierType::GeneSymbol,
+                    _ => ::hgvs_weaver::data::IdentifierType::Unknown,
+                });
             }
+
+            // Otherwise try to extract as the enum type
+            let py_it: PyIdentifierType = res.extract::<PyIdentifierType>().map_err(|e| HgvsError::DataProviderError(format!("Failed to extract IdentifierType: {}", e)))?;
+            Ok(py_it.into())
         })
     }
 }
@@ -319,6 +373,7 @@ fn _weaver(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse, m)?)?;
     m.add_class::<PyVariant>()?;
     m.add_class::<PyVariantMapper>()?;
+    m.add_class::<PyIdentifierType>()?;
     Ok(())
 }
 

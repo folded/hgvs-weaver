@@ -30,28 +30,35 @@ class MockProvider:
             ],
         }
 
-    def get_seq(self, _ac: str, start: int, end: int, _kind: str) -> str:
+    def get_seq(self, _ac: str, start: int, end: int, _kind: str | weaver.IdentifierType) -> str:
         """Returns a mock sequence."""
         # Index 10 is c.1.
         full_seq = "A" * 10 + "ATGGGGCCCAAA" + "A" * 2000
         return full_seq[start:end]
 
-    def get_symbol_accessions(self, symbol: str, _s: str, t: str) -> list[str]:
+    def get_symbol_accessions(self, symbol: str, _s: str, t: str) -> list[tuple[typing.Any, str]]:
         """Maps mock symbols."""
         if symbol == "BRAF":
-            return ["NP_BRAF.1"] if t == "p" else ["NM_BRAF.1"]
+            if t == "p":
+                # Returns as string
+                return [("protein_accession", "NP_BRAF.1")]
+            if t == "c":
+                # Returns as enum
+                return [(weaver.IdentifierType.TranscriptAccession, "NM_BRAF.1")]
+            if t == "g":
+                return [(weaver.IdentifierType.GenomicAccession, "NC_TEST.1")]
         if symbol == "NM_TEST" and t == "p":
-            return ["NP_TEST.1"]
-        return [symbol]
+            return [("protein_accession", "NP_TEST.1")]
+        return [("gene_symbol", symbol)]
 
     def get_transcripts_for_region(self, _chrom: str, _start: int, _end: int) -> list[str]:
         """Returns transcripts for a region."""
         return ["NM_TEST"]
 
-    def get_identifier_type(self, identifier: str) -> str:
+    def get_identifier_type(self, identifier: str) -> str | weaver.IdentifierType:
         """Identifies mock identifiers."""
         if identifier.startswith("NC_"):
-            return "genomic_accession"
+            return weaver.IdentifierType.GenomicAccession
         if identifier.startswith("NM_"):
             return "transcript_accession"
         if identifier.startswith("NP_"):
@@ -97,6 +104,30 @@ def test_equivalence_c_vs_p() -> None:
     vp = weaver.parse("NP_TEST.1:p.Met1Val")
 
     assert mapper.equivalent(vc, vp, provider)  # type: ignore[attr-defined]
+
+
+def test_equivalence_symbol_g() -> None:
+    """Tests symbol-based genomic equivalence."""
+    provider = MockProvider()
+    mapper = weaver.VariantMapper(provider)
+
+    # BRAF:g.1011A>G resolves to NC_TEST.1:g.1011A>G
+    vg_symbol = weaver.parse("BRAF:g.1011A>G")
+    vg_explicit = weaver.parse("NC_TEST.1:g.1011A>G")
+
+    assert mapper.equivalent(vg_symbol, vg_explicit, provider)  # type: ignore[attr-defined]
+
+
+def test_equivalence_symbol_c() -> None:
+    """Tests symbol-based coding equivalence."""
+    provider = MockProvider()
+    mapper = weaver.VariantMapper(provider)
+
+    # BRAF:c.1A>G resolves to NM_BRAF.1:c.1A>G
+    vc_symbol = weaver.parse("BRAF:c.1A>G")
+    vc_explicit = weaver.parse("NM_BRAF.1:c.1A>G")
+
+    assert mapper.equivalent(vc_symbol, vc_explicit, provider)  # type: ignore[attr-defined]
 
 
 def test_equivalence_g_vs_p() -> None:
