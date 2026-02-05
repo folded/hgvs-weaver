@@ -85,10 +85,12 @@ pub mod edits;
 pub mod fmt;
 pub mod altseq;
 pub mod altseq_to_hgvsp;
+pub mod equivalence;
 
 // Re-exports for public usage
 pub use structs::{GVariant, CVariant, PVariant, MVariant, NVariant, RVariant, Variant};
 pub use coords::{SequenceVariant};
 pub use data::{DataProvider, TranscriptSearch, Transcript, IdentifierKind};
 pub use mapper::VariantMapper;
+pub use equivalence::VariantEquivalence;
 pub use error::HgvsError;

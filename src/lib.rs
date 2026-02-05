@@ -286,6 +286,15 @@ impl PyVariantMapper {
             .map_err(|e: HgvsError| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(PyVariant { inner: res })
     }
+
+    #[pyo3(signature = (var1, var2, searcher))]
+    #[doc = "Determines if two variants are biologically equivalent.\n\nHandles normalization, cross-coordinate mapping (g. vs c.), and gene symbol expansion.\n\nArgs:\n    var1: The first Variant object.\n    var2: The second Variant object.\n    searcher: An object implementing the TranscriptSearch protocol.\n\nReturns:\n    True if the variants are equivalent, False otherwise."]
+    fn are_equivalent(&self, _py: Python, var1: &PyVariant, var2: &PyVariant, searcher: Py<PyAny>) -> PyResult<bool> {
+        let bridge_searcher = PyTranscriptSearchBridge { searcher };
+        let equiv = ::hgvs_weaver::equivalence::VariantEquivalence::new(self.bridge.as_ref(), &bridge_searcher);
+        equiv.are_equivalent(&var1.inner, &var2.inner)
+            .map_err(|e: HgvsError| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
 }
 
 #[pymodule]
