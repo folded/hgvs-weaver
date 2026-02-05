@@ -198,14 +198,16 @@ impl DataProvider for PyDataProviderBridge {
         })
     }
 
-    fn identify_identifier(&self, identifier: &str) -> Result<::hgvs_weaver::data::IdentifierType, HgvsError> {
+    fn get_identifier_type(&self, identifier: &str) -> Result<::hgvs_weaver::data::IdentifierType, HgvsError> {
         Python::attach(|py| {
-            let res = self.provider.bind(py).call_method1("identify_identifier", (identifier,))
+            let res = self.provider.bind(py).call_method1("get_identifier_type", (identifier,))
                 .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
             let s: String = res.extract::<String>().map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
             match s.as_str() {
-                "accession" => Ok(::hgvs_weaver::data::IdentifierType::Accession),
-                "symbol" => Ok(::hgvs_weaver::data::IdentifierType::Symbol),
+                "genomic_accession" => Ok(::hgvs_weaver::data::IdentifierType::GenomicAccession),
+                "transcript_accession" => Ok(::hgvs_weaver::data::IdentifierType::TranscriptAccession),
+                "protein_accession" => Ok(::hgvs_weaver::data::IdentifierType::ProteinAccession),
+                "gene_symbol" => Ok(::hgvs_weaver::data::IdentifierType::GeneSymbol),
                 _ => Ok(::hgvs_weaver::data::IdentifierType::Unknown),
             }
         })

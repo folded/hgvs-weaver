@@ -69,7 +69,7 @@ pub trait DataProvider {
     fn get_transcript(&self, transcript_ac: &str, reference_ac: Option<&str>) -> Result<Box<dyn Transcript>, HgvsError>;
     fn get_seq(&self, ac: &str, start: i32, end: i32, kind: IdentifierKind) -> Result<String, HgvsError>;
     fn get_symbol_accessions(&self, symbol: &str, source_kind: IdentifierKind, target_kind: IdentifierKind) -> Result<Vec<String>, HgvsError>;
-    fn identify_identifier(&self, identifier: &str) -> Result<IdentifierType, HgvsError>;
+    fn get_identifier_type(&self, identifier: &str) -> Result<IdentifierType, HgvsError>;
 }
 
 /// Interface for discovering transcripts by region.
@@ -86,7 +86,9 @@ pub enum IdentifierKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IdentifierType {
-    Accession,
-    Symbol,
+    GenomicAccession,
+    TranscriptAccession,
+    ProteinAccession,
+    GeneSymbol,
     Unknown,
 }

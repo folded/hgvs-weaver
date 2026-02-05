@@ -48,12 +48,16 @@ class MockProvider:
         """Returns transcripts for a region."""
         return ["NM_TEST"]
 
-    def identify_identifier(self, identifier: str) -> str:
+    def get_identifier_type(self, identifier: str) -> str:
         """Identifies mock identifiers."""
-        if identifier.startswith(("NM_", "NP_", "NC_")) or "." in identifier:
-            return "accession"
-        if identifier in ("BRAF", "NM_TEST"):
-            return "symbol"
+        if identifier.startswith("NC_"):
+            return "genomic_accession"
+        if identifier.startswith("NM_"):
+            return "transcript_accession"
+        if identifier.startswith("NP_"):
+            return "protein_accession"
+        if identifier in ("BRAF", "NM_TEST") or "." not in identifier:
+            return "gene_symbol"
         return "unknown"
 
 

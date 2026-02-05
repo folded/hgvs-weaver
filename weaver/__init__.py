@@ -82,9 +82,14 @@ class DataProvider(Protocol):
         """
         ...
 
-    def identify_identifier(self, identifier: str) -> str:
+    def get_identifier_type(self, identifier: str) -> str:
         """Identify what type of identifier a string is.
 
-        Should return one of: 'accession', 'symbol', or 'unknown'.
+        Should return one of:
+        - 'genomic_accession'
+        - 'transcript_accession'
+        - 'protein_accession'
+        - 'gene_symbol'
+        - 'unknown'
         """
         ...

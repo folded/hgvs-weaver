@@ -37,9 +37,9 @@ impl<'a> VariantEquivalence<'a> {
         let ac = var.ac();
 
         // Use DataProvider to determine if this is a symbol or an accession.
-        let id_type = self.hdp.identify_identifier(ac).unwrap_or(crate::data::IdentifierType::Unknown);
+        let id_type = self.hdp.get_identifier_type(ac).unwrap_or(crate::data::IdentifierType::Unknown);
 
-        if id_type == crate::data::IdentifierType::Symbol {
+        if id_type == crate::data::IdentifierType::GeneSymbol {
             let target_kind = match var {
                 SequenceVariant::Protein(_) => IdentifierKind::Protein,
                 _ => IdentifierKind::Transcript,
