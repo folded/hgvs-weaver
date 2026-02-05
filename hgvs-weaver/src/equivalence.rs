@@ -35,34 +35,39 @@ impl<'a> VariantEquivalence<'a> {
 
     fn expand_if_gene_symbol(&self, var: &SequenceVariant) -> Result<Vec<SequenceVariant>, HgvsError> {
         let ac = var.ac();
-        if !ac.contains('.') && !ac.starts_with("NC_") && !ac.starts_with("NM_") && !ac.starts_with("NP_") && !ac.starts_with("NR_") {
-            // Likely a gene symbol
+
+        // Use DataProvider to determine if this is a symbol or an accession.
+        let id_type = self.hdp.identify_identifier(ac).unwrap_or(crate::data::IdentifierType::Unknown);
+
+        if id_type == crate::data::IdentifierType::Symbol {
             let target_kind = match var {
                 SequenceVariant::Protein(_) => IdentifierKind::Protein,
                 _ => IdentifierKind::Transcript,
             };
-            let accessions = self.hdp.get_symbol_accessions(ac, IdentifierKind::Genomic, target_kind).unwrap_or_default();
-            if accessions.is_empty() {
-                return Ok(vec![var.clone()]);
-            }
 
-            let mut expanded = Vec::new();
-            for new_ac in accessions {
-                let mut v = var.clone();
-                match &mut v {
-                    SequenceVariant::Genomic(v_g) => v_g.ac = new_ac,
-                    SequenceVariant::Coding(v_c) => v_c.ac = new_ac,
-                    SequenceVariant::Protein(v_p) => v_p.ac = new_ac,
-                    SequenceVariant::Mitochondrial(v_m) => v_m.ac = new_ac,
-                    SequenceVariant::NonCoding(v_n) => v_n.ac = new_ac,
-                    SequenceVariant::Rna(v_r) => v_r.ac = new_ac,
+            // Try symbol expansion.
+            let accessions = self.hdp.get_symbol_accessions(ac, IdentifierKind::Genomic, target_kind).unwrap_or_default();
+
+            if !accessions.is_empty() {
+                let mut expanded = Vec::new();
+                for new_ac in accessions {
+                    let mut v = var.clone();
+                    match &mut v {
+                        SequenceVariant::Genomic(v_g) => v_g.ac = new_ac,
+                        SequenceVariant::Coding(v_c) => v_c.ac = new_ac,
+                        SequenceVariant::Protein(v_p) => v_p.ac = new_ac,
+                        SequenceVariant::Mitochondrial(v_m) => v_m.ac = new_ac,
+                        SequenceVariant::NonCoding(v_n) => v_n.ac = new_ac,
+                        SequenceVariant::Rna(v_r) => v_r.ac = new_ac,
+                    }
+                    expanded.push(v);
                 }
-                expanded.push(v);
+                return Ok(expanded);
             }
-            Ok(expanded)
-        } else {
-            Ok(vec![var.clone()])
         }
+
+        // Default: return as-is.
+        Ok(vec![var.clone()])
     }
 
     fn are_equivalent_single(&self, var1: &SequenceVariant, var2: &SequenceVariant) -> Result<bool, HgvsError> {

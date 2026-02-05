@@ -197,6 +197,19 @@ impl DataProvider for PyDataProviderBridge {
             res.extract::<Vec<String>>().map_err(|e| HgvsError::DataProviderError(e.to_string()))
         })
     }
+
+    fn identify_identifier(&self, identifier: &str) -> Result<::hgvs_weaver::data::IdentifierType, HgvsError> {
+        Python::attach(|py| {
+            let res = self.provider.bind(py).call_method1("identify_identifier", (identifier,))
+                .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
+            let s: String = res.extract::<String>().map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
+            match s.as_str() {
+                "accession" => Ok(::hgvs_weaver::data::IdentifierType::Accession),
+                "symbol" => Ok(::hgvs_weaver::data::IdentifierType::Symbol),
+                _ => Ok(::hgvs_weaver::data::IdentifierType::Unknown),
+            }
+        })
+    }
 }
 
 pub struct PyTranscriptSearchBridge {

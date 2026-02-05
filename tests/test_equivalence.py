@@ -33,7 +33,8 @@ class MockProvider:
     def get_seq(self, _ac: str, start: int, end: int, _kind: str) -> str:
         """Returns a mock sequence."""
         # Index 10 is c.1.
-        return ("A" * 10 + "ATGGGGCCCAAA" + "A" * 100)[start:end]
+        full_seq = "A" * 10 + "ATGGGGCCCAAA" + "A" * 2000
+        return full_seq[start:end]
 
     def get_symbol_accessions(self, symbol: str, _s: str, t: str) -> list[str]:
         """Maps mock symbols."""
@@ -46,6 +47,14 @@ class MockProvider:
     def get_transcripts_for_region(self, _chrom: str, _start: int, _end: int) -> list[str]:
         """Returns transcripts for a region."""
         return ["NM_TEST"]
+
+    def identify_identifier(self, identifier: str) -> str:
+        """Identifies mock identifiers."""
+        if identifier.startswith(("NM_", "NP_", "NC_")) or "." in identifier:
+            return "accession"
+        if identifier in ("BRAF", "NM_TEST"):
+            return "symbol"
+        return "unknown"
 
 
 def test_equivalence_g_vs_g() -> None:

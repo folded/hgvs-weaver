@@ -81,3 +81,10 @@ class DataProvider(Protocol):
         Usually used to map gene symbols to transcript accessions.
         """
         ...
+
+    def identify_identifier(self, identifier: str) -> str:
+        """Identify what type of identifier a string is.
+
+        Should return one of: 'accession', 'symbol', or 'unknown'.
+        """
+        ...
