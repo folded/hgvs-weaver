@@ -74,7 +74,7 @@ When implementing a `DataProvider`, you must provide coordinates in the followin
         - `transcript_start`: 0-based inclusive start index in the transcript.
         - `transcript_end`: 0-based **exclusive** end index in the transcript.
         - `reference_start`: 0-based inclusive start index on the genomic reference.
-        - `reference_end`: 0-based **inclusive** end index on the genomic reference.
+        - `reference_end`: 0-based inclusive end index on the genomic reference.
 
 - **Sequence Retrieval**:
     - `get_seq(ac, start, end, kind)`: Should return the sequence for accession `ac`. `start` and `end` are 0-based half-open (interbase) coordinates.
@@ -188,3 +188,4 @@ Summary of results comparing `weaver` and `ref-hgvs` (`biocommons.hgvs`) against
 | :------------------ | :------------: | :---------------: |
 | **weaver Match**    |     91,059     |         8         |
 | **weaver Mismatch** |       1        |       8,932       |
+- **Variant Equivalence**: Check if two variants are biologically equivalent using advanced cross-coordinate mapping and normalization. [See Algorithm](docs/source/equivalence_logic.md).
