@@ -13,18 +13,18 @@ The equivalence check proceeds in two main phases:
 
 ```mermaid
 flowchart TD
-    Start([Start: Compare var1, var2]) --> Expansion1[Expand var1]
+    Start(["Start: Compare var1, var2"]) --> Expansion1[Expand var1]
     Expansion1 --> Expansion2[Expand var2]
-    Expansion2 --> LoopStart{For each v1 in vars1\nFor each v2 in vars2}
+    Expansion2 --> LoopStart{"For each v1 in vars1\nFor each v2 in vars2"}
     
     LoopStart -->|Next Pair| CheckType{Check Types}
     
     CheckType -- Both Genomic (g.) --> NvsN[Normalize & String Compare]
-    CheckType -- Both Coding (c.) --> CvsC[Map c. to g. \nNormalize & String Compare]
-    CheckType -- g. vs c. --> GvsC[Map c. to g. \nNormalize & String Compare]
+    CheckType -- Both Coding (c.) --> CvsC["Map c. to g. \nNormalize & String Compare"]
+    CheckType -- g. vs c. --> GvsC["Map c. to g. \nNormalize & String Compare"]
     
-    CheckType -- g. vs p. --> GvsP[Map g. to all c. (transcripts)\nProject c. to p.\nCompare p. strings]
-    CheckType -- c. vs p. --> CvsP[Project c. to p.\nCompare p. strings]
+    CheckType -- g. vs p. --> GvsP["Map g. to all c. (transcripts)\nProject c. to p.\nCompare p. strings"]
+    CheckType -- c. vs p. --> CvsP["Project c. to p.\nCompare p. strings"]
     CheckType -- Both Protein (p.) --> PvsP[Direct String Compare]
     
     CheckType -- Other/Mismatch --> Fallback[Simple String Compare]
