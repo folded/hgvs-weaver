@@ -5,8 +5,9 @@ This document outlines the algorithm used by `hgvs-weaver` to determine if two v
 ## Overview
 
 The equivalence check proceeds in two main phases:
-1.  **Gene Symbol Expansion**: If a variant uses a gene symbol (e.g., `BRAF:c.1799T>A`) instead of an accession, it is resolved to all valid accessions for that gene.
-2.  **Comparison**: All combinations of the expanded variants are compared using strategies specific to their coordinate types.
+
+1. **Gene Symbol Expansion**: If a variant uses a gene symbol (e.g., `BRAF:c.1799T>A`) instead of an accession, it is resolved to all valid accessions for that gene.
+2. **Comparison**: All combinations of the expanded variants are compared using strategies specific to their coordinate types.
 
 ## Algorithm Flowchart
 
@@ -61,35 +62,42 @@ flowchart TD
 ## Detailed Steps
 
 ### 1. Gene Symbol Expansion
+
 Before comparison, each variant is checked to see if it uses a gene symbol (e.g., `BRAF`) via `DataProvider::get_identifier_type`.
--   **Smart Selection**: The expansion targets a specific accession type based on the variant's coordinate system:
-    -   `p.` variants $\rightarrow$ `ProteinAccession`
-    -   `c.` / `n.` / `r.` variants $\rightarrow$ `TranscriptAccession`
-    -   `g.` / `m.` variants $\rightarrow$ `GenomicAccession`
--   **Compatibility Filter**: Returned accessions are filtered to ensure they match the variant type (e.g., ensuring a `c.` variant doesn't get assigned a protein accession).
+
+- **Smart Selection**: The expansion targets a specific accession type based on the variant's coordinate system:
+    - `p.` variants $\rightarrow$ `ProteinAccession`
+    - `c.` / `n.` / `r.` variants $\rightarrow$ `TranscriptAccession`
+    - `g.` / `m.` variants $\rightarrow$ `GenomicAccession`
+- **Compatibility Filter**: Returned accessions are filtered to ensure they match the variant type (e.g., ensuring a `c.` variant doesn't get assigned a protein accession).
 
 ### 2. Comparison Strategies
 
 Code: [hgvs-weaver/src/equivalence.rs](file:///Users/tjs/repo/hgvs-rs/hgvs-weaver/src/equivalence.rs)
 
 #### Genomic vs. Genomic (`n_vs_n_equivalent`)
-1.  Both variants are normalized to their 3'-most representation using `VariantMapper::normalize_variant`.
-2.  The normalized strings are compared (ignoring parentheses/uncertainties).
+
+1. Both variants are normalized to their 3'-most representation using `VariantMapper::normalize_variant`.
+2. The normalized strings are compared (ignoring parentheses/uncertainties).
 
 #### Coding vs. Coding (`n_vs_n_equivalent_c`)
-1.  Both `c.` variants are mapped to genomic coordinates (`c_to_g`) using their respective transcript references.
-2.  The resulting `g.` variants are compared using the **Genomic vs. Genomic** strategy.
+
+1. Both `c.` variants are mapped to genomic coordinates (`c_to_g`) using their respective transcript references.
+2. The resulting `g.` variants are compared using the **Genomic vs. Genomic** strategy.
 
 #### Genomic vs. Coding (`g_vs_c_equivalent`)
-1.  The `c.` variant is mapped to `g.` coordinates *on the reference sequence of the genomic variant*.
-2.  The resulting `g.` variants are compared.
+
+1. The `c.` variant is mapped to `g.` coordinates *on the reference sequence of the genomic variant*.
+2. The resulting `g.` variants are compared.
 
 #### Genomic vs. Protein (`g_vs_p_equivalent`)
-1.  The `g.` variant is mapped to **all** overlapping transcripts (`g_to_c_all` via `TranscriptSearch`).
-2.  For each discovered `c.` variant, it is projected to protein (`c_to_p`).
-3.  The projected `p.` variant is compared to the target `p.` variant.
-4.  If *any* path results in a match, the variants are equivalent.
+
+1. The `g.` variant is mapped to **all** overlapping transcripts (`g_to_c_all` via `TranscriptSearch`).
+2. For each discovered `c.` variant, it is projected to protein (`c_to_p`).
+3. The projected `p.` variant is compared to the target `p.` variant.
+4. If *any* path results in a match, the variants are equivalent.
 
 #### Coding vs. Protein (`c_vs_p_equivalent`)
-1.  The `c.` variant is projected to protein (`c_to_p`) using the accession of the target `p.` variant.
-2.  The projected `p.` string is compared to the target `p.` string.
+
+1. The `c.` variant is projected to protein (`c_to_p`) using the accession of the target `p.` variant.
+2. The projected `p.` string is compared to the target `p.` string.

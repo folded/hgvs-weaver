@@ -188,4 +188,5 @@ Summary of results comparing `weaver` and `ref-hgvs` (`biocommons.hgvs`) against
 | :------------------ | :------------: | :---------------: |
 | **weaver Match**    |     91,059     |         8         |
 | **weaver Mismatch** |       1        |       8,932       |
+
 - **Variant Equivalence**: Check if two variants are biologically equivalent using advanced cross-coordinate mapping and normalization. [See Algorithm](docs/source/equivalence_logic.md).
