@@ -115,23 +115,6 @@ impl<'a> VariantEquivalence<'a> {
          }
     }
 
-    fn eq_dup_ins(&self, s1: &str, s2: &str) -> bool {
-        // Simple heuristic: if one is dup and other is ins, and they look similar.
-        // Actually, converting textual representation is hard.
-        // Better to check if normalization logic (fill_implicit) handles it.
-        // `dup` normalized is `dupSEQ`. `insSEQ` is `insSEQ`.
-        // Semantically: pos_dupSEQ == pos_insSEQ?
-        // No. `10dupT` means insert T after 10. `10_11insT` means insert T between 10 and 11.
-        // `10dup` (where 10 is T) -> `10_11insT`.
-        // So `pos` vs `pos_pos+1` interval mismatch.
-        // But `hgvs` crate outputs `dup` as `dup`.
-        // Let's rely on standard string normalization for now, but explicit SEQ might help.
-        // If we fill SEQ, `del` becomes `delSEQ` which matches explicit.
-        // For `dup`, `dup` becomes `dupSEQ`.
-        // If failure persists for `ins` vs `dup`, we might need more logic.
-        // Let's assume filling implicit is enough for now.
-        s1 == s2
-    }
 
     fn expand_if_gene_symbol(&self, var: &SequenceVariant) -> Result<Vec<SequenceVariant>, HgvsError> {
         let ac = var.ac();
