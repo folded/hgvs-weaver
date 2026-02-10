@@ -387,17 +387,16 @@ impl<'a> VariantMapper<'a> {
             let mut ref_byte = ref_chunk.as_bytes()[0];
 
             loop {
-                let offset = curr_end - chunk_start;
-                if offset >= chunk_bytes.len() {
+                if (curr_end - chunk_start) >= chunk_bytes.len() {
                     if chunk_bytes.len() < chunk_size { break; }
                     chunk_start += chunk_bytes.len();
                     chunk_size = std::cmp::min(chunk_size * 2, 4096);
                     chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + chunk_size) as i32, kind.into_identifier_type())?;
                     chunk_bytes = chunk.as_bytes();
                     if chunk_bytes.is_empty() { break; }
-                    continue;
                 }
-                if ref_byte == chunk_bytes[offset] {
+
+                if ref_byte == chunk_bytes[curr_end - chunk_start] {
                     curr_start += 1;
                     curr_end += 1;
                     ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind.into_identifier_type())?;
@@ -414,17 +413,16 @@ impl<'a> VariantMapper<'a> {
             if n == 0 { return Ok((curr_start, curr_end)); }
             let mut i = 0;
             loop {
-                let offset = curr_end - chunk_start;
-                if offset >= chunk_bytes.len() {
+                if (curr_end - chunk_start) >= chunk_bytes.len() {
                     if chunk_bytes.len() < chunk_size { break; }
                     chunk_start += chunk_bytes.len();
                     chunk_size = std::cmp::min(chunk_size * 2, 4096);
                     chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + chunk_size) as i32, kind.into_identifier_type())?;
                     chunk_bytes = chunk.as_bytes();
                     if chunk_bytes.is_empty() { break; }
-                    continue;
                 }
-                if chunk_bytes[offset] == alt_bytes[i % n] {
+
+                if chunk_bytes[curr_end - chunk_start] == alt_bytes[i % n] {
                     curr_start += 1;
                     curr_end += 1;
                     i += 1;
