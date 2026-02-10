@@ -73,14 +73,14 @@ Before comparison, each variant is checked to see if it uses a gene symbol (e.g.
 
 ### 2. Comparison Strategies
 
-Code: [hgvs-weaver/src/equivalence.rs](file:///Users/tjs/repo/hgvs-rs/hgvs-weaver/src/equivalence.rs)
+Code: [hgvs-weaver/src/equivalence.rs](../../hgvs-weaver/src/equivalence.rs)
 
 #### Genomic vs. Genomic (`n_vs_n_equivalent`)
 
 1. **3'-Most Normalization**: Both variants are shifted to their most 3' position using `VariantMapper::normalize_variant`.
     - *Note*: As of version 0.1.1, the shifter correctly handles insertion coordinates by treating them as 0-length intervals, ensuring consistent behavior with duplications.
 2. **Implicit Sequence Filling**: If a variant specifies a deletion or duplication by length (e.g., `c.10del`), the reference sequence at that position is retrieved and filled in (e.g., `c.10delT`) via `fill_implicit_sequence`.
-3. **Insertion to Duplication Conversion**: If an insertion (`ins`) matches the reference sequence immediately preceding it, it is converted to a duplication (`dup`) via `normalize_ins_to_dup`. This ensures that `c.35_36insT` and `c.35dup` are recognized as equivalent.
+3. **Insertion to Duplication Conversion**: If an insertion (`ins`) matches the reference sequence immediately preceding it, it is converted to a duplication (`dup`) via `normalize_ins_to_dup`. This logic is implemented for Genomic (`g.`), Coding (`c.`), and NonCoding (`n.`) variants, ensuring that `c.35_36insT` and `c.35dup` (where 35 is T) are recognized as equivalent.
 4. **Formatting Normalization**: The final variant strings are processed by `normalize_format` to remove artifacts like parentheses for uncertain variants before direct string comparison.
 
 #### Coding vs. Coding (`n_vs_n_equivalent_c`)
@@ -91,6 +91,21 @@ Code: [hgvs-weaver/src/equivalence.rs](file:///Users/tjs/repo/hgvs-rs/hgvs-weave
 #### Genomic vs. Coding (`g_vs_c_equivalent`)
 
 1. The `c.` variant is mapped to `g.` coordinates *on the reference sequence of the genomic variant*.
+2. The resulting `g.` variants are compared.
+
+#### NonCoding vs. NonCoding (`n_vs_n_equivalent_n`)
+
+1. Both `n.` variants are mapped to genomic coordinates (`n_to_g`) using their respective transcript references.
+2. The resulting `g.` variants are compared using the **Genomic vs. Genomic** strategy.
+
+#### Genomic vs. NonCoding (`g_vs_n_equivalent`)
+
+1. The `n.` variant is mapped to `g.` coordinates on the genomic variant's reference.
+2. The resulting `g.` variants are compared.
+
+#### Coding vs. NonCoding (`c_vs_n_equivalent`)
+
+1. Both variants are mapped to genomic coordinates (`c_to_g` and `n_to_g`) using their common reference sequence.
 2. The resulting `g.` variants are compared.
 
 #### Genomic vs. Protein (`g_vs_p_equivalent`)
