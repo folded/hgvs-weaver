@@ -372,85 +372,65 @@ impl<'a> VariantMapper<'a> {
 
         let mut curr_start = start;
         let mut curr_end = end;
-        let chunk_size = 100;
+        let mut chunk_size = 128;
 
         let mut chunk_start = end;
         let mut chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + chunk_size) as i32, kind.into_identifier_type())?;
         let mut chunk_bytes = chunk.as_bytes();
 
-        loop {
-            // Check if we can shift
+        let is_del_or_dup = matches!(edit, crate::edits::NaEdit::Del { .. } | crate::edits::NaEdit::Dup { .. });
 
-            // Logic differs for Del/Dup vs Ins
-            let is_del_or_dup = matches!(edit, crate::edits::NaEdit::Del { .. } | crate::edits::NaEdit::Dup { .. });
+        if is_del_or_dup || (!ref_str.is_empty() && alt_str.is_empty()) {
+            // Deletion or Duplication (explicit or implicit)
+            let mut ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind.into_identifier_type())?;
+            if ref_chunk.is_empty() { return Ok((curr_start, curr_end)); }
+            let mut ref_byte = ref_chunk.as_bytes()[0];
 
-            if is_del_or_dup || (!ref_str.is_empty() && alt_str.is_empty()) {
-                // Deletion or Duplication (explicit or implicit)
-                // Logic: check if base at `curr_start` matches base at `curr_end`.
-                // Note: `curr_start` points to the first base of the deleted/duplicated sequence.
-                // `curr_end` points to the base AFTER the deleted/duplicated sequence (exclusive end of interval).
-                // Or is `end` exclusive?
-                // `get_c_indices` returns `(start, end+1)`. So exclusive.
-                // HGVS 3' shifting rule:
-                // "For all descriptions the most 3' position possible is arbitrarily assigned..."
-                // Shift if `seq[end] == seq[start]`.
-                // `offset = curr_end - chunk_start`.
-                // `ref_byte` = `seq[curr_start]`.
-
-                let mut ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind.into_identifier_type())?;
-                if ref_chunk.is_empty() { return Ok((curr_start, curr_end)); }
-                let mut ref_byte = ref_chunk.as_bytes()[0];
-
-                loop {
-                    let offset = curr_end - chunk_start;
-                    if offset >= chunk_bytes.len() {
-                        if chunk_bytes.len() < chunk_size { break; }
-                        chunk_start += chunk_bytes.len();
-                        chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + chunk_size) as i32, kind.into_identifier_type())?;
-                        chunk_bytes = chunk.as_bytes();
-                        if chunk_bytes.is_empty() { break; }
-                        continue;
-                    }
-                    if ref_byte == chunk_bytes[offset] {
-                        curr_start += 1;
-                        curr_end += 1;
-                        ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind.into_identifier_type())?;
-                        if ref_chunk.is_empty() { break; }
-                        ref_byte = ref_chunk.as_bytes()[0];
-                    } else {
-                        break;
-                    }
+            loop {
+                let offset = curr_end - chunk_start;
+                if offset >= chunk_bytes.len() {
+                    if chunk_bytes.len() < chunk_size { break; }
+                    chunk_start += chunk_bytes.len();
+                    chunk_size = std::cmp::min(chunk_size * 2, 4096);
+                    chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + chunk_size) as i32, kind.into_identifier_type())?;
+                    chunk_bytes = chunk.as_bytes();
+                    if chunk_bytes.is_empty() { break; }
+                    continue;
                 }
-                break; // Outer loop break after processing
-            } else if ref_str.is_empty() && !alt_str.is_empty() {
-                // Insertion (Indel with empty ref?)
-                // Check circular shift of inserted sequence
-                // `alt_str` is the inserted sequence.
-                let alt_bytes = alt_str.as_bytes();
-                let n = alt_bytes.len();
-                if n == 0 { break; }
-                let mut i = 0;
-                loop {
-                    let offset = curr_end - chunk_start;
-                    if offset >= chunk_bytes.len() {
-                        if chunk_bytes.len() < chunk_size { break; }
-                        chunk_start += chunk_bytes.len();
-                        chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + chunk_size) as i32, kind.into_identifier_type())?;
-                        chunk_bytes = chunk.as_bytes();
-                        if chunk_bytes.is_empty() { break; }
-                        continue;
-                    }
-                    if chunk_bytes[offset] == alt_bytes[i % n] {
-                        curr_start += 1;
-                        curr_end += 1;
-                        i += 1;
-                    } else {
-                        break;
-                    }
+                if ref_byte == chunk_bytes[offset] {
+                    curr_start += 1;
+                    curr_end += 1;
+                    ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind.into_identifier_type())?;
+                    if ref_chunk.is_empty() { break; }
+                    ref_byte = ref_chunk.as_bytes()[0];
+                } else {
+                    break;
                 }
-                break;
-            } else {
-                break;
+            }
+        } else if ref_str.is_empty() && !alt_str.is_empty() {
+            // Insertion
+            let alt_bytes = alt_str.as_bytes();
+            let n = alt_bytes.len();
+            if n == 0 { return Ok((curr_start, curr_end)); }
+            let mut i = 0;
+            loop {
+                let offset = curr_end - chunk_start;
+                if offset >= chunk_bytes.len() {
+                    if chunk_bytes.len() < chunk_size { break; }
+                    chunk_start += chunk_bytes.len();
+                    chunk_size = std::cmp::min(chunk_size * 2, 4096);
+                    chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + chunk_size) as i32, kind.into_identifier_type())?;
+                    chunk_bytes = chunk.as_bytes();
+                    if chunk_bytes.is_empty() { break; }
+                    continue;
+                }
+                if chunk_bytes[offset] == alt_bytes[i % n] {
+                    curr_start += 1;
+                    curr_end += 1;
+                    i += 1;
+                } else {
+                    break;
+                }
             }
         }
         Ok((curr_start, curr_end))
