@@ -1,4 +1,7 @@
+import dataclasses
 import os
+from collections.abc import Generator
+from typing import Any
 
 import pytest
 
@@ -27,119 +30,138 @@ def setup_sequence_mocking() -> None:
             os.environ["WEAVER_SEQ_MODE"] = "live"
 
 
-HGVS_EVAL_CASES = [
+@dataclasses.dataclass(frozen=True)
+class EvalCase:
+    input: str
+    output_preferred: str
+    data: str
+
+
+HGVS_EVAL_CASES: list[Any] = [
     pytest.param(
-        {
-            "input": "NM_033089.6:c.471_473del",
-            "output_preferred": "NC_000020.10:g.278701_278703del",
-            "data": "GRCh37",
-        },
-    ),
-    {
-        "input": "NC_000023.10:g.73501562T>C",
-        "output_preferred": "NR_028379.1:n.345A>G",
-        "data": "GRCh37|RefSeq",
-    },
-    {
-        "input": "NM_001135021.1:c.794T>C",
-        "output_preferred": "NC_000002.11:g.85616929T>C",
-        "data": "GRCh37|RefSeq",
-    },
-    pytest.param(
-        {
-            "input": "NR_028379.1:n.345A>G",
-            "output_preferred": "NC_000023.10:g.73501562T>C",
-            "data": "GRCh37|RefSeq",
-        },
+        EvalCase(
+            input="NM_033089.6:c.471_473del",
+            output_preferred="NC_000020.10:g.278701_278703del",
+            data="GRCh37",
+        ),
     ),
     pytest.param(
-        {
-            "input": "NM_033089.6:c.471_473delGGC",
-            "output_preferred": "NP_149080.2:p.(Ala158del)",
-            "data": "RefSeq",
-        },
+        EvalCase(
+            input="NC_000023.10:g.73501562T>C",
+            output_preferred="NR_028379.1:n.345A>G",
+            data="GRCh37|RefSeq",
+        ),
     ),
     pytest.param(
-        {
-            "input": "NM_033089.6:c.471_473delGGC",
-            "output_preferred": "NM_033089.6:n.495_497del",
-            "data": "RefSeq",
-        },
+        EvalCase(
+            input="NM_001135021.1:c.794T>C",
+            output_preferred="NC_000002.11:g.85616929T>C",
+            data="GRCh37|RefSeq",
+        ),
     ),
     pytest.param(
-        {
-            "input": "NM_033089.6:n.495_497delGGC",
-            "output_preferred": "NM_033089.6:c.471_473del",
-            "data": "RefSeq",
-        },
+        EvalCase(
+            input="NR_028379.1:n.345A>G",
+            output_preferred="NC_000023.10:g.73501562T>C",
+            data="GRCh37|RefSeq",
+        ),
     ),
     pytest.param(
-        {
-            "input": "NC_000001.10:g.17345192_17345217delinsTTGGGGCAAGTAAAGGAACAGGTTC",
-            "output_preferred": "NM_003000.2:c.*159_*184delinsGAACCTGTTCCTTTACTTGCCCCAA",
-            "data": "GRCh37|RefSeq",
-        },
-    ),
-    {
-        "input": "NM_001135023.1:c.794T>C",
-        "output_preferred": "NP_001128495.1:p.(Leu265Ser)",
-        "data": "RefSeq",
-    },
-    {
-        "input": "NM_001166478.1:c.35_36insT",
-        "output_preferred": "NM_001166478.1:c.35dup",
-        "data": "RefSeq",
-    },
-    pytest.param(
-        {
-            "input": "NM_000492.3:c.1520_1522delTCT",
-            "output_preferred": "NM_000492.3:c.1521_1523del",
-            "data": "RefSeq",
-        },
+        EvalCase(
+            input="NM_033089.6:c.471_473delGGC",
+            output_preferred="NP_149080.2:p.(Ala158del)",
+            data="RefSeq",
+        ),
     ),
     pytest.param(
-        {
-            "input": "NC_000002.11:g.37480321_37480322insT",
-            "output_preferred": "NC_000002.11:g.37480321dup",
-            "data": "GRCh37",
-        },
-    ),
-    {
-        "input": "NM_001166478.1:c.31del",
-        "output_preferred": "NM_001166478.1:c.35del",
-        "data": "RefSeq",
-    },
-    pytest.param(
-        {
-            "input": "NC_000020.10:g.278692_278694delGGC",
-            "output_preferred": "NC_000020.10:g.278701_278703del",
-            "data": "GRCh37",
-        },
+        EvalCase(
+            input="NM_033089.6:c.471_473delGGC",
+            output_preferred="NM_033089.6:n.495_497del",
+            data="RefSeq",
+        ),
     ),
     pytest.param(
-        {
-            "input": "NC_000002.11:g.37480321_37480322insT",
-            "output_preferred": "NC_000002.11:g.37480321dup",
-            "data": "GRCh37",
-        },
+        EvalCase(
+            input="NM_033089.6:n.495_497delGGC",
+            output_preferred="NM_033089.6:c.471_473del",
+            data="RefSeq",
+        ),
     ),
     pytest.param(
-        {
-            "input": "NM_005813.3:c.2673insA",
-            "output_preferred": "NM_005813.3:c.2673dup",
-            "data": "RefSeq",
-        },
+        EvalCase(
+            input="NC_000001.10:g.17345192_17345217delinsTTGGGGCAAGTAAAGGAACAGGTTC",
+            output_preferred="NM_003000.2:c.*159_*184delinsGAACCTGTTCCTTTACTTGCCCCAA",
+            data="GRCh37|RefSeq",
+        ),
     ),
-    {
-        "input": "NP_689699.2:p.(G553E)",
-        "output_preferred": "NP_689699.2:p.(Gly553Glu)",
-        "data": "RefSeq",
-    },
+    pytest.param(
+        EvalCase(
+            input="NM_001135023.1:c.794T>C",
+            output_preferred="NP_001128495.1:p.(Leu265Ser)",
+            data="RefSeq",
+        ),
+    ),
+    pytest.param(
+        EvalCase(
+            input="NM_001166478.1:c.35_36insT",
+            output_preferred="NM_001166478.1:c.35dup",
+            data="RefSeq",
+        ),
+    ),
+    pytest.param(
+        EvalCase(
+            input="NM_000492.3:c.1520_1522delTCT",
+            output_preferred="NM_000492.3:c.1521_1523del",
+            data="RefSeq",
+        ),
+    ),
+    pytest.param(
+        EvalCase(
+            input="NC_000002.11:g.37480321_37480322insT",
+            output_preferred="NC_000002.11:g.37480321dup",
+            data="GRCh37",
+        ),
+    ),
+    pytest.param(
+        EvalCase(
+            input="NM_001166478.1:c.31del",
+            output_preferred="NM_001166478.1:c.35del",
+            data="RefSeq",
+        ),
+    ),
+    pytest.param(
+        EvalCase(
+            input="NC_000020.10:g.278692_278694delGGC",
+            output_preferred="NC_000020.10:g.278701_278703del",
+            data="GRCh37",
+        ),
+    ),
+    pytest.param(
+        EvalCase(
+            input="NC_000002.11:g.37480321_37480322insT",
+            output_preferred="NC_000002.11:g.37480321dup",
+            data="GRCh37",
+        ),
+    ),
+    pytest.param(
+        EvalCase(
+            input="NM_005813.3:c.2673insA",
+            output_preferred="NM_005813.3:c.2673dup",
+            data="RefSeq",
+        ),
+    ),
+    pytest.param(
+        EvalCase(
+            input="NP_689699.2:p.(G553E)",
+            output_preferred="NP_689699.2:p.(Gly553Glu)",
+            data="RefSeq",
+        ),
+    ),
 ]
 
 
 @pytest.fixture(scope="session")
-def real_provider_38():
+def real_provider_38() -> Generator[RefSeqDataProvider, None, None]:
     setup_sequence_mocking()
     mode = os.environ.get("WEAVER_SEQ_MODE", "live")
 
@@ -157,15 +179,17 @@ def real_provider_38():
 
 
 @pytest.fixture(scope="session")
-def real_provider_37():
+def real_provider_37() -> Generator[RefSeqDataProvider | None, None, None]:
     setup_sequence_mocking()
     mode = os.environ.get("WEAVER_SEQ_MODE", "live")
 
     if mode == "replay":
         if not os.path.exists(SEQ_CACHE_PATH):
-            return None
+            yield None
+            return
     elif not os.path.exists(GFF37_PATH) or not os.path.exists(FASTA37_PATH):
-        return None
+        yield None
+        return
 
     print(f"Loading RefSeq provider (mode={mode}) with GFF: {GFF37_PATH}")
     provider = RefSeqDataProvider(GFF37_PATH, FASTA37_PATH)
@@ -175,13 +199,17 @@ def real_provider_37():
 
 
 @pytest.mark.parametrize("hgvs_eval_case", HGVS_EVAL_CASES)
-def test_hgvs_eval_equivalence(real_provider_38, real_provider_37, hgvs_eval_case) -> None:
+def test_hgvs_eval_equivalence(
+    real_provider_38: RefSeqDataProvider,
+    real_provider_37: RefSeqDataProvider | None,
+    hgvs_eval_case: EvalCase,
+) -> None:
     """
     Test that input and output_preferred are equivalent.
     """
-    input_str = hgvs_eval_case["input"].strip()
-    output_str = hgvs_eval_case["output_preferred"].strip()
-    data_col = hgvs_eval_case.get("data", "")
+    input_str = hgvs_eval_case.input.strip()
+    output_str = hgvs_eval_case.output_preferred.strip()
+    data_col = hgvs_eval_case.data
 
     # Select provider based on data column
     if "GRCh37" in data_col:
@@ -211,12 +239,10 @@ def test_hgvs_eval_equivalence(real_provider_38, real_provider_37, hgvs_eval_cas
 
     # We expect them to be equivalent
     try:
-        data_col = hgvs_eval_case.get("data", "")
-
         is_equiv = mapper.equivalent(v1, v2, real_provider)
 
         if not is_equiv:
             pytest.fail(f"Variants not equivalent: {v1} vs {v2}. Params: {data_col}")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         pytest.fail(f"Equivalence check raised exception: {e}")

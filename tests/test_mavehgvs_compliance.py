@@ -142,5 +142,5 @@ def test_invalid_mavehgvs_parsing(variant_string: str) -> None:
     """Ensure weaver rejects variants considered invalid by mavehgvs."""
     # Note: weaver might be permissive for some (e.g. casing?)
     # But usually it should raise ValueError
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="variant"):
         weaver.parse(variant_string)
