@@ -37,11 +37,11 @@ class MockProvider:
         # ATG GGG CCC AAA ...
         return ("A" * 10 + "ATGGGGCCCAAA" + "A" * 100)[start:end]
 
-    def get_symbol_accessions(self, symbol: str, _s: str, t: str) -> list[str]:
+    def get_symbol_accessions(self, symbol: str, _s: str, t: str) -> list[tuple[weaver.IdentifierType, str]]:
         """Maps mock symbols."""
         if t == "p":
-            return ["NP_TEST.1"]
-        return [symbol]
+            return [(weaver.IdentifierType.ProteinAccession, "NP_TEST.1")]
+        return [(weaver.IdentifierType.GeneSymbol, symbol)]
 
 
 def test_parsing() -> None:
@@ -61,7 +61,7 @@ def test_normalization() -> None:
     v = weaver.parse("NM_TEST:c.4_5del")
     v_norm = mapper.normalize_variant(v)
     # Should shift to 5_6del
-    assert v_norm.format() == "NM_TEST:c.5_6del"
+    assert v_norm.format() == "NM_TEST:c.5_6delGG"
 
 
 def test_c_to_p() -> None:
@@ -117,9 +117,9 @@ class MockMinusProvider:
         """Returns a mock sequence."""
         return ("A" * 1000)[start:end]
 
-    def get_symbol_accessions(self, symbol: str, _s: str, _t: str) -> list[str]:
+    def get_symbol_accessions(self, symbol: str, _s: str, _t: str) -> list[tuple[weaver.IdentifierType, str]]:
         """Maps mock symbols."""
-        return [symbol]
+        return [(weaver.IdentifierType.GeneSymbol, symbol)]
 
 
 def test_minus_strand() -> None:

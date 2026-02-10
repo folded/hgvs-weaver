@@ -152,3 +152,14 @@ def test_equivalence_gene_symbol() -> None:
     v2 = weaver.parse("NP_BRAF.1:p.Val600Glu")
 
     assert mapper.equivalent(v1, v2, provider)  # type: ignore[attr-defined]
+
+
+def test_equivalence_protein_3letter() -> None:
+    """Tests equivalence of 1-letter and 3-letter amino acid codes."""
+    provider = MockProvider()
+    mapper = weaver.VariantMapper(provider)
+
+    v1 = weaver.parse("NP_TEST.1:p.(G553E)")
+    v2 = weaver.parse("NP_TEST.1:p.(Gly553Glu)")
+
+    assert mapper.equivalent(v1, v2, provider)  # type: ignore[attr-defined]

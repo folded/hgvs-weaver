@@ -55,31 +55,31 @@ impl TranscriptMapper {
 
     /// Maps a 0-based transcript position to a 0-based cDNA position and anchor.
     pub fn n_to_c(&self, n_pos: TranscriptPos) -> Result<(TranscriptPos, IntronicOffset, Anchor), HgvsError> {
-        let cds_start = self.transcript.cds_start_index().ok_or_else(|| HgvsError::ValidationError("Missing CDS start".into()))?;
-        let cds_end = self.transcript.cds_end_index().ok_or_else(|| HgvsError::ValidationError("Missing CDS end".into()))?;
-
-        if n_pos < cds_start {
-            Ok((TranscriptPos(n_pos.0 - cds_start.0), IntronicOffset(0), Anchor::CdsStart))
-        } else if n_pos > cds_end {
-            Ok((TranscriptPos(n_pos.0 - cds_end.0 - 1), IntronicOffset(0), Anchor::CdsEnd))
+        if let (Some(cds_start), Some(cds_end)) = (self.transcript.cds_start_index(), self.transcript.cds_end_index()) {
+            if n_pos < cds_start {
+                Ok((TranscriptPos(n_pos.0 - cds_start.0), IntronicOffset(0), Anchor::CdsStart))
+            } else if n_pos > cds_end {
+                Ok((TranscriptPos(n_pos.0 - cds_end.0 - 1), IntronicOffset(0), Anchor::CdsEnd))
+            } else {
+                Ok((TranscriptPos(n_pos.0 - cds_start.0), IntronicOffset(0), Anchor::CdsStart))
+            }
         } else {
-            Ok((TranscriptPos(n_pos.0 - cds_start.0), IntronicOffset(0), Anchor::CdsStart))
+            Ok((n_pos, IntronicOffset(0), Anchor::TranscriptStart))
         }
     }
 
     /// Maps a cDNA position and anchor to a 0-based transcript position.
     pub fn c_to_n(&self, c_pos: TranscriptPos, anchor: Anchor) -> Result<TranscriptPos, HgvsError> {
-        let cds_start = self.transcript.cds_start_index().ok_or_else(|| HgvsError::ValidationError("Missing CDS start".into()))?;
-        let cds_end = self.transcript.cds_end_index().ok_or_else(|| HgvsError::ValidationError("Missing CDS end".into()))?;
-
         match anchor {
             Anchor::TranscriptStart => {
                 Ok(c_pos)
             }
             Anchor::CdsStart => {
+                let cds_start = self.transcript.cds_start_index().ok_or_else(|| HgvsError::ValidationError("Missing CDS start".into()))?;
                 Ok(TranscriptPos(cds_start.0 + c_pos.0))
             }
             Anchor::CdsEnd => {
+                let cds_end = self.transcript.cds_end_index().ok_or_else(|| HgvsError::ValidationError("Missing CDS end".into()))?;
                 Ok(TranscriptPos(cds_end.0 + 1 + c_pos.0))
             }
         }

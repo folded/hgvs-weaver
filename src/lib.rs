@@ -337,6 +337,18 @@ impl PyVariantMapper {
         }
     }
 
+    #[pyo3(signature = (var_n, reference_ac))]
+    #[doc = "Maps a non-coding cDNA variant (n.) to a genomic variant (g.) on a specific reference.\n\nArgs:\n    var_n: The non-coding Variant to map.\n    reference_ac: The accession of the target genomic reference.\n\nReturns:\n    A new Variant object in 'g.' coordinates."]
+    fn n_to_g(&self, _py: Python, var_n: &PyVariant, reference_ac: &str) -> PyResult<PyVariant> {
+        if let SequenceVariant::NonCoding(v) = &var_n.inner {
+            let mapper = VariantMapper::new(self.bridge.as_ref());
+            let res = mapper.n_to_g(v, reference_ac).map_err(|e: HgvsError| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(PyVariant { inner: SequenceVariant::Genomic(res) })
+        } else {
+            Err(pyo3::exceptions::PyValueError::new_err("Expected a non-coding variant (n.)"))
+        }
+    }
+
     #[pyo3(signature = (var_c, protein_ac=None))]
     #[doc = "Projects a coding cDNA variant (c.) to its protein consequence (p.).\n\nArgs:\n    var_c: The coding Variant to project.\n    protein_ac: Optional protein accession. If not provided, it will be retrieved from the DataProvider.\n\nReturns:\n    A new Variant object in 'p.' coordinates."]
     fn c_to_p(&self, _py: Python, var_c: &PyVariant, protein_ac: Option<&str>) -> PyResult<PyVariant> {
