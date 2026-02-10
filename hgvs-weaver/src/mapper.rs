@@ -248,7 +248,7 @@ impl<'a> VariantMapper<'a> {
                     let is_ins = matches!(&v_c.posedit.edit, crate::edits::NaEdit::Ins { .. });
                     let actual_end = if is_ins { end_idx - 1 } else { end_idx };
 
-                    let (new_start, new_end) = self.shift_3_prime(&v_c.ac, IdentifierKind::Transcript, start_idx, actual_end, &v_c.posedit.edit)?;
+                    let (new_start, _new_end) = self.shift_3_prime(&v_c.ac, IdentifierKind::Transcript, start_idx, actual_end, &v_c.posedit.edit)?;
 
                     if new_start != start_idx {
                         let shift = (new_start as i32) - (start_idx as i32);
@@ -372,10 +372,10 @@ impl<'a> VariantMapper<'a> {
 
         let mut curr_start = start;
         let mut curr_end = end;
-        let CHUNK_SIZE = 100;
+        let chunk_size = 100;
 
         let mut chunk_start = end;
-        let mut chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + CHUNK_SIZE) as i32, kind.into_identifier_type())?;
+        let mut chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + chunk_size) as i32, kind.into_identifier_type())?;
         let mut chunk_bytes = chunk.as_bytes();
 
         loop {
@@ -404,9 +404,9 @@ impl<'a> VariantMapper<'a> {
                 loop {
                     let offset = curr_end - chunk_start;
                     if offset >= chunk_bytes.len() {
-                        if chunk_bytes.len() < CHUNK_SIZE { break; }
+                        if chunk_bytes.len() < chunk_size { break; }
                         chunk_start += chunk_bytes.len();
-                        chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + CHUNK_SIZE) as i32, kind.into_identifier_type())?;
+                        chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + chunk_size) as i32, kind.into_identifier_type())?;
                         chunk_bytes = chunk.as_bytes();
                         if chunk_bytes.is_empty() { break; }
                         continue;
@@ -433,9 +433,9 @@ impl<'a> VariantMapper<'a> {
                 loop {
                     let offset = curr_end - chunk_start;
                     if offset >= chunk_bytes.len() {
-                        if chunk_bytes.len() < CHUNK_SIZE { break; }
+                        if chunk_bytes.len() < chunk_size { break; }
                         chunk_start += chunk_bytes.len();
-                        chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + CHUNK_SIZE) as i32, kind.into_identifier_type())?;
+                        chunk = self.hdp.get_seq(ac, chunk_start as i32, (chunk_start + chunk_size) as i32, kind.into_identifier_type())?;
                         chunk_bytes = chunk.as_bytes();
                         if chunk_bytes.is_empty() { break; }
                         continue;

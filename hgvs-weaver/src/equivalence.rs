@@ -1,9 +1,9 @@
 use crate::error::HgvsError;
 use crate::data::{DataProvider, TranscriptSearch, IdentifierKind};
 use crate::structs::{
-    SequenceVariant, GVariant, CVariant, PVariant, Variant, NVariant,
+    SequenceVariant, GVariant, PVariant, Variant,
     SimpleInterval, SimplePosition, BaseOffsetInterval, BaseOffsetPosition,
-    Anchor, GenomicPos, TranscriptPos, NaEdit
+    GenomicPos, TranscriptPos, NaEdit
 };
 use crate::mapper::VariantMapper;
 
