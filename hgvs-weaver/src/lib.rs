@@ -51,7 +51,7 @@ pub fn parse_hgvs_variant(hgvs_str: &str) -> Result<SequenceVariant, HgvsError> 
             let ac = inner.next().ok_or_else(|| HgvsError::PestError("Missing accession".into()))?.as_str().to_string();
             let gene_expr_pair = inner.next().ok_or_else(|| HgvsError::PestError("Missing gene expr".into()))?;
             let gene = parse_gene_expr(gene_expr_pair);
-            let posedit = parser::parse_c_posedit(inner.next().ok_or_else(|| HgvsError::PestError("Missing posedit".into()))?)?;
+            let posedit = parser::parse_n_posedit(inner.next().ok_or_else(|| HgvsError::PestError("Missing posedit".into()))?)?;
             Ok(SequenceVariant::NonCoding(NVariant { ac, gene, posedit }))
         }
         Rule::r_variant => {
@@ -59,7 +59,7 @@ pub fn parse_hgvs_variant(hgvs_str: &str) -> Result<SequenceVariant, HgvsError> 
             let ac = inner.next().ok_or_else(|| HgvsError::PestError("Missing accession".into()))?.as_str().to_string();
             let gene_expr_pair = inner.next().ok_or_else(|| HgvsError::PestError("Missing gene expr".into()))?;
             let gene = parse_gene_expr(gene_expr_pair);
-            let posedit = parser::parse_c_posedit(inner.next().ok_or_else(|| HgvsError::PestError("Missing posedit".into()))?)?;
+            let posedit = parser::parse_n_posedit(inner.next().ok_or_else(|| HgvsError::PestError("Missing posedit".into()))?)?;
             Ok(SequenceVariant::Rna(RVariant { ac, gene, posedit }))
         }
         _ => Err(HgvsError::PestError("Unsupported variant type".into())),
@@ -85,10 +85,12 @@ pub mod edits;
 pub mod fmt;
 pub mod altseq;
 pub mod altseq_to_hgvsp;
+pub mod equivalence;
 
 // Re-exports for public usage
 pub use structs::{GVariant, CVariant, PVariant, MVariant, NVariant, RVariant, Variant};
 pub use coords::{SequenceVariant};
 pub use data::{DataProvider, TranscriptSearch, Transcript, IdentifierKind};
 pub use mapper::VariantMapper;
+pub use equivalence::VariantEquivalence;
 pub use error::HgvsError;

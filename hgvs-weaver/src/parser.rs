@@ -97,6 +97,29 @@ pub fn parse_simple_pos(pair: Pair<Rule>) -> Result<SimplePosition, HgvsError> {
     Ok(SimplePosition { base: HgvsGenomicPos(hgvs_base), end: None, uncertain: false })
 }
 
+pub fn parse_n_posedit(pair: Pair<Rule>) -> Result<PosEdit<BaseOffsetInterval, NaEdit>, HgvsError> {
+    let mut inner = pair.into_inner();
+    let pos = parse_base_offset_interval_n(inner.next().ok_or_else(|| HgvsError::PestError("Missing interval".into()))?)?;
+    let edit = parse_na_edit(inner.next().ok_or_else(|| HgvsError::PestError("Missing edit".into()))?)?;
+    Ok(PosEdit { pos: Some(pos), edit, uncertain: false, predicted: false })
+}
+
+pub fn parse_base_offset_interval_n(pair: Pair<Rule>) -> Result<BaseOffsetInterval, HgvsError> {
+    let mut uncertain = false;
+    let s = pair.as_str();
+    if s.starts_with('(') && s.ends_with(')') {
+        uncertain = true;
+    }
+
+    let mut inner = pair.into_inner();
+    let p = inner.next().ok_or_else(|| HgvsError::PestError("Empty base offset interval".into()))?;
+    let mut p_inner = p.into_inner();
+
+    let start = parse_base_offset_pos_with_default(p_inner.next().ok_or_else(|| HgvsError::PestError("Missing start position".into()))?, Anchor::TranscriptStart)?;
+    let end = p_inner.next().map(|p| parse_base_offset_pos_with_default(p, Anchor::TranscriptStart)).transpose()?;
+    Ok(BaseOffsetInterval { start, end, uncertain })
+}
+
 pub fn parse_base_offset_interval(pair: Pair<Rule>) -> Result<BaseOffsetInterval, HgvsError> {
     let mut uncertain = false;
     let s = pair.as_str();
@@ -114,7 +137,11 @@ pub fn parse_base_offset_interval(pair: Pair<Rule>) -> Result<BaseOffsetInterval
 }
 
 pub fn parse_base_offset_pos(pair: Pair<Rule>) -> Result<BaseOffsetPosition, HgvsError> {
-    let mut anchor = Anchor::CdsStart;
+    parse_base_offset_pos_with_default(pair, Anchor::CdsStart)
+}
+
+pub fn parse_base_offset_pos_with_default(pair: Pair<Rule>, default_anchor: Anchor) -> Result<BaseOffsetPosition, HgvsError> {
+    let mut anchor = default_anchor;
     if pair.as_str().starts_with('*') {
         anchor = Anchor::CdsEnd;
     }
