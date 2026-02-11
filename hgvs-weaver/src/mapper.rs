@@ -193,9 +193,9 @@ impl<'a> VariantMapper<'a> {
     }
 
     /// Transforms a coding cDNA variant (`c.`) to a protein variant (`p.`).
-    pub fn c_to_p(&self, var_c: &CVariant, pro_ac: Option<&str>) -> Result<PVariant, HgvsError> {
+    pub fn c_to_p(&self, var_c: &CVariant, protein_ac: Option<&str>) -> Result<PVariant, HgvsError> {
         let transcript_ac = &var_c.ac;
-        let pro_ac_str = if let Some(ac) = pro_ac {
+        let pro_ac_str = if let Some(ac) = protein_ac {
             ac.to_string()
         } else {
             self.hdp.get_symbol_accessions(transcript_ac, IdentifierKind::Transcript, IdentifierKind::Protein)?

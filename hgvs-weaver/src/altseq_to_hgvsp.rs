@@ -67,6 +67,14 @@ impl<'a> AltSeqToHgvsp<'a> {
         let mut ref_end = ref_chars.len();
         let mut alt_end = alt_chars.len();
         while ref_end > start_idx && alt_end > start_idx && ref_chars[ref_end-1] == alt_chars[alt_end-1] {
+            // Stop trimming if we encounter a stop codon at different absolute positions, 
+            // UNLESS the preceding residues also match (which implies a shifted tail/indel).
+            // This prevents truncated proteins from matching the reference terminal stop.
+            if ref_chars[ref_end-1] == '*' && ref_end != alt_end {
+                if ref_end < 2 || alt_end < 2 || ref_chars[ref_end-2] != alt_chars[alt_end-2] {
+                    break;
+                }
+            }
             ref_end -= 1;
             alt_end -= 1;
         }

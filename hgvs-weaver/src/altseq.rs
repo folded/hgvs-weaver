@@ -79,6 +79,22 @@ impl<'a> AltSeqBuilder<'a> {
                 let a_str = alt.as_deref().unwrap_or("");
                 let a_len = a_str.len() as i32;
 
+                if ref_.is_none() && alt.is_none() {
+                    return Ok(AltTranscriptData {
+                        transcript_sequence: self.transcript_sequence.clone(),
+                        aa_sequence: crate::utils::translate_cds(&self.transcript_sequence[self.cds_start_index.0 as usize..]),
+                        cds_start_index: self.cds_start_index,
+                        cds_end_index: self.cds_end_index,
+                        protein_accession: self.protein_accession.clone(),
+                        is_frameshift: false,
+                        variant_start_aa,
+                        frameshift_start: None,
+                        is_substitution: false,
+                        is_ambiguous: false,
+                        c_variant: self.var_c.clone(),
+                    });
+                }
+
                 if let Some(r) = ref_ {
                     if r == a_str {
                         return Ok(AltTranscriptData {
