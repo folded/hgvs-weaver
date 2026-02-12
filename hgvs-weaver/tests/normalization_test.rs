@@ -23,6 +23,31 @@ impl DataProvider for NormMockDataProvider {
         if _ac == "NM_SHIFT_BUG" {
             return Ok("CCATTTTTTT".to_string());
         }
+        if _ac == "NM_PREMATURE_STOP" {
+            // ATG CAACAAGATGATTAA
+            return Ok("ATGCAACAAGATGATTAA".to_string());
+        }
+        if _ac == "NM_INFRAME_DEL" {
+            // ATG GCT GCA TGC GAT TAA (M A A C D *)
+            // We want A A C D *.
+            // c.4_6del. (del GCT -> A).
+            // Actually, let's make it simpler.
+            // M A B C D *.
+            // c.4_6del. Del A.
+            // Result M B C D *.
+            // Tail match "B C D *".
+            return Ok("ATGGCTGCATGCGATTAA".to_string());
+        }
+        if _ac == "NM_CTERM_SUBST" {
+            // M A B C D *.
+            // c.14T>G. (D -> E).
+            // DNA: M A B C D *. (D is GAT).
+            // GAT -> GAG (E).
+            // Result: M A B C E *.
+            // Tail match: *. (Len 1).
+            // This is a 1 vs 1 substitution. Should be p.Asp5Glu.
+            return Ok("ATGGCTGCATGCGATTAA".to_string());
+        }
         Ok(s)
     }
 
@@ -41,6 +66,9 @@ impl DataProvider for NormMockDataProvider {
         let (cds_start, cds_end) = match transcript_ac {
             "NM_0001.1" => (10, 19), // Met Lys *
             "NM_SHIFT_BUG" => (0, 30),
+            "NM_PREMATURE_STOP" => (0, 18), // M Q Q D D * (18 bases)
+            "NM_INFRAME_DEL" => (0, 18), // M A B C D * (18 bases)
+            "NM_CTERM_SUBST" => (0, 18), // M A B C D *
             _ => return Err(HgvsError::DataProviderError("Transcript not found".to_string())),
         };
 
@@ -119,5 +147,62 @@ fn test_normalization_shift_bug() {
             // 0-based index: 0
             assert_eq!(start, 0, "Variant should not have shifted!");
         }
+    }
+}
+
+#[test]
+fn test_premature_stop_formatting() {
+    let hdp = NormMockDataProvider;
+    let mapper = VariantMapper::new(&hdp);
+    
+    // NM_PREMATURE_STOP: M Q Q D D *.
+    // c.4_9delinsCATTAA.
+    // Replace CAA CAA (Q Q) with CAT TAA (H *).
+    // Result: M H *.
+    // Without fix: p.Gln2_Asp5delinsHis. (Deletion of QQD...).
+    // With fix: p.Gln2_Gln3delinsHisTer.
+    
+    let var_c = parse_hgvs_variant("NM_PREMATURE_STOP:c.4_9delinsCATTAA").unwrap();
+    if let SequenceVariant::Coding(v) = var_c {
+         let var_p = mapper.c_to_p(&v, Some("NP_MOCK")).unwrap();
+         assert_eq!(var_p.to_string(), "NP_MOCK:p.(Gln2_Gln3delinsHisTer)");
+    }
+}
+
+#[test]
+fn test_inframe_deletion_tail() {
+    let hdp = NormMockDataProvider;
+    let mapper = VariantMapper::new(&hdp);
+
+    // NM_INFRAME_DEL: M A A C D *.
+    // c.4_6del. Del A (second A).
+    // Result: M A C D *.
+    // Tail match: C D * (3 chars).
+    // This is > 1 char. So it should be detected as Original Stop.
+    // Result should be p.Ala2del. NOT delins...Ter.
+
+    let var_c = parse_hgvs_variant("NM_INFRAME_DEL:c.4_6del").unwrap();
+    if let SequenceVariant::Coding(v) = var_c {
+         let var_p = mapper.c_to_p(&v, Some("NP_MOCK")).unwrap();
+         assert_eq!(var_p.to_string(), "NP_MOCK:p.(Ala3del)");
+    }
+}
+
+#[test]
+fn test_cterm_substitution() {
+    let hdp = NormMockDataProvider;
+    let mapper = VariantMapper::new(&hdp);
+    
+    // NM_CTERM_SUBST: M A B C D *.
+    // c.15T>G. D (GAT) -> E (GAG).
+    // Tail match: *. (1 char).
+    // Ref mismatch length: 1 (D).
+    // Alt mismatch length: 1 (E).
+    // Should be p.Asp5Glu. NOT delins...Ter.
+    
+    let var_c = parse_hgvs_variant("NM_CTERM_SUBST:c.15T>G").unwrap();
+    if let SequenceVariant::Coding(v) = var_c {
+         let var_p = mapper.c_to_p(&v, Some("NP_MOCK")).unwrap();
+         assert_eq!(var_p.to_string(), "NP_MOCK:p.(Asp5Glu)");
     }
 }

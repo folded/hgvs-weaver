@@ -10,9 +10,6 @@ def clean_hgvs(s):
     # Remove accession prefix
     if ":" in s:
         s = s.split(":")[-1]
-    # Remove p. prefix
-    if s.startswith("p."):
-        s = s[2:]
     # Remove parentheses
     s = s.replace("(", "").replace(")", "")
     # Standardize Ter/*
@@ -39,7 +36,11 @@ def classify(row):
         # Categorize known errors
         if "Transcript" in rs_p and "not found" in rs_p:
             return "Provider Error (Missing Transcript)"
-        return f"Weaver Error: {rs_p.split(':')[-1] if ':' in rs_p else 'Generic'}"
+        err_str = rs_p.split(":")[-1] if ":" in rs_p else "Generic"
+        err_str = err_str.lstrip()
+        if re.match(r"expected [ACGT]+, found [ACGT]+ at transcript", err_str):
+            return "Weaver Error: Transcript mismatch"
+        return f"Weaver Error: {err_str}"
 
     # Biological/Nomenclature differences
     if "fs" in rs_p or "fs" in gt_p:
@@ -90,18 +91,13 @@ if mismatches:
     print("\nSample Mismatches:")
     # Sort samples to put delins first if we want to focus on them
     for cat, rows in sorted(mismatches.items(), key=lambda x: -len(x[1])):
-        if cat in {"Provider Error (Missing Transcript)"}:
+        if cat == "Provider Error (Missing Transcript)":
             continue
         print(f"CAT: {cat}")
         for row in rows:
-            c_rs = clean_hgvs(row["rs_p"])
-            c_gt = clean_hgvs(row["variant_prot"])
-            c_ref = clean_hgvs(row["ref_p"])
-
-            if c_gt == c_ref:
-                print("-" * 10)
-                print(f"NUC: {row['variant_nuc']}")
-                print(f"GT:  {row['variant_prot']}")
-                print(f"W:   {row['rs_p']}")
-                print(f"R:   {row['ref_p']}")
+            print("-" * 10)
+            print(f"NUC: {row['variant_nuc']}")
+            print(f"GT:  {row['variant_prot']}")
+            print(f"W:   {row['rs_p']}")
+            print(f"R:   {row['ref_p']}")
         print("-" * 40)

@@ -4,6 +4,19 @@ import argparse
 import csv
 
 
+def clean_hgvs(s):
+    if not s:
+        return ""
+    # Remove accession prefix
+    if ":" in s:
+        s = s.split(":")[-1]
+    # Remove parentheses
+    s = s.replace("(", "").replace(")", "")
+    # Standardize Ter/*
+    s = s.replace("Ter", "*")
+    return s
+
+
 def main() -> None:
     """Main analysis entry point."""
     parser = argparse.ArgumentParser(description="Analyze full HGVS validation results.")
@@ -27,17 +40,17 @@ def main() -> None:
 
             # ClinVar truth
             cv_p_full = row["variant_prot"]
-            cv_p = cv_p_full.split(":")[-1].replace("(", "").replace(")", "") if ":" in cv_p_full else cv_p_full
+            cv_p = clean_hgvs(cv_p_full)
             cv_spdi = row["spdi"]
 
             # rs
             rs_p_raw = row["rs_p"]
-            rs_p = rs_p_raw.replace("(", "").replace(")", "")
+            rs_p = clean_hgvs(rs_p_raw)
             rs_spdi = row["rs_spdi"]
 
             # ref
             ref_p_raw = row["ref_p"]
-            ref_p = ref_p_raw.replace("(", "").replace(")", "")
+            ref_p = clean_hgvs(ref_p_raw)
             ref_spdi = row["ref_spdi"]
 
             # Analysis
@@ -86,10 +99,22 @@ def main() -> None:
     print("-" * 40)
     print("Implementation | Protein Match | SPDI Match | Parse Errors")
     print(
-        f"weaver        | {rs_p_match / total * 100:12.1f}% | {rs_spdi_match / total * 100:9.1f}% | {rs_parse_err:12}",
+        f"weaver         | {rs_p_match / total * 100:12.3f}% | {rs_spdi_match / total * 100:9.3f}% | {rs_parse_err:12}",
     )
     print(
-        f"ref-hgvs       | {ref_p_match / total * 100:12.1f}% | {ref_spdi_match / total * 100:9.1f}% | {ref_parse_err:12}",
+        f"ref-hgvs       | {ref_p_match / total * 100:12.3f}% | {ref_spdi_match / total * 100:9.3f}% | {ref_parse_err:12}",
+    )
+
+    print()
+    print("-" * 40)
+    print(f"RefSeq Data Mismatches (rs): {rs_ref_mismatch} ({rs_ref_mismatch / total * 100:.1f}%)")
+    print("-" * 40)
+    print("Implementation | Protein Match | SPDI Match | Parse Errors")
+    print(
+        f"weaver         | {rs_p_match:12d} | {rs_spdi_match:11d} | {rs_parse_err:12d}",
+    )
+    print(
+        f"ref-hgvs       | {ref_p_match:12d} | {ref_spdi_match:11d} | {ref_parse_err:12d}",
     )
 
 
