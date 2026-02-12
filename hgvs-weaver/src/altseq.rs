@@ -196,22 +196,72 @@ impl<'a> AltSeqBuilder<'a> {
                 seq.splice(start_idx..end_idx, inv_chars);
                 (false, false)
             }
-            NaEdit::Repeat { min, .. } => {
-                check_bounds(start_idx, end_idx, self.transcript_sequence.len())?;
-                let unit = &self.transcript_sequence[start_idx..end_idx];
-                // In HGVS c.7035TGGAAC[3], min=max=3 usually.
-                // We assume start_idx..end_idx is the unit.
-                // The total sequence becomes unit repeated 'min' times.
+            NaEdit::Repeat { min, ref_, .. } => {
+                // Determine the repeat unit.
+                let unit_string = if let Some(r) = ref_ {
+                    // If ref_ is provided (e.g. c.coordSEQ[N]), use it as the unit.
+                    r.clone()
+                } else {
+                    // Fallback to coordinates.
+                    check_bounds(start_idx, end_idx, self.transcript_sequence.len())?;
+                    self.transcript_sequence[start_idx..end_idx].to_string()
+                };
+
+                if unit_string.is_empty() {
+                    return Err(HgvsError::ValidationError("Empty repeat unit".into()));
+                }
+
+                let unit_len = unit_string.len();
+                
+                // Scan the reference transcript to find the existing extent of this repeat unit.
+                // We assume start_idx marks the beginning of the repeat run.
+                // We scan forward until we stop matching the unit.
+                let mut current_idx = start_idx;
+                
+                let seq_chars: Vec<char> = self.transcript_sequence.chars().collect();
+                let unit_chars: Vec<char> = unit_string.chars().collect();
+                
+                // Verify the FIRST unit matches (at start_idx).
+                // If the first unit doesn't match, maybe the coordinate isn't pointing to the unit start?
+                // Or maybe the unit provided in string doesn't match ref (Ref mismatch).
+                // We should check.
+                loop {
+                    if current_idx + unit_len > seq_chars.len() {
+                        break;
+                    }
+                    if seq_chars[current_idx..current_idx+unit_len] == unit_chars[..] {
+                        current_idx += unit_len;
+                    } else {
+                        break;
+                    }
+                }
+                
+                // Construct the new sequence.
+                // We replace the ENTIRE found run (start_idx .. current_idx) with 'min' copies of unit.
+                // If ref_copy_count is 0 (first unit didn't match), we might have a problem.
+                // But let's assume valid HGVS where coordinate points to existing sequence.
+                // If ref_copy_count == 0, we treat it as an insertion at start_idx? 
+                // No, standard Repeat implies the unit exists. 
+                // But for robustness, if we found 0 copies, we replace 0 length (Insert).
+                // Actually, if ref_copy_count == 0, current_idx == start_idx.
+                
                 let mut total_seq = String::new();
                 for _ in 0..*min {
-                    total_seq.push_str(unit);
+                    total_seq.push_str(&unit_string);
                 }
                 let total_chars: Vec<char> = total_seq.chars().collect();
-                let net_change = (total_seq.len() as i32) - (unit.len() as i32);
+                
+                // Calculate net change
+                let ref_span_len = (current_idx - start_idx) as i32;
+                let new_span_len = total_seq.len() as i32;
+                let net_change = new_span_len - ref_span_len;
+                
                 cds_end_i += net_change;
                 let is_fs = net_change % 3 != 0;
-                // println!("DEBUG: splice at {}..{} with {:?} (len {})", start_idx, end_idx, total_chars, total_chars.len());
-                seq.splice(start_idx..end_idx, total_chars);
+                
+                check_bounds(start_idx, current_idx, seq.len())?;
+                // println!("DEBUG: Repeat splice at {}..{} (found {} copies) with {} copies (net {})", start_idx, current_idx, ref_copy_count, min, net_change);
+                seq.splice(start_idx..current_idx, total_chars);
                 (false, is_fs)
             }
             NaEdit::None => (false, false),

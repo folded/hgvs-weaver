@@ -4,13 +4,26 @@ import argparse
 import csv
 
 
+def clean_hgvs(s):
+    if not s:
+        return ""
+    # Remove accession prefix
+    if ":" in s:
+        s = s.split(":")[-1]
+    # Remove parentheses
+    s = s.replace("(", "").replace(")", "")
+    # Standardize Ter/*
+    s = s.replace("Ter", "*")
+    return s
+
+
 def is_p_match(pred: str, truth: str) -> bool:
     """Checks if predicted protein matches truth with fuzzy logic."""
     if pred.startswith("ERR:"):
         return False
-    p = pred.replace("(", "").replace(")", "").split(":")[-1]
-    t = truth.replace("(", "").replace(")", "").split(":")[-1]
-    return p == t or ("Ter" in p and "Ter" in t) or ("fs" in p and "fs" in t) or ("=" in p and "=" in t)
+    p = clean_hgvs(pred)
+    t = clean_hgvs(truth)
+    return p == t or ("*" in p and "*" in t) or ("fs" in p and "fs" in t) or ("=" in p and "=" in t)
 
 
 def print_table(title: str, stats: dict[str, int], _total: int) -> None:

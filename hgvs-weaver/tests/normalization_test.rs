@@ -48,6 +48,16 @@ impl DataProvider for NormMockDataProvider {
             // This is a 1 vs 1 substitution. Should be p.Asp5Glu.
             return Ok("ATGGCTGCATGCGATTAA".to_string());
         }
+        if _ac == "NM_REPEAT_EXP" {
+            // M A A A F *.
+            // ATG GCT GCT GCT TTT TAA.
+            return Ok("ATGGCTGCTGCTTTTTAA".to_string());
+        }
+        if _ac == "NM_REPEAT_CON" {
+            // M A A A A F *.
+            // ATG GCA GCA GCA GCA TTT TAA.
+            return Ok("ATGGCAGCAGCAGCATTTTAA".to_string());
+        }
         Ok(s)
     }
 
@@ -69,6 +79,8 @@ impl DataProvider for NormMockDataProvider {
             "NM_PREMATURE_STOP" => (0, 18), // M Q Q D D * (18 bases)
             "NM_INFRAME_DEL" => (0, 18), // M A B C D * (18 bases)
             "NM_CTERM_SUBST" => (0, 18), // M A B C D *
+            "NM_REPEAT_EXP" => (0, 18),  // M A A A F * (ATG GCT GCT GCT TTT TAA)
+            "NM_REPEAT_CON" => (0, 21),  // M A A A A F * (ATG GCA GCA GCA GCA TTT TAA)
             _ => return Err(HgvsError::DataProviderError("Transcript not found".to_string())),
         };
 
@@ -204,5 +216,39 @@ fn test_cterm_substitution() {
     if let SequenceVariant::Coding(v) = var_c {
          let var_p = mapper.c_to_p(&v, Some("NP_MOCK")).unwrap();
          assert_eq!(var_p.to_string(), "NP_MOCK:p.(Asp5Glu)");
+    }
+}
+
+#[test]
+fn test_repeat_expansion() {
+    let hdp = NormMockDataProvider;
+    let mapper = VariantMapper::new(&hdp);
+    
+    // NM_REPEAT_EXP: M A A A *. (ATG GCT GCT GCT TAA).
+    // c.4GCT[5] -> p.Ala3_Ala4dup? Or p.Ala2_Ala3dup?
+    // Ref has 3 copies. Var has 5. Net +2 copies (+6 bases).
+    // Expecting duplication notation.
+    
+    let var_c = parse_hgvs_variant("NM_REPEAT_EXP:c.4GCT[5]").unwrap();
+    if let SequenceVariant::Coding(v) = var_c {
+         let var_p = mapper.c_to_p(&v, Some("NP_MOCK")).unwrap();
+         assert!(var_p.to_string().contains("dup"), "Expected dup, got {}", var_p);
+    }
+}
+
+#[test]
+fn test_repeat_contraction() {
+    let hdp = NormMockDataProvider;
+    let mapper = VariantMapper::new(&hdp);
+    
+    // NM_REPEAT_CON: M A A A A *. (ATG GCA GCA GCA GCA TAA).
+    // c.4GCA[2].
+    // Ref has 4 copies. Var has 2. Net -2 copies (-6 bases).
+    // Expecting deletion notation.
+    
+    let var_c = parse_hgvs_variant("NM_REPEAT_CON:c.4GCA[2]").unwrap();
+    if let SequenceVariant::Coding(v) = var_c {
+         let var_p = mapper.c_to_p(&v, Some("NP_MOCK")).unwrap();
+         assert!(var_p.to_string().contains("del"), "Expected del, got {}", var_p);
     }
 }

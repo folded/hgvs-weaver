@@ -170,23 +170,28 @@ To rerun the validation, you need the RefSeq annotation and genomic sequence fil
 
 Summary of results comparing `weaver` and `ref-hgvs` (`biocommons.hgvs`) against ClinVar ground truth:
 
-| Implementation | Protein Match | SPDI Match |
-| :------------- | :-----------: | :--------: |
-| **weaver**     |   **92.3%**   | **91.1%**  |
-| ref-hgvs       |     89.1%     |   91.1%    |
+```sh
+    uv run weaver-analyze results.tsv
+```
+
+| Implementation | Protein Match | SPDI Match  |
+| :------------- | :-----------: | :---------: |
+| weaver         |  **98.600%**  | **92.522%** |
+| ref-hgvs       |    98.116%    |   92.515%   |
+
 
 #### Protein Translation Agreement
 
 |                     | ref-hgvs Match | ref-hgvs Mismatch |
 | :------------------ | :------------: | :---------------: |
-| **weaver Match**    |     86,634     |       5,682       |
-| **weaver Mismatch** |     2,480      |       5,204       |
+| **weaver Match**    |     97,788     |        507        |
+| **weaver Mismatch** |       2        |       1,703       |
 
 #### SPDI Mapping Agreement
 
 |                     | ref-hgvs Match | ref-hgvs Mismatch |
 | :------------------ | :------------: | :---------------: |
-| **weaver Match**    |     91,059     |         8         |
-| **weaver Mismatch** |       1        |       8,932       |
+| **weaver Match**    |     92,514     |         8         |
+| **weaver Mismatch** |       1        |       7,477       |
 
 - **Variant Equivalence**: Check if two variants are biologically equivalent using advanced cross-coordinate mapping and normalization. [See Algorithm](docs/source/equivalence_logic.md).
