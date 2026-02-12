@@ -5,7 +5,7 @@ use hgvs_weaver::data::{ExonData, TranscriptData};
 struct MockDataProvider;
 
 impl DataProvider for MockDataProvider {
-    fn get_seq(&self, _ac: &str, _start: i32, _end: i32, _kind: IdentifierKind) -> Result<String, HgvsError> {
+    fn get_seq(&self, _ac: &str, _start: i32, _end: i32, _kind: hgvs_weaver::data::IdentifierType) -> Result<String, HgvsError> {
         let mut s = String::new();
         s.push_str("AAAAAAAAAA"); // 10 A's
         s.push_str("ATG"); // n.11 is c.1
@@ -41,11 +41,15 @@ impl DataProvider for MockDataProvider {
         Err(HgvsError::DataProviderError("Transcript not found".to_string()))
     }
 
-    fn get_symbol_accessions(&self, symbol: &str, _sk: IdentifierKind, tk: IdentifierKind) -> Result<Vec<String>, HgvsError> {
-        if tk == IdentifierKind::Protein && symbol == "NM_0001.3" {
-            return Ok(vec!["NP_0001.1".to_string()]);
+    fn get_symbol_accessions(&self, symbol: &str, _sk: hgvs_weaver::data::IdentifierKind, tk: hgvs_weaver::data::IdentifierKind) -> Result<Vec<(hgvs_weaver::data::IdentifierType, String)>, HgvsError> {
+        if tk == hgvs_weaver::data::IdentifierKind::Protein && symbol == "NM_0001.3" {
+            return Ok(vec![(hgvs_weaver::data::IdentifierType::ProteinAccession, "NP_0001.1".to_string())]);
         }
-        Ok(vec![symbol.to_string()])
+        Ok(vec![(hgvs_weaver::data::IdentifierType::Unknown, symbol.to_string())])
+    }
+
+    fn get_identifier_type(&self, _identifier: &str) -> Result<hgvs_weaver::data::IdentifierType, HgvsError> {
+        Ok(hgvs_weaver::data::IdentifierType::Unknown)
     }
 }
 

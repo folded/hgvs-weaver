@@ -25,7 +25,7 @@ impl JsonDataProvider {
 }
 
 impl DataProvider for JsonDataProvider {
-    fn get_seq(&self, ac: &str, start: i32, end: i32, _kind: IdentifierKind) -> Result<String, HgvsError> {
+    fn get_seq(&self, ac: &str, start: i32, end: i32, _kind: hgvs_weaver::data::IdentifierType) -> Result<String, HgvsError> {
         let seq = self.data.sequences.get(ac).ok_or_else(|| HgvsError::DataProviderError(format!("Sequence {} not found", ac)))?;
         let len = seq.len() as i32;
         let actual_end = if end == -1 { len } else { end };
@@ -41,11 +41,15 @@ impl DataProvider for JsonDataProvider {
         Ok(Box::new(td.clone()))
     }
 
-    fn get_symbol_accessions(&self, symbol: &str, _sk: IdentifierKind, tk: IdentifierKind) -> Result<Vec<String>, HgvsError> {
-        if tk == IdentifierKind::Protein {
-            return Ok(vec!["MOCK".to_string()]);
+    fn get_symbol_accessions(&self, symbol: &str, _sk: hgvs_weaver::data::IdentifierKind, tk: hgvs_weaver::data::IdentifierKind) -> Result<Vec<(hgvs_weaver::data::IdentifierType, String)>, HgvsError> {
+        if tk == hgvs_weaver::data::IdentifierKind::Protein {
+            return Ok(vec![(hgvs_weaver::data::IdentifierType::ProteinAccession, "MOCK".to_string())]);
         }
-        Ok(vec![symbol.to_string()])
+        Ok(vec![(hgvs_weaver::data::IdentifierType::Unknown, symbol.to_string())])
+    }
+
+    fn get_identifier_type(&self, _identifier: &str) -> Result<hgvs_weaver::data::IdentifierType, HgvsError> {
+        Ok(hgvs_weaver::data::IdentifierType::Unknown)
     }
 }
 
@@ -65,7 +69,7 @@ fn run_c_to_p(hgvsc: &str, expected_p: &str) {
 fn test_parity_substitutions() {
     run_c_to_p("NM_999999.1:c.6A>G", "MOCK:p.(Lys2=)");
     run_c_to_p("NM_999999.1:c.6A>T", "MOCK:p.(Lys2Asn)");
-    run_c_to_p("NM_999996.1:c.8C>A", "MOCK:p.(Ser3_Lys9del)");
+    run_c_to_p("NM_999996.1:c.8C>A", "MOCK:p.(Ser3Ter)");
 }
 
 #[test]

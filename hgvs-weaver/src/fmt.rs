@@ -275,6 +275,12 @@ impl fmt::Display for AaEdit {
                 if let Some(l) = length { write!(f, "{}", l)?; }
                 Ok(())
             }
+            AaEdit::Ext { alt, length, .. } => {
+                let a3 = if alt == "*" { "Ter" } else { alt };
+                write!(f, "ext*{}", a3)?;
+                if let Some(l) = length { write!(f, "{}", l)?; }
+                Ok(())
+            }
             AaEdit::Special { value, .. } => write!(f, "{}", value),
             _ => write!(f, "unknown_aa_edit"),
         }

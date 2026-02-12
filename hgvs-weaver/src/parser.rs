@@ -189,10 +189,21 @@ pub fn parse_aa_interval(pair: Pair<Rule>) -> Result<AaInterval, HgvsError> {
 }
 
 pub fn parse_aa_pos(pair: Pair<Rule>) -> Result<AAPosition, HgvsError> {
-    let mut inner = pair.into_inner();
-    let aa = inner.next().ok_or_else(|| HgvsError::PestError("Missing amino acid".into()))?.as_str().to_string();
-    let pos_str = inner.next().ok_or_else(|| HgvsError::PestError("Missing AA position".into()))?.as_str();
-    let pos = pos_str.parse::<i32>().map_err(|_| HgvsError::PestError("Invalid AA position".into()))?;
+    let mut aa = String::new();
+    let mut pos = 0;
+    
+    for p in pair.into_inner() {
+        match p.as_rule() {
+            Rule::aa13 | Rule::term13 | Rule::aa3 | Rule::aa1 | Rule::term3 | Rule::term1 => {
+                aa = p.as_str().to_string();
+            }
+            Rule::num => {
+                pos = p.as_str().parse().unwrap_or(0);
+            }
+            _ => {}
+        }
+    }
+    
     Ok(AAPosition { base: HgvsProteinPos(pos), aa, uncertain: false })
 }
 
@@ -242,6 +253,34 @@ pub fn parse_na_edit(pair: Pair<Rule>) -> Result<NaEdit, HgvsError> {
             }
             Ok(NaEdit::RefAlt { ref_: ref_.clone(), alt: ref_.clone(), uncertain: false })
         }
+        Rule::dna_repeat | Rule::rna_repeat => {
+            let mut inner = inner_feat.into_inner();
+            let mut ref_ = None;
+            let mut first = 0;
+            let mut second = None;
+            
+            for p in inner {
+                match p.as_rule() {
+                    Rule::dna | Rule::rna => ref_ = Some(p.as_str().to_string()),
+                    Rule::num => {
+                        if first == 0 { first = p.as_str().parse().unwrap_or(0); }
+                        else { second = Some(p.as_str().parse().unwrap_or(0)); }
+                    }
+                    _ => {}
+                }
+            }
+            let max = second.unwrap_or(first);
+            Ok(NaEdit::Repeat { ref_, min: first, max, uncertain: false })
+        }
+        Rule::dna_con | Rule::rna_con => {
+            // Placeholder/Generic for now as struct support is minimal
+            Ok(NaEdit::None)
+        }
+        Rule::dna_copy => {
+            let mut inner = inner_feat.into_inner();
+            let copy = inner.next().map(|p| p.as_str().parse().unwrap_or(0)).unwrap_or(0);
+            Ok(NaEdit::NACopy { copy, uncertain: false })
+        }
         _ => Ok(NaEdit::None),
     }
 }
@@ -275,6 +314,46 @@ pub fn parse_pro_edit(pair: Pair<Rule>) -> Result<AaEdit, HgvsError> {
             }
             Ok(AaEdit::Fs { ref_: "".into(), alt, term, length, uncertain: false })
         }
+        Rule::pro_ext => {
+             let ref_ = String::new();
+             let mut alt = String::new();
+             let mut aaterm = None;
+             let mut length = None;
+             for p in inner.into_inner() {
+                 match p.as_rule() {
+                     Rule::aat13 | Rule::aat3 | Rule::aat1 | Rule::aa3 | Rule::aa1 | Rule::term3 | Rule::term1 => alt = p.as_str().to_string(),
+                     Rule::ext => {
+                         let mut ext_inner = p.into_inner();
+                         if let Some(aa_ext) = ext_inner.next() {
+                             let mut p_inner = aa_ext.into_inner();
+                             aaterm = p_inner.next().map(|t| t.as_str().to_string());
+                             length = p_inner.next().map(|l| l.as_str().to_string());
+                         }
+                     }
+                     _ => {}
+                 }
+             }
+             Ok(AaEdit::Ext { ref_, alt, aaterm, length, uncertain: false })
+        }
+        Rule::pro_repeat => {
+            let inner = inner.into_inner();
+            let mut ref_ = None;
+            let mut first = 0;
+            let mut second = None;
+            
+            for p in inner {
+                match p.as_rule() {
+                    Rule::aat13_seq => ref_ = Some(p.as_str().to_string()),
+                    Rule::num => {
+                        if first == 0 { first = p.as_str().parse().unwrap_or(0); }
+                        else { second = Some(p.as_str().parse().unwrap_or(0)); }
+                    }
+                    _ => {}
+                }
+            }
+            let max = second.unwrap_or(first);
+            Ok(AaEdit::Repeat { ref_, min: first, max, uncertain: false })
+        }
         _ => Ok(AaEdit::None),
     }
 }
@@ -289,5 +368,57 @@ mod tests {
         // Ensure it doesn't panic, just returns an error.
         let result = parse_hgvs_variant("NC_000001.11:o.123A>G");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_repeats() {
+        let v_c = parse_hgvs_variant("NM_001291285.3:c.7035TGGAAC[3]").unwrap();
+        match v_c {
+            crate::coords::SequenceVariant::Coding(v) => {
+                match v.posedit.edit {
+                    crate::edits::NaEdit::Repeat { ref_, min, max, .. } => {
+                        assert_eq!(ref_, Some("TGGAAC".to_string()));
+                        assert_eq!(min, 3);
+                        assert_eq!(max, 3);
+                    }
+                    _ => panic!("Expected Repeat edit"),
+                }
+            }
+            _ => panic!("Expected Coding variant"),
+        }
+
+        let v_p = parse_hgvs_variant("NP_001278214.1:p.2346GT[3]").unwrap();
+        match v_p {
+            crate::coords::SequenceVariant::Protein(v) => {
+                match v.posedit.edit {
+                    crate::edits::AaEdit::Repeat { ref_, min, max, .. } => {
+                        assert_eq!(ref_, Some("GT".to_string()));
+                        assert_eq!(min, 3);
+                        assert_eq!(max, 3);
+                    }
+                    _ => panic!("Expected Repeat edit for protein"),
+                }
+            }
+            _ => panic!("Expected Protein variant"),
+        }
+    }
+
+    #[test]
+    fn test_parse_extension() {
+        let v_p = parse_hgvs_variant("NP_001116078.1:p.Ter312Argext*5").unwrap();
+        match v_p {
+            crate::coords::SequenceVariant::Protein(v) => {
+                match v.posedit.edit {
+                    crate::edits::AaEdit::Ext { ref_, alt, aaterm, length, .. } => {
+                        assert_eq!(ref_, "");
+                        assert_eq!(alt, "Arg");
+                        assert_eq!(aaterm, Some("*".to_string()));
+                        assert_eq!(length, Some("5".to_string()));
+                    }
+                    _ => panic!("Expected Extension edit"),
+                }
+            }
+            _ => panic!("Expected Protein variant"),
+        }
     }
 }

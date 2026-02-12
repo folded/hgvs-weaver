@@ -51,13 +51,14 @@ rna_inv    = { "inv" ~ (num | rna)? }
 rna_con    = { "con" ~ hgvs_position }
 rna_repeat = { rna? ~ (("[" ~ num ~ "]") | ("(" ~ num ~ "_" ~ num ~ ")")) }
 
-pro_edit   = { pro_fs | pro_ext | pro_subst | pro_delins | pro_ins | pro_del | pro_dup | pro_ident }
+pro_edit   = { pro_fs | pro_ext | pro_repeat | pro_ident | pro_subst | pro_delins | pro_del | pro_ins | pro_dup }
 pro_ident  = { "=" }
 pro_subst  = { (aat13 | "?") }
 pro_delins = { "delins" ~ aat13_seq }
 pro_del    = { "del" }
 pro_ins    = { "ins" ~ aat13_seq }
 pro_dup    = { "dup" }
+pro_repeat = { (aat13_seq | num)? ~ (("[" ~ num ~ "]") | ("(" ~ num ~ "_" ~ num ~ ")")) }
 pro_fs     = { (aat13 | "") ~ fs }
 pro_ext    = { aat13? ~ ext }
 
@@ -88,7 +89,7 @@ c_pos = { ("*" ~ num ~ offset) | (base ~ offset) }
 g_pos = { num | "?" }
 m_pos = { num | "?" }
 n_pos = { base ~ offset }
-p_pos = { (term13 | aa13) ~ num }
+p_pos = { ((term13 | aa13) ~ num) | num }
 r_pos = { base ~ offset }
 
 // Primitives and Basics
@@ -123,13 +124,13 @@ aat3 = { term3 | aa3 }
 aat13 = { aat3 | aat1 }
 
 
-aat13_seq = { aat3+ | aat1+ }
+aat13_seq = @{ aat3+ | aat1+ }
 
 fs = { "fs" ~ (aa13_fs | "") }
-ext = { "ext" ~ (aa13_ext | "") }
+ext = { "ext" ~ aa13_ext }
 aa13_fs = { term13 ~ fsext_offset }
-aa13_ext = { (term13 ~ fsext_offset) | ((aa13 | "") ~ num) }
-fsext_offset = { num | "?" | "" }
+aa13_ext = { (term13 | aa13)? ~ fsext_offset }
+fsext_offset = { snum | "?" | "" }
 
 base = { snum }
 

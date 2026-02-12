@@ -67,59 +67,17 @@ impl<'a> AltSeqToHgvsp<'a> {
         let mut ref_end = ref_chars.len();
         let mut alt_end = alt_chars.len();
         while ref_end > start_idx && alt_end > start_idx && ref_chars[ref_end-1] == alt_chars[alt_end-1] {
-            // Stop trimming if we encounter a stop codon at different absolute positions, 
-            // UNLESS the preceding residues also match (which implies a shifted tail/indel).
-            // This prevents truncated proteins from matching the reference terminal stop.
-            if ref_chars[ref_end-1] == '*' && ref_end != alt_end {
-                if ref_end < 2 || alt_end < 2 || ref_chars[ref_end-2] != alt_chars[alt_end-2] {
-                    break;
-                }
-            }
             ref_end -= 1;
             alt_end -= 1;
         }
 
-        // 1. Check for Nonsense that might be an in-frame deletion-insertion
+        // 1. Check for Nonsense (Substitution to Ter)
         if alt_chars.get(start_idx) == Some(&'*') {
-             let c_len = self.alt_data.c_variant.posedit.pos.as_ref()
-                .map(|p| p.length().unwrap_or(0))
-                .unwrap_or(0) as usize;
-
-             if c_len > 0 && c_len % 3 == 0 {
-                 let aa_del_len = c_len / 3;
-                 if aa_del_len >= 1 {
-                     let ref_end_idx = start_idx + aa_del_len;
-                     if ref_end_idx <= ref_chars.len() {
-                         let start_pos_0 = ProteinPos(start_idx as i32);
-                         let end_pos_0 = ProteinPos((ref_end_idx - 1) as i32);
-                         let del_seq: String = ref_chars[start_idx..ref_end_idx].iter().map(|c| aa1_to_aa3(*c)).collect::<Vec<&str>>().join("");
-                         return Ok(PVariant {
-                            ac: self.alt_data.protein_accession.clone(),
-                            gene: None,
-                            posedit: PosEdit {
-                                pos: Some(AaInterval {
-                                    start: AAPosition { base: start_pos_0.to_hgvs(), aa: aa1_to_aa3(ref_chars.get(start_idx).cloned().unwrap_or('*')).to_string(), uncertain: false },
-                                    end: Some(AAPosition { base: end_pos_0.to_hgvs(), aa: aa1_to_aa3(ref_chars.get(end_pos_0.0 as usize).cloned().unwrap_or('*')).to_string(), uncertain: false }),
-                                    uncertain: false,
-                                }),
-                                edit: AaEdit::DelIns { ref_: del_seq, alt: "Ter".to_string(), uncertain: false },
-                                uncertain: false,
-                                predicted: false,
-                            }
-                        });
-                     }
-                 }
-             }
-        }
-
-        let del_seq: String = ref_chars[start_idx..ref_end].iter().map(|c| aa1_to_aa3(*c)).collect::<Vec<&str>>().join("");
-        let ins_seq: String = alt_chars[start_idx..alt_end].iter().map(|c| aa1_to_aa3(*c)).collect::<Vec<&str>>().join("");
-
-        if del_seq.len() == 3 && ins_seq == "Ter" { // 3 letters for 1 AA
-             return self.create_variant(
+            let ref_curr = aa1_to_aa3(ref_chars.get(start_idx).cloned().unwrap_or('*')).to_string();
+            return self.create_variant(
                 ProteinPos(start_idx as i32),
                 None,
-                Some(del_seq),
+                Some(ref_curr),
                 Some("Ter".to_string()),
                 None,
                 None,
@@ -128,18 +86,50 @@ impl<'a> AltSeqToHgvsp<'a> {
             );
         }
 
-        if del_seq.len() == 3 && ins_seq.len() == 3 {
-            return self.create_variant(
-                ProteinPos(start_idx as i32),
-                None,
-                Some(del_seq),
-                Some(ins_seq),
-                None,
-                None,
-                false,
-                false
-            );
+        // 2. Check for Stop Loss (Extension)
+        if ref_chars.get(start_idx) == Some(&'*') {
+            // Find length of extension in alt_chars
+            let mut ext_len = 0;
+            let mut found_stop = false;
+            for &c in alt_chars.iter().skip(start_idx + 1) {
+                ext_len += 1;
+                if c == '*' {
+                    found_stop = true;
+                    break;
+                }
+            }
+
+            let alt_curr = aa1_to_aa3(alt_chars.get(start_idx).cloned().unwrap_or('*')).to_string();
+            let length = if found_stop { Some(ext_len.to_string()) } else { Some("?".to_string()) };
+
+            return Ok(PVariant {
+                ac: self.alt_data.protein_accession.clone(),
+                gene: None,
+                posedit: PosEdit {
+                    pos: Some(AaInterval {
+                        start: AAPosition { 
+                            base: ProteinPos(start_idx as i32).to_hgvs(), 
+                            aa: "Ter".to_string(), 
+                            uncertain: false 
+                        },
+                        end: None,
+                        uncertain: false,
+                    }),
+                    edit: AaEdit::Ext { 
+                        ref_: "Ter".into(), 
+                        alt: alt_curr, 
+                        aaterm: Some("*".to_string()), 
+                        length, 
+                        uncertain: !found_stop 
+                    },
+                    uncertain: false,
+                    predicted: false,
+                }
+            });
         }
+
+        let del_seq: String = ref_chars[start_idx..ref_end].iter().map(|c| aa1_to_aa3(*c)).collect::<Vec<&str>>().join("");
+        let ins_seq: String = alt_chars[start_idx..alt_end].iter().map(|c| aa1_to_aa3(*c)).collect::<Vec<&str>>().join("");
 
         // Detect duplication
         if del_seq.is_empty() && !ins_seq.is_empty() {
@@ -196,7 +186,20 @@ impl<'a> AltSeqToHgvsp<'a> {
             });
         }
 
-        // Del / DelIns
+        // Del / DelIns / Subst
+        if ins_seq.len() == 3 && del_seq.len() == 3 {
+             return self.create_variant(
+                ProteinPos(start_idx as i32),
+                None,
+                Some(del_seq),
+                Some(ins_seq),
+                None,
+                None,
+                false,
+                false
+            );
+        }
+
         let start_pos_0 = ProteinPos(start_idx as i32);
         let end_pos_0 = if ref_end > start_idx + 1 { Some(ProteinPos((ref_end - 1) as i32)) } else { None };
         let aa_start = aa1_to_aa3(ref_chars.get(start_idx).cloned().unwrap_or('*')).to_string();

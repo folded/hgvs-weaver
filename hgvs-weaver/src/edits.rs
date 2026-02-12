@@ -38,12 +38,14 @@ pub enum AaEdit {
     Ins { alt: String, uncertain: bool },
     /// Deletion-insertion.
     DelIns { ref_: String, alt: String, uncertain: bool },
-    /// Generic reference/alternate change.
+    /// Substitution, deletion, or insertion represented by reference and alternate sequences.
     RefAlt { ref_: Option<String>, alt: Option<String>, uncertain: bool },
     /// Frameshift.
     Fs { ref_: String, alt: String, term: Option<String>, length: Option<String>, uncertain: bool },
     /// Extension of the protein (stop codon loss).
     Ext { ref_: String, alt: String, aaterm: Option<String>, length: Option<String>, uncertain: bool },
+    /// Repeat sequence.
+    Repeat { ref_: Option<String>, min: i32, max: i32, uncertain: bool },
     /// Duplication.
     Dup { ref_: Option<String>, uncertain: bool },
     /// Silent variant (no change).
