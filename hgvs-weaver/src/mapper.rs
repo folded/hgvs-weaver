@@ -220,6 +220,7 @@ impl<'a> VariantMapper<'a> {
 
         let ref_aa = crate::utils::translate_cds(&ref_seq[cds_start_idx..]);
 
+
         let builder = AltSeqBuilder {
             var_c,
             transcript_sequence: ref_seq,
@@ -406,7 +407,7 @@ impl<'a> VariantMapper<'a> {
                     break;
                 }
             }
-        } else if ref_str.is_empty() && !alt_str.is_empty() {
+        } else if (ref_str.is_empty() && start == end) && !alt_str.is_empty() {
             // Insertion
             let alt_bytes = alt_str.as_bytes();
             let n = alt_bytes.len();

@@ -13,6 +13,16 @@ impl DataProvider for NormMockDataProvider {
         for _ in 0..20 {
             s.push_str("ATGC");
         }
+        
+        // NM_SHIFT_BUG sequence
+        // We want context "CCAT" at index 0.
+        // And we want variant c.1_2delinsAT.
+        // Result ATAT.
+        // If shifted -> c.3_4delinsAT.
+        // Ref AT. Alt AT. Result CCAT. (Identity).
+        if _ac == "NM_SHIFT_BUG" {
+            return Ok("CCATTTTTTT".to_string());
+        }
         Ok(s)
     }
 
@@ -30,6 +40,7 @@ impl DataProvider for NormMockDataProvider {
         
         let (cds_start, cds_end) = match transcript_ac {
             "NM_0001.1" => (10, 19), // Met Lys *
+            "NM_SHIFT_BUG" => (0, 30),
             _ => return Err(HgvsError::DataProviderError("Transcript not found".to_string())),
         };
 
@@ -82,5 +93,31 @@ fn test_extension_normalization() {
         let var_p = mapper.c_to_p(&v, Some("NP_0001.1")).unwrap();
         // Should be ext*X
         assert!(var_p.to_string().contains("ext*"));
+    }
+}
+
+#[test]
+fn test_normalization_shift_bug() {
+    let hdp = NormMockDataProvider;
+    let mapper = VariantMapper::new(&hdp);
+
+    // NM_SHIFT_BUG: Sequence "CCAT...". UTR=0.
+    // c.1_2delinsAT. Ref=CC. Alt=AT.
+    // Result Sequence: ATAT...
+    // If shifted -> c.3_4delinsAT. Ref=AT. Alt=AT.
+    // Result Sequence: CCAT...
+    // The outputs are DIFFERENT. So it MUST NOT shift.
+    
+    let var_c = parse_hgvs_variant("NM_SHIFT_BUG:c.1_2delinsAT").unwrap();
+    if let SequenceVariant::Coding(v) = var_c {
+        let var_norm = mapper.normalize_variant(SequenceVariant::Coding(v)).unwrap();
+        if let SequenceVariant::Coding(v_norm) = var_norm {
+            // Should remain c.1_2
+            // Because if it shifts to 3_4, it implies AT -> AT, which is Identity.
+            let pos = v_norm.posedit.pos.unwrap();
+            let start = pos.start.base.to_index().0;
+            // 0-based index: 0
+            assert_eq!(start, 0, "Variant should not have shifted!");
+        }
     }
 }

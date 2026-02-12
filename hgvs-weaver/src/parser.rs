@@ -254,7 +254,7 @@ pub fn parse_na_edit(pair: Pair<Rule>) -> Result<NaEdit, HgvsError> {
             Ok(NaEdit::RefAlt { ref_: ref_.clone(), alt: ref_.clone(), uncertain: false })
         }
         Rule::dna_repeat | Rule::rna_repeat => {
-            let mut inner = inner_feat.into_inner();
+            let inner = inner_feat.into_inner();
             let mut ref_ = None;
             let mut first = 0;
             let mut second = None;

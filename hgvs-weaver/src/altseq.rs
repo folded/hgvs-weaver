@@ -122,6 +122,7 @@ impl<'a> AltSeqBuilder<'a> {
                     if r_len == 1 && a.len() == 1 && start_idx + 1 == end_idx { is_subst = true; }
                     let a_chars: Vec<char> = a.chars().collect();
                     check_bounds(start_idx, end_idx, seq.len())?;
+                    // println!("DEBUG: splice #1 at {}..{} with {:?} (len {})", start_idx, end_idx, a_chars, a_chars.len());
                     seq.splice(start_idx..end_idx, a_chars);
                 } else if let Some(a) = alt {
                     let a_chars: Vec<char> = a.chars().collect();
@@ -131,6 +132,7 @@ impl<'a> AltSeqBuilder<'a> {
                         seq.splice(ins_pos..ins_pos, a_chars);
                     } else {
                         check_bounds(start_idx, end_idx, seq.len())?;
+                        // println!("DEBUG: splice #2 at {}..{} with {:?} (len {})", start_idx, end_idx, a_chars, a_chars.len());
                         seq.splice(start_idx..end_idx, a_chars);
                     }
                 } else {
@@ -208,6 +210,7 @@ impl<'a> AltSeqBuilder<'a> {
                 let net_change = (total_seq.len() as i32) - (unit.len() as i32);
                 cds_end_i += net_change;
                 let is_fs = net_change % 3 != 0;
+                // println!("DEBUG: splice at {}..{} with {:?} (len {})", start_idx, end_idx, total_chars, total_chars.len());
                 seq.splice(start_idx..end_idx, total_chars);
                 (false, is_fs)
             }
