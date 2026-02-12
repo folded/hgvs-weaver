@@ -46,6 +46,10 @@ class Variant:
         Returns True if the reference sequence matches, False otherwise.
         May raise ValueError if coordinates are out of bounds.
         """
+    def to_spdi(self, provider: typing.Any) -> builtins.str:
+        r"""
+        Converts the variant to an SPDI string representation.
+        """
 
 @typing.final
 class VariantMapper:

@@ -104,11 +104,17 @@ impl PyVariant {
             SequenceVariant::Coding(v) => self.validate_coding(v, &bridge),
             _ => Err(HgvsError::UnsupportedOperation("Validation not implemented for this variant type".into())),
         };
-
         match result {
             Ok(is_valid) => Ok(is_valid),
             Err(e) => Err(pyo3::exceptions::PyValueError::new_err(e.to_string())),
         }
+    }
+
+    #[doc = "Converts the variant to an SPDI string representation."]
+    fn to_spdi(&self, _py: Python, provider: Py<PyAny>) -> PyResult<String> {
+        let bridge = PyDataProviderBridge { provider };
+        self.inner.to_spdi(&bridge)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
     }
 }
 

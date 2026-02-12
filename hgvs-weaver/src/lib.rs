@@ -86,6 +86,7 @@ pub mod fmt;
 pub mod altseq;
 pub mod altseq_to_hgvsp;
 pub mod equivalence;
+pub mod sequence;
 
 // Re-exports for public usage
 pub use structs::{GVariant, CVariant, PVariant, MVariant, NVariant, RVariant, Variant};

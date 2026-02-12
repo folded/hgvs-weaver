@@ -4,6 +4,7 @@ use crate::structs::{GVariant, CVariant, PVariant, BaseOffsetInterval};
 use crate::transcript_mapper::TranscriptMapper;
 use crate::altseq::AltSeqBuilder;
 use crate::altseq_to_hgvsp::AltSeqToHgvsp;
+use crate::sequence::Sequence;
 
 /// High-level mapper for transforming variants between coordinate systems.
 pub struct VariantMapper<'a> {
@@ -45,7 +46,9 @@ impl<'a> VariantMapper<'a> {
                 uncertain: false,
             };
             let mut edit = var_g.posedit.edit.clone();
-            if am.transcript.strand() == -1 { edit = edit.reverse_complement(); }
+            if am.transcript.strand() == -1 {
+                edit = edit.map_sequence(|s| Sequence::new(s.to_string()).reverse_complement().as_str().to_string());
+            }
 
             return Ok(CVariant {
                 ac: transcript_ac.to_string(),
@@ -60,7 +63,9 @@ impl<'a> VariantMapper<'a> {
         }
 
         let mut edit = var_g.posedit.edit.clone();
-        if am.transcript.strand() == -1 { edit = edit.reverse_complement(); }
+        if am.transcript.strand() == -1 {
+            edit = edit.map_sequence(|s| Sequence::new(s.to_string()).reverse_complement().as_str().to_string());
+        }
 
         Ok(CVariant {
             ac: transcript_ac.to_string(),
@@ -94,7 +99,9 @@ impl<'a> VariantMapper<'a> {
             }
 
             let mut edit = var_c.posedit.edit.clone();
-            if am.transcript.strand() == -1 { edit = edit.reverse_complement(); }
+            if am.transcript.strand() == -1 {
+                edit = edit.map_sequence(|s| Sequence::new(s.to_string()).reverse_complement().as_str().to_string());
+            }
 
             return Ok(GVariant {
                 ac: reference_ac.to_string(),
@@ -110,7 +117,9 @@ impl<'a> VariantMapper<'a> {
 
         let pos_g = crate::structs::SimplePosition { base: g_pos.to_hgvs(), end: None, uncertain: false };
         let mut edit = var_c.posedit.edit.clone();
-        if am.transcript.strand() == -1 { edit = edit.reverse_complement(); }
+        if am.transcript.strand() == -1 {
+            edit = edit.map_sequence(|s| Sequence::new(s.to_string()).reverse_complement().as_str().to_string());
+        }
 
         Ok(GVariant {
             ac: reference_ac.to_string(),
@@ -144,7 +153,9 @@ impl<'a> VariantMapper<'a> {
             }
 
             let mut edit = var_n.posedit.edit.clone();
-            if am.transcript.strand() == -1 { edit = edit.reverse_complement(); }
+            if am.transcript.strand() == -1 {
+                edit = edit.map_sequence(|s| Sequence::new(s.to_string()).reverse_complement().as_str().to_string());
+            }
 
             return Ok(GVariant {
                 ac: reference_ac.to_string(),
@@ -160,7 +171,9 @@ impl<'a> VariantMapper<'a> {
 
         let pos_g = crate::structs::SimplePosition { base: g_pos.to_hgvs(), end: None, uncertain: false };
         let mut edit = var_n.posedit.edit.clone();
-        if am.transcript.strand() == -1 { edit = edit.reverse_complement(); }
+        if am.transcript.strand() == -1 {
+            edit = edit.map_sequence(|s| Sequence::new(s.to_string()).reverse_complement().as_str().to_string());
+        }
 
         Ok(GVariant {
             ac: reference_ac.to_string(),
@@ -218,7 +231,9 @@ impl<'a> VariantMapper<'a> {
             return Err(HgvsError::ValidationError(format!("CDS start {} out of sequence bounds {}", cds_start_idx, ref_seq.len())));
         }
 
-        let ref_aa = crate::utils::translate_cds(&ref_seq[cds_start_idx..]);
+        // Use Sequence abstraction for translation
+        let seq_obj = Sequence::new(ref_seq.clone());
+        let ref_aa = seq_obj.translate(cds_start_idx)?;
 
 
         let builder = AltSeqBuilder {
