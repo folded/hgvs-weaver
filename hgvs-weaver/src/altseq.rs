@@ -47,10 +47,12 @@ impl<'a> AltSeqBuilder<'a> {
                     check_bounds(start_idx, end_idx, self.transcript_sequence.len())?;
                     let actual_ref = &self.transcript_sequence[start_idx..end_idx];
                     if actual_ref != r {
-                        return Err(HgvsError::ValidationError(format!(
-                            "Reference sequence mismatch: expected {}, found {} at transcript indices {}..{}",
-                            r, actual_ref, start_idx, end_idx
-                        )));
+                        return Err(HgvsError::TranscriptMismatch {
+                            expected: r.to_string(),
+                            found: actual_ref.to_string(),
+                            start: start_idx,
+                            end: end_idx
+                        });
                     }
                 }
             }

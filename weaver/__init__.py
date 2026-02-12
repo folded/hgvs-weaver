@@ -5,6 +5,7 @@ from ._weaver import (
     Variant,
     VariantMapper,
     parse,
+    TranscriptMismatchError,
 )
 
 __all__ = [
@@ -16,6 +17,7 @@ __all__ = [
     "Variant",
     "VariantMapper",
     "parse",
+    "TranscriptMismatchError",
 ]
 
 

@@ -16,6 +16,9 @@ pub enum HgvsError {
     /// Error specifically related to CIGAR string mapping.
     #[error("CIGAR error: {0}")]
     CigarError(String),
+    /// Transcript reference sequence mismatch.
+    #[error("Reference sequence mismatch: expected {expected}, found {found} at transcript indices {start}..{end}")]
+    TranscriptMismatch { expected: String, found: String, start: usize, end: usize },
     /// Catch-all for other error types.
     #[error("Other error: {0}")]
     Other(String),

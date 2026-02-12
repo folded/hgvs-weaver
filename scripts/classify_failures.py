@@ -36,10 +36,12 @@ def classify(row):
         # Categorize known errors
         if "Transcript" in rs_p and "not found" in rs_p:
             return "Provider Error (Missing Transcript)"
+
+        if "Reference sequence mismatch" in rs_p:
+            return "Weaver Error: Reference sequence mismatch"
+
         err_str = rs_p.split(":")[-1] if ":" in rs_p else "Generic"
         err_str = err_str.lstrip()
-        if re.match(r"expected [ACGT]+, found [ACGT]+ at transcript", err_str):
-            return "Weaver Error: Transcript mismatch"
         return f"Weaver Error: {err_str}"
 
     # Biological/Nomenclature differences

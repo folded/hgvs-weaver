@@ -159,3 +159,8 @@ def parse(input: builtins.str) -> Variant:
     Raises:
         ValueError: If the HGVS string is malformed or unsupported.
     """
+
+class TranscriptMismatchError(ValueError):
+    """Transcript reference sequence mismatch."""
+
+    ...

@@ -102,6 +102,8 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
             else:
                 vg_rs = v_rs
             rs_spdi = vg_rs.to_spdi(_rp)
+        except weaver.TranscriptMismatchError as e:
+            rs_spdi = f"ERR:TranscriptMismatch:{e!s}"
         except Exception as e:
             rs_spdi = f"ERR:{e!s}"
     except Exception as e:

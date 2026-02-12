@@ -131,4 +131,50 @@ impl NaEdit {
             _ => self.clone(),
         }
     }
+
+    /// Applies a function to all sequence strings within the edit.
+    pub fn map_sequence<F>(self, f: F) -> NaEdit
+    where F: Fn(&str) -> String + Copy
+    {
+         match self {
+            NaEdit::RefAlt { ref_, alt, uncertain } => {
+                NaEdit::RefAlt {
+                     ref_: ref_.map(|s| f(&s)),
+                     alt: alt.map(|s| f(&s)),
+                     uncertain
+                }
+            }
+            NaEdit::Del { ref_, uncertain } => {
+                NaEdit::Del {
+                     ref_: ref_.map(|s| f(&s)),
+                     uncertain
+                }
+            }
+            NaEdit::Ins { alt, uncertain } => {
+                NaEdit::Ins {
+                     alt: alt.map(|s| f(&s)),
+                     uncertain
+                }
+            }
+            NaEdit::Dup { ref_, uncertain } => {
+                NaEdit::Dup {
+                     ref_: ref_.map(|s| f(&s)),
+                     uncertain
+                }
+            }
+            NaEdit::Inv { ref_, uncertain } => {
+                NaEdit::Inv {
+                     ref_: ref_.map(|s| f(&s)),
+                     uncertain
+                }
+            }
+             NaEdit::Repeat { ref_, min, max, uncertain } => {
+                NaEdit::Repeat {
+                     ref_: ref_.map(|s| f(&s)),
+                     min, max, uncertain
+                }
+            }
+            _ => self
+        }
+    }
 }
