@@ -92,6 +92,8 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
             if v_rs.coordinate_type == "c":
                 v_p = _rs_mapper.c_to_p(v_rs)
                 rs_p = v_p.format().split(":")[-1]
+        except weaver.TranscriptMismatchError as e:
+            rs_p = f"ERR:TranscriptMismatch:{e!s}"
         except Exception as e:
             rs_p = f"ERR:{e!s}"
 

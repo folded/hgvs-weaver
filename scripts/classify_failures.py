@@ -37,7 +37,7 @@ def classify(row):
         if "Transcript" in rs_p and "not found" in rs_p:
             return "Provider Error (Missing Transcript)"
 
-        if "Reference sequence mismatch" in rs_p:
+        if "TranscriptMismatch" in rs_p:
             return "Weaver Error: Reference sequence mismatch"
 
         err_str = rs_p.split(":")[-1] if ":" in rs_p else "Generic"
