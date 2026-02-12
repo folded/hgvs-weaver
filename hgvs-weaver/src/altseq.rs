@@ -220,6 +220,7 @@ impl<'a> AltSeqBuilder<'a> {
         let cds_seq = if cds_start < transcript_sequence.len() {
             &transcript_sequence[cds_start..]
         } else { "" };
+        
         let aa_sequence = crate::utils::translate_cds(cds_seq);
 
         Ok(AltTranscriptData {

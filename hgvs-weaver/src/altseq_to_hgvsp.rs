@@ -18,7 +18,8 @@ impl<'a> AltSeqToHgvsp<'a> {
             let c_pos = self.alt_data.c_variant.posedit.pos.as_ref().ok_or_else(|| HgvsError::ValidationError("Missing position".into()))?;
             let start_0 = ProteinPos(c_pos.start.base.to_index().0 / 3);
             let end_0 = if let Some(e) = &c_pos.end {
-                Some(ProteinPos(e.base.to_index().0 / 3))
+                let e0 = ProteinPos(e.base.to_index().0 / 3);
+                if e0 == start_0 { None } else { Some(e0) }
             } else {
                 None
             };
@@ -240,6 +241,21 @@ impl<'a> AltSeqToHgvsp<'a> {
         is_silent: bool,
     ) -> Result<PVariant, HgvsError> {
         let ref_chars: Vec<char> = self.ref_aa.chars().collect();
+        
+        // Handle 3' UTR or other variants beyond the protein
+        if start_0.0 >= ref_chars.len() as i32 {
+            return Ok(PVariant {
+                ac: self.alt_data.protein_accession.clone(),
+                gene: None,
+                posedit: PosEdit {
+                    pos: None,
+                    edit: AaEdit::Identity { uncertain: false },
+                    uncertain: false,
+                    predicted: false,
+                }
+            });
+        }
+
         let aa_start = aa1_to_aa3(ref_chars.get(start_0.0 as usize).cloned().unwrap_or('*')).to_string();
 
         let edit = if is_silent {
@@ -255,16 +271,18 @@ impl<'a> AltSeqToHgvsp<'a> {
         };
 
         let aa_end = end_0.map(|e| aa1_to_aa3(ref_chars.get(e.0 as usize).cloned().unwrap_or('*')).to_string());
+        
+        let interval = AaInterval {
+            start: AAPosition { base: start_0.to_hgvs(), aa: aa_start, uncertain: false },
+            end: end_0.map(|e| e.to_hgvs()).map(|base| AAPosition { base, aa: aa_end.clone().unwrap(), uncertain: false }),
+            uncertain: false,
+        };
 
         Ok(PVariant {
             ac: self.alt_data.protein_accession.clone(),
             gene: None,
             posedit: PosEdit {
-                pos: Some(AaInterval {
-                    start: AAPosition { base: start_0.to_hgvs(), aa: aa_start, uncertain: false },
-                    end: end_0.map(|e| e.to_hgvs()).map(|base| AAPosition { base, aa: aa_end.unwrap(), uncertain: false }),
-                    uncertain: false,
-                }),
+                pos: Some(interval),
                 edit,
                 uncertain: false,
                 predicted: false,
