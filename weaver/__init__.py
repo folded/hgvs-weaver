@@ -2,10 +2,10 @@ from typing import Protocol, TypedDict
 
 from ._weaver import (
     IdentifierType,
+    TranscriptMismatchError,
     Variant,
     VariantMapper,
     parse,
-    TranscriptMismatchError,
 )
 
 __all__ = [
@@ -13,11 +13,11 @@ __all__ = [
     "ExonData",
     "IdentifierType",
     "TranscriptData",
+    "TranscriptMismatchError",
     "TranscriptSearch",
     "Variant",
     "VariantMapper",
     "parse",
-    "TranscriptMismatchError",
 ]
 
 

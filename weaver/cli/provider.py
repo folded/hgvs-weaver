@@ -466,9 +466,8 @@ class RefSeqDataProvider:
         # This logic should match _genomic_to_tx but in reverse.
         # Transcript position 'pos' is relative to the start of the transcript sequence.
         # We need to find the exon containing this position.
-        curr_tx_pos = 0
         for exon in exons:
-            exon_len = exon["reference_end"] - exon["reference_start"] + 1
+            exon["reference_end"] - exon["reference_start"] + 1
             if exon["transcript_start"] <= pos < exon["transcript_end"]:
                 # Found the exon
                 offset_in_exon = pos - exon["transcript_start"]
@@ -488,8 +487,7 @@ class RefSeqDataProvider:
             exon = exons[0]
             if strand == 1:
                 return chrom, exon["reference_start"] + pos + offset
-            else:
-                return chrom, exon["reference_end"] - pos - offset
+            return chrom, exon["reference_end"] - pos - offset
 
         # After last exon or in intron
         # Just use the last exon for default projection if not found
@@ -498,8 +496,7 @@ class RefSeqDataProvider:
             delta = pos - (exon["transcript_end"] - 1)
             if strand == 1:
                 return chrom, exon["reference_end"] + delta + offset
-            else:
-                return chrom, exon["reference_start"] - delta - offset
+            return chrom, exon["reference_start"] - delta - offset
 
         # If it's a valid transcript position but 'exons' loop failed?
         return chrom, 0  # Fallback

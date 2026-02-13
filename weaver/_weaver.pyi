@@ -188,5 +188,3 @@ def parse(input: builtins.str) -> Variant:
 
 class TranscriptMismatchError(ValueError):
     """Transcript reference sequence mismatch."""
-
-    ...

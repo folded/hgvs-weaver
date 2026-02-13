@@ -1,17 +1,19 @@
 import csv
 import sys
+
 from weaver.cli.provider import RefSeqDataProvider
 
 
-def verify_equivalence(results_file):
+def verify_equivalence(results_file) -> None:
     provider = RefSeqDataProvider(
-        gff_path="GRCh38_latest_genomic.gff.gz", fasta_path="GCF_000001405.40_GRCh38.p14_genomic.fna"
+        gff_path="GRCh38_latest_genomic.gff.gz",
+        fasta_path="GCF_000001405.40_GRCh38.p14_genomic.fna",
     )
     mismatches = 0
     equivalent = 0
     real_diff = 0
 
-    with open(results_file, "r") as f:
+    with open(results_file) as f:
         reader = csv.DictReader(f, delimiter="\t")
         for i, row in enumerate(reader):
             truth = row["spdi"]
@@ -67,7 +69,7 @@ def verify_equivalence(results_file):
                         print(f"  Truth:  {truth}")
                         print(f"  Weaver: {weaver_spdi}")
                         # print(f"  Ref:    {ref_seq[t_rel_pos-5:t_rel_pos+len(t_del)+5]}")
-            except Exception as e:
+            except Exception:
                 # print(f"Error checking {row['variant_nuc']}: {e}")
                 real_diff += 1
 

@@ -11,7 +11,7 @@ impl DataProvider for RegressionProvider {
             "NM_058216.3" => (0, "NP_478123.1"),
             _ => (0, "NP_UNKNOWN"),
         };
-        
+
         Ok(Box::new(TranscriptData {
             ac: ac.to_string(),
             gene: "TEST".to_string(),
@@ -43,7 +43,7 @@ impl DataProvider for RegressionProvider {
         let actual_e = e.min(seq.len());
         Ok(String::from_utf8_lossy(&seq[s..actual_e]).to_string())
     }
-    fn get_symbol_accessions(&self, ac: &str, _f: IdentifierKind, t: IdentifierKind) -> Result<Vec<(IdentifierType, String)>, HgvsError> { 
+    fn get_symbol_accessions(&self, ac: &str, _f: IdentifierKind, t: IdentifierKind) -> Result<Vec<(IdentifierType, String)>, HgvsError> {
         if t == IdentifierKind::Protein {
              match ac {
                  "NM_153046.3" => Ok(vec![(IdentifierType::ProteinAccession, "NP_694591.2".to_string())]),
@@ -66,11 +66,11 @@ fn test_regression_c_360_eq() -> Result<(), HgvsError> {
     let hdp = RegressionProvider;
     let mapper = VariantMapper::new(&hdp);
 
-    // NM_153046.3:c.360= 
+    // NM_153046.3:c.360=
     let v_raw = hgvs_weaver::parse_hgvs_variant("NM_153046.3:c.360=")?;
     let SequenceVariant::Coding(var_c) = v_raw else { panic!() };
     let p_var = mapper.c_to_p(&var_c, None)?;
-    
+
     // Should be synonymous (Thr120=)
     // Current bug makes it a frameshift deletion of c.360
     assert!(!p_var.to_string().contains("fs"), "Should not be a frameshift, got {}", p_var);
@@ -86,11 +86,11 @@ fn test_regression_delins_stop() -> Result<(), HgvsError> {
     let v_raw = hgvs_weaver::parse_hgvs_variant("NM_058216.3:c.692_694delinsAA")?;
     let SequenceVariant::Coding(var_c) = v_raw else { panic!() };
     let p_var = mapper.c_to_p(&var_c, None)?;
-    
+
     // We want it to be a stop codon if it created one, not a frameshift.
     // In our mock: 691=T. Insert AA -> TAA (Stop) at 231.
     assert!(p_var.to_string().contains("Ter") || p_var.to_string().contains("*"), "Should contain stop codon, got {}", p_var);
     assert!(!p_var.to_string().contains("fs"), "Should not be a frameshift if stop is earlier, got {}", p_var);
-    
+
     Ok(())
 }

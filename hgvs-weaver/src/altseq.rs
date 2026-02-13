@@ -59,7 +59,7 @@ impl<'a> AltSeqBuilder<'a> {
                 let is_identity = ref_.is_none() && alt.is_none();
                 let is_ins = ref_.is_none() && !is_identity && self.var_c.posedit.pos.as_ref().is_some_and(|p| p.end.is_some());
                 let alt_str = alt.as_deref().unwrap_or("");
-                
+
                 let (is_subst, is_fs, res) = if is_identity {
                     (false, false, self.transcript_sequence.to_string())
                 } else if is_ins {
@@ -74,14 +74,14 @@ impl<'a> AltSeqBuilder<'a> {
                         if r.chars().all(|c| c.is_ascii_digit()) { end_idx - start_idx }
                         else { r.len() }
                     } else { end_idx - start_idx };
-                    
+
                     let p1 = SliceSequence { inner: self.transcript_sequence, start: 0, end: start_idx };
                     let p3 = SliceSequence { inner: self.transcript_sequence, start: end_idx, end: self.transcript_sequence.len() };
                     let is_subst = ref_.is_some() && alt.is_some() && r_len == 1 && alt_str.len() == 1;
                     let is_fs = (alt_str.len() as i32 - r_len as i32) % 3 != 0;
                     (is_subst, is_fs, SplicedSequence { pieces: vec![&p1 as &dyn Sequence, &alt_seq as &dyn Sequence, &p3 as &dyn Sequence] }.to_string())
                 };
-                
+
                 (is_subst, is_fs, res)
             }
             NaEdit::Del { ref_, .. } => {
@@ -89,7 +89,7 @@ impl<'a> AltSeqBuilder<'a> {
                     if r.chars().all(|c| c.is_ascii_digit()) { end_idx - start_idx }
                     else { r.len() }
                 } else { end_idx - start_idx };
-                
+
                 let p1 = SliceSequence { inner: self.transcript_sequence, start: 0, end: start_idx };
                 let p3 = SliceSequence { inner: self.transcript_sequence, start: end_idx, end: self.transcript_sequence.len() };
                 let res = SplicedSequence { pieces: vec![&p1 as &dyn Sequence, &p3 as &dyn Sequence] }.to_string();
@@ -108,7 +108,7 @@ impl<'a> AltSeqBuilder<'a> {
                     if r.chars().all(|c| c.is_ascii_digit()) { SliceSequence { inner: self.transcript_sequence, start: start_idx, end: end_idx }.to_string() }
                     else { r.clone() }
                 } else { SliceSequence { inner: self.transcript_sequence, start: start_idx, end: end_idx }.to_string() };
-                
+
                 let dup_seq = MemSequence(dup_str.clone());
                 let ins_pos = end_idx.min(self.transcript_sequence.len());
                 let p1 = SliceSequence { inner: self.transcript_sequence, start: 0, end: ins_pos };
@@ -128,7 +128,7 @@ impl<'a> AltSeqBuilder<'a> {
             NaEdit::Repeat { min, ref_, .. } => {
                 let unit = if let Some(r) = ref_ { r.clone() }
                            else { SliceSequence { inner: self.transcript_sequence, start: start_idx, end: end_idx }.to_string() };
-                
+
                 let mut current_idx = start_idx;
                 loop {
                     if current_idx + unit.len() > self.transcript_sequence.len() { break; }
@@ -136,14 +136,14 @@ impl<'a> AltSeqBuilder<'a> {
                     if next_unit == unit { current_idx += unit.len(); }
                     else { break; }
                 }
-                
+
                 let mut total_str = String::new();
                 for _ in 0..*min { total_str.push_str(&unit); }
                 let alt_seq = MemSequence(total_str);
                 let p1 = SliceSequence { inner: self.transcript_sequence, start: 0, end: start_idx };
                 let p3 = SliceSequence { inner: self.transcript_sequence, start: current_idx, end: self.transcript_sequence.len() };
                 let res = SplicedSequence { pieces: vec![&p1 as &dyn Sequence, &alt_seq as &dyn Sequence, &p3 as &dyn Sequence] }.to_string();
-                
+
                 let net_change = (unit.len() as i32 * (*min as i32)) - (current_idx as i32 - start_idx as i32);
                 (false, net_change % 3 != 0, res)
             }
@@ -157,7 +157,7 @@ impl<'a> AltSeqBuilder<'a> {
             let slice = SliceSequence { inner: &alt_transcript_seq, start: cds_start, end: alt_transcript_seq.len() };
             TranslatedSequence { inner: &slice }.to_string()
         } else { "".to_string() };
-        
+
         // Find cds_end_i in the new sequence.
         // It's original_cds_end + net_change.
         // Or simply finding the length of the alt_transcript_seq.

@@ -1,17 +1,15 @@
 import csv
 import sys
-from typing import Optional
 
 
-def normalize_p(p_str: Optional[str]) -> str:
+def normalize_p(p_str: str | None) -> str:
     if not p_str or p_str == "ERR" or p_str.startswith("ERR:"):
         return p_str if p_str is not None else ""
     # Strip accession
     if ":" in p_str:
         p_str = p_str.split(":")[-1]
     # Strip parentheses
-    p_str = p_str.replace("(", "").replace(")", "")
-    return p_str
+    return p_str.replace("(", "").replace(")", "")
 
 
 def analyze(filepath: str) -> None:
@@ -23,7 +21,7 @@ def analyze(filepath: str) -> None:
     weaver_mismatch_ref_match = 0
     ref_mismatch_weaver_match = 0
 
-    with open(filepath, "r", newline="") as f:
+    with open(filepath, newline="") as f:
         reader = csv.DictReader(f, delimiter="\t")
         for row in reader:
             total += 1

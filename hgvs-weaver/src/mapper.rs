@@ -259,7 +259,7 @@ impl<'a> VariantMapper<'a> {
         }
 
         // Use Sequence abstraction for translation
-        let trans_obj = TranslatedSequence { 
+        let trans_obj = TranslatedSequence {
             inner: &LazySequence {
                 hdp: self.hdp,
                 ac: transcript_ac.to_string(),
@@ -450,7 +450,7 @@ impl<'a> VariantMapper<'a> {
             } else {
                 ref_str.to_string()
             };
-            
+
             if current_ref.is_empty() { return Ok((curr_start, curr_end)); }
 
             loop {
@@ -482,7 +482,7 @@ impl<'a> VariantMapper<'a> {
             let alt_bytes = alt_str.as_bytes();
             let n = alt_bytes.len();
             if n == 0 { return Ok((curr_start, curr_end)); }
-            
+
             loop {
                 if (curr_end - chunk_start) >= chunk_bytes.len() {
                     if chunk_bytes.len() < chunk_size { break; }
@@ -551,16 +551,16 @@ impl<'a> VariantMapper<'a> {
             } else {
                 ref_str.to_string()
             };
-            
+
             if current_ref.is_empty() { return Ok((curr_start, curr_end)); }
 
             loop {
                 if curr_start == 0 { break; }
-                
+
                 let prev_base_pos = curr_start - 1;
                 let prev_base = self.hdp.get_seq(ac, prev_base_pos as i32, curr_start as i32, kind.into_identifier_type())?;
                 if prev_base.is_empty() { break; }
-                
+
                 let last_ref_byte = current_ref.as_bytes()[current_ref.len() - 1];
                 if prev_base.as_bytes()[0] == last_ref_byte {
                     curr_start -= 1;
@@ -574,7 +574,7 @@ impl<'a> VariantMapper<'a> {
             // Pure Insertion
             let alt_bytes = alt_str.as_bytes();
             let n = alt_bytes.len();
-            
+
             loop {
                 if curr_start == 0 { break; }
                 let prev_base_pos = curr_start - 1;
@@ -623,14 +623,14 @@ impl<'a> VariantMapper<'a> {
         if unambiguous {
             self.to_spdi_unambiguous(var)
         } else {
-             // 1. Resolve to genomic if possible. 
+             // 1. Resolve to genomic if possible.
             let g_var_obj = match var {
                 crate::SequenceVariant::Genomic(v) => v.clone(),
                 crate::SequenceVariant::Coding(v) => self.c_to_g(v, None)?,
                 crate::SequenceVariant::NonCoding(v) => self.n_to_g(v, None)?,
                 _ => return Err(HgvsError::UnsupportedOperation("SPDI only for genomic/coding/non-coding".into())),
             };
-            
+
             // 2. Normalize (3' shift, minimal delins)
             let g_norm_var = self.normalize_variant(crate::SequenceVariant::Genomic(g_var_obj))?;
             let g_norm = match g_norm_var {
@@ -649,14 +649,14 @@ impl<'a> VariantMapper<'a> {
             crate::SequenceVariant::NonCoding(v) => self.n_to_g(v, None)?,
             _ => return Err(HgvsError::UnsupportedOperation("SPDI expansion only for genomic/coding/non-coding".into())),
         };
-        
+
         // 2. Normalize (3' shift, minimal delins)
         let g_norm_var = self.normalize_variant(crate::SequenceVariant::Genomic(g_var_obj))?;
         let g_norm = match g_norm_var {
             crate::SequenceVariant::Genomic(v) => v,
             _ => unreachable!(),
         };
-        
+
         let ac = &g_norm.ac;
         if let Some(pos) = &g_norm.posedit.pos {
              let start_idx = pos.start.base.to_index().0 as usize;
@@ -665,16 +665,16 @@ impl<'a> VariantMapper<'a> {
                  let idx = e.base.to_index().0 as usize;
                  if is_ins { idx } else { idx + 1 }
              });
-             
+
              // 3. Expand range to cover ambiguity
              let (u_start, u_end) = self.expand_unambiguous_range(ac, IdentifierKind::Genomic, start_idx, end_idx, &g_norm.posedit.edit)?;
-             
+
              // 4. Construct expanded sequences
              let r_seq = self.hdp.get_seq(ac, u_start as i32, u_end as i32, IdentifierType::GenomicAccession)?;
-             
+
              let rel_start = start_idx - u_start;
              let rel_end = end_idx - u_start;
-             
+
              let alt_storage;
              let alt_str = match &g_norm.posedit.edit {
                  crate::edits::NaEdit::RefAlt { alt, .. } => alt.as_deref().unwrap_or(""),
@@ -700,9 +700,9 @@ impl<'a> VariantMapper<'a> {
                  }
                  _ => return g_norm.posedit.to_spdi(ac, &*self.hdp),
              };
-             
+
              let a_seq = format!("{}{}{}", &r_seq[..rel_start], alt_str, &r_seq[rel_end..]);
-             
+
              Ok(format!("{}:{}:{}:{}", ac, u_start, r_seq, a_seq))
         } else {
              g_norm.posedit.to_spdi(&g_norm.ac, &*self.hdp) // Fallback for identity?

@@ -1,11 +1,11 @@
 import csv
 
 
-def analyze_spdi_mismatches(results_file):
+def analyze_spdi_mismatches(results_file) -> None:
     mismatches = []
     unsupported = {}
 
-    with open(results_file, "r") as f:
+    with open(results_file) as f:
         reader = csv.DictReader(f, delimiter="\t")
         for row in reader:
             truth = row["spdi"]

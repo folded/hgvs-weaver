@@ -13,10 +13,10 @@ impl DataProvider for BugMockDataProvider {
             aa_seq
         } else {
             let mut full_seq = "A".repeat(30000);
-            
+
             // ATM (NM_000051.4) setup for case 1
             // ... (existing code for case 1) ...
-            
+
             // Case 2: NM_001008844.3 c.4498_4499delinsAT
             // Let's assume UTR=100 for simplicity.
             // c.4498 -> index 100 + 4497 = 4597.
@@ -55,7 +55,7 @@ impl DataProvider for BugMockDataProvider {
                 cigar: "30000M".to_string(),
             }
         ];
-        
+
         let td = TranscriptData {
             ac: transcript_ac.to_string(),
             gene: "BUG".to_string(),
@@ -86,7 +86,7 @@ impl DataProvider for BugMockDataProvider {
 fn test_repro_redundant_identity_interval() {
     let hdp = BugMockDataProvider;
     let mapper = VariantMapper::new(&hdp);
-    
+
     let var_c = parse_hgvs_variant("NM_001039476.3:c.929_930=").unwrap();
     if let SequenceVariant::Coding(v) = var_c {
         let var_p = mapper.c_to_p(&v, None).unwrap();
@@ -114,7 +114,7 @@ fn test_repro_delins_identity_mismatch() {
 fn test_repro_redundant_interval_multiple_codons() {
     let hdp = BugMockDataProvider;
     let mapper = VariantMapper::new(&hdp);
-    
+
     // Case 2 from 100k sweep: NM_001008844.3:c.4498_4499delinsAT
     // Reported failure: p.(Pro1500_Phe1501=) (Identity)
     // Correct behavior (verified with mock): Single codon change.

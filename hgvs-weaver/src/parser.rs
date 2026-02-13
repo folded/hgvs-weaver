@@ -191,7 +191,7 @@ pub fn parse_aa_interval(pair: Pair<Rule>) -> Result<AaInterval, HgvsError> {
 pub fn parse_aa_pos(pair: Pair<Rule>) -> Result<AAPosition, HgvsError> {
     let mut aa = String::new();
     let mut pos = 0;
-    
+
     for p in pair.into_inner() {
         match p.as_rule() {
             Rule::aa13 | Rule::term13 | Rule::aa3 | Rule::aa1 | Rule::term3 | Rule::term1 => {
@@ -203,7 +203,7 @@ pub fn parse_aa_pos(pair: Pair<Rule>) -> Result<AAPosition, HgvsError> {
             _ => {}
         }
     }
-    
+
     Ok(AAPosition { base: HgvsProteinPos(pos), aa, uncertain: false })
 }
 
@@ -258,7 +258,7 @@ pub fn parse_na_edit(pair: Pair<Rule>) -> Result<NaEdit, HgvsError> {
             let mut ref_ = None;
             let mut first = 0;
             let mut second = None;
-            
+
             for p in inner {
                 match p.as_rule() {
                     Rule::dna | Rule::rna => ref_ = Some(p.as_str().to_string()),
@@ -340,7 +340,7 @@ pub fn parse_pro_edit(pair: Pair<Rule>) -> Result<AaEdit, HgvsError> {
             let mut ref_ = None;
             let mut first = 0;
             let mut second = None;
-            
+
             for p in inner {
                 match p.as_rule() {
                     Rule::aat13_seq => ref_ = Some(p.as_str().to_string()),

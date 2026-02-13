@@ -1,8 +1,8 @@
-import csv
 import collections
+import csv
 
 
-def analyze_spdi_mismatches(input_file, limit_examples=10):
+def analyze_spdi_mismatches(input_file, limit_examples=10) -> None:
     mismatches = 0
     categories = collections.Counter()
     ref_hgvs_behavior = collections.Counter()

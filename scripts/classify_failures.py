@@ -1,7 +1,6 @@
 import collections
-import sys
 import csv
-import re
+import sys
 
 
 def clean_hgvs(s):
@@ -13,11 +12,10 @@ def clean_hgvs(s):
     # Remove parentheses
     s = s.replace("(", "").replace(")", "")
     # Standardize Ter/*
-    s = s.replace("Ter", "*")
-    return s
+    return s.replace("Ter", "*")
 
 
-def classify(row):
+def classify(row) -> str:
     rs_p = row["rs_p"]
     ref_p = row["ref_p"]
     gt_p = row["variant_prot"]
@@ -69,7 +67,7 @@ total = 0
 mismatches = collections.defaultdict(list)
 success_count = 0
 
-with open(sys.argv[1], "r") as f:
+with open(sys.argv[1]) as f:
     reader = csv.DictReader(f, delimiter="\t")
     for row in reader:
         total += 1
@@ -77,9 +75,8 @@ with open(sys.argv[1], "r") as f:
         stats[cat] = stats.get(cat, 0) + 1
         if cat in ["Parity Match", "ClinVar Match"]:
             success_count += 1
-        else:
-            if len(mismatches[cat]) < 100:
-                mismatches[cat].append(row)
+        elif len(mismatches[cat]) < 100:
+            mismatches[cat].append(row)
 
 print(f"Total variants: {total}")
 print(f"Total Successes: {success_count} ({(success_count / total) * 100:.2f}%)")

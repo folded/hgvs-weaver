@@ -12,7 +12,7 @@ impl DataProvider for MockDataProvider {
         for _ in 0..25 {
             s.push_str("ATGC");
         }
-        
+
         let start = start as usize;
         let end = if end == -1 { s.len() } else { end as usize };
         if start > s.len() { return Ok("".into()); }

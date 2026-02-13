@@ -1,8 +1,8 @@
-import csv
 import collections
+import csv
 
 
-def analyze_unsupported_vs_ref(input_file):
+def analyze_unsupported_vs_ref(input_file) -> None:
     total_unsupported = 0
     ref_hgvs_performance = collections.Counter()
     total = 0

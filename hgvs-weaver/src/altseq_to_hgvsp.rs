@@ -65,7 +65,7 @@ impl<'a> AltSeqToHgvsp<'a> {
         }
 
         // Non-frameshift
-        
+
         // Check for premature stop in alt_chars
         // A stop is "premature" if it appears in the variant sequence but is NOT the original stop of the protein.
         // We detect this by checking if the tail of the protein (including the stop) matches the reference tail.
@@ -76,7 +76,7 @@ impl<'a> AltSeqToHgvsp<'a> {
 
         let mut ref_end = ref_chars.len();
         let mut alt_end = alt_chars.len();
-        
+
         // 1. Perform standard tail trimming
         while ref_end > start_idx && alt_end > start_idx && ref_chars[ref_end-1] == alt_chars[alt_end-1] {
             ref_end -= 1;
@@ -84,9 +84,9 @@ impl<'a> AltSeqToHgvsp<'a> {
         }
 
         let tail_match_len = alt_chars.len() - alt_end;
-        
+
         let mut is_premature_stop = false;
-        
+
         // Check if we trimmed a stop codon
         if tail_match_len > 0 && alt_chars[alt_chars.len() - 1] == '*' {
              if tail_match_len == 1 {
@@ -95,10 +95,10 @@ impl<'a> AltSeqToHgvsp<'a> {
                  // Mismatch block length = total length - match length (from start) - tail match length.
                  // But we don't track "match length from start" here explicitly, we just know start_idx.
                  // So mismatch length = end (before tail trim) - start_idx.
-                 
+
                  let ref_mismatch_len = ref_end - start_idx;
                  let alt_mismatch_len = alt_end - start_idx;
-                 
+
                  if ref_mismatch_len == 1 && alt_mismatch_len == 1 {
                      // 1-vs-1 substitution at C-terminus.
                      // Treat as Original Stop (Trim).
@@ -127,19 +127,19 @@ impl<'a> AltSeqToHgvsp<'a> {
              // We want the variant to include the stop codon to describe it as "delins...Ter".
              alt_end += 1;
              ref_end += 1;
-             
+
              // Recalculate ref_end based on DNA span, because the "Ref" part of delins should match the DNA deletion.
              // (The Ref part after that is implicitly truncated).
              if let Some(pos) = &self.alt_data.c_variant.posedit.pos {
                 let start_c = pos.start.base.to_index().0;
                 let end_c = if let Some(e) = &pos.end { e.base.to_index().0 } else { start_c };
-                
+
                 // c variant indices are 0-based from start of CDS.
                 let _start_codon = start_c / 3;
                 let end_codon = end_c / 3;
-                
+
                 let calc_ref_end = (end_codon + 1) as usize;
-                
+
                 // Ensure ref_end is at least start_idx.
                 // We use calc_ref_end, but we must ensure we don't exceed ref_chars.len().
                 // Also, if calc_ref_end < ref_end (current), it means we are shortening the ref span to matched DNA.
@@ -183,20 +183,20 @@ impl<'a> AltSeqToHgvsp<'a> {
                 gene: None,
                 posedit: PosEdit {
                     pos: Some(AaInterval {
-                        start: AAPosition { 
-                            base: ProteinPos(start_idx as i32).to_hgvs(), 
-                            aa: "Ter".to_string(), 
-                            uncertain: false 
+                        start: AAPosition {
+                            base: ProteinPos(start_idx as i32).to_hgvs(),
+                            aa: "Ter".to_string(),
+                            uncertain: false
                         },
                         end: None,
                         uncertain: false,
                     }),
-                    edit: AaEdit::Ext { 
-                        ref_: "Ter".into(), 
-                        alt: alt_curr, 
-                        aaterm: Some("*".to_string()), 
-                        length, 
-                        uncertain: !found_stop 
+                    edit: AaEdit::Ext {
+                        ref_: "Ter".into(),
+                        alt: alt_curr,
+                        aaterm: Some("*".to_string()),
+                        length,
+                        uncertain: !found_stop
                     },
                     uncertain: false,
                     predicted: false,
@@ -316,7 +316,7 @@ impl<'a> AltSeqToHgvsp<'a> {
         is_silent: bool,
     ) -> Result<PVariant, HgvsError> {
         let ref_chars: Vec<char> = self.ref_aa.chars().collect();
-        
+
         // Handle 3' UTR or other variants beyond the protein
         if start_0.0 >= ref_chars.len() as i32 {
             return Ok(PVariant {
@@ -346,7 +346,7 @@ impl<'a> AltSeqToHgvsp<'a> {
         };
 
         let aa_end = end_0.map(|e| aa1_to_aa3(ref_chars.get(e.0 as usize).cloned().unwrap_or('*')).to_string());
-        
+
         let interval = AaInterval {
             start: AAPosition { base: start_0.to_hgvs(), aa: aa_start, uncertain: false },
             end: end_0.map(|e| e.to_hgvs()).map(|base| AAPosition { base, aa: aa_end.clone().unwrap(), uncertain: false }),

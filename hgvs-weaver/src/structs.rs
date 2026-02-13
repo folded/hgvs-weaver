@@ -171,13 +171,13 @@ impl EditSpdi for NaEdit {
                 } else {
                     data_provider.get_seq(ac, start, end, IdentifierType::Unknown)?
                 };
-                
+
                 let a_seq = if ref_.is_none() && alt.is_none() {
                     r_seq.clone()
                 } else {
                     alt.as_deref().unwrap_or("").to_string()
                 };
-                
+
                 let (p_start, r_strip, a_strip) = strip_common_prefix_suffix(start, &r_seq, &a_seq);
                 Ok(format!("{}:{}:{}:{}", ac, p_start, r_strip, a_strip))
             }
@@ -213,14 +213,14 @@ impl EditSpdi for NaEdit {
                 };
                 let ins_seq = unit.repeat(*max as usize);
                 let r_seq = data_provider.get_seq(ac, start, end, IdentifierType::Unknown)?;
-                
+
                 let (p_start, r_strip, a_strip) = strip_common_prefix_suffix(start, &r_seq, &ins_seq);
                 Ok(format!("{}:{}:{}:{}", ac, p_start, r_strip, a_strip))
             }
             NaEdit::Inv { .. } => {
                 let r_seq = data_provider.get_seq(ac, start, end, IdentifierType::Unknown)?;
                 let a_seq = crate::sequence::rev_comp(&r_seq);
-                
+
                 let (p_start, r_strip, a_strip) = strip_common_prefix_suffix(start, &r_seq, &a_seq);
                 Ok(format!("{}:{}:{}:{}", ac, p_start, r_strip, a_strip))
             }

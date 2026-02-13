@@ -1,10 +1,11 @@
 import csv
 import sys
+
 from scripts.classify_failures import classify
 
 
-def extract_delins(input_file, limit=50):
-    with open(input_file, "r") as f:
+def extract_delins(input_file, limit=50) -> None:
+    with open(input_file) as f:
         reader = csv.DictReader(f, delimiter="\t")
         count = 0
         for row in reader:

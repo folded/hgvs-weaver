@@ -52,7 +52,7 @@ fn test_ins_3_prime_shifting() -> Result<(), HgvsError> {
     let v1 = hgvs_weaver::parse_hgvs_variant("NC_TEST.1:g.1005_1006insA")?;
     let SequenceVariant::Genomic(v1_g) = v1 else { panic!() };
     let nv1 = mapper.normalize_variant(SequenceVariant::Genomic(v1_g))?;
-    
+
     // NC_TEST.1:g.1006_1007insA
     let v2 = hgvs_weaver::parse_hgvs_variant("NC_TEST.1:g.1006_1007insA")?;
     let SequenceVariant::Genomic(v2_g) = v2 else { panic!() };

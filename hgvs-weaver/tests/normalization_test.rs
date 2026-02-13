@@ -46,7 +46,7 @@ impl DataProvider for NormMockDataProvider {
                 cigar: "100M".to_string(),
             }
         ];
-        
+
         let (cds_start, cds_end) = match transcript_ac {
             "NM_0001.1" => (10, 19), // Met Lys *
             "NM_SHIFT_BUG" => (0, 30),
@@ -126,7 +126,7 @@ fn test_normalization_shift_bug() {
     // If shifted -> c.3_4delinsAT. Ref=AT. Alt=AT.
     // Result Sequence: CCAT...
     // The outputs are DIFFERENT. So it MUST NOT shift.
-    
+
     let var_c = parse_hgvs_variant("NM_SHIFT_BUG:c.1_2delinsAT").unwrap();
     if let SequenceVariant::Coding(v) = var_c {
         let var_norm = mapper.normalize_variant(SequenceVariant::Coding(v)).unwrap();
@@ -145,14 +145,14 @@ fn test_normalization_shift_bug() {
 fn test_premature_stop_formatting() {
     let hdp = NormMockDataProvider;
     let mapper = VariantMapper::new(&hdp);
-    
+
     // NM_PREMATURE_STOP: M Q Q D D *.
     // c.4_9delinsCATTAA.
     // Replace CAA CAA (Q Q) with CAT TAA (H *).
     // Result: M H *.
     // Without fix: p.Gln2_Asp5delinsHis. (Deletion of QQD...).
     // With fix: p.Gln2_Gln3delinsHisTer.
-    
+
     let var_c = parse_hgvs_variant("NM_PREMATURE_STOP:c.4_9delinsCATTAA").unwrap();
     if let SequenceVariant::Coding(v) = var_c {
          let var_p = mapper.c_to_p(&v, Some("NP_MOCK")).unwrap();
@@ -183,14 +183,14 @@ fn test_inframe_deletion_tail() {
 fn test_cterm_substitution() {
     let hdp = NormMockDataProvider;
     let mapper = VariantMapper::new(&hdp);
-    
+
     // NM_CTERM_SUBST: M A B C D *.
     // c.15T>G. D (GAT) -> E (GAG).
     // Tail match: *. (1 char).
     // Ref mismatch length: 1 (D).
     // Alt mismatch length: 1 (E).
     // Should be p.Asp5Glu. NOT delins...Ter.
-    
+
     let var_c = parse_hgvs_variant("NM_CTERM_SUBST:c.15T>G").unwrap();
     if let SequenceVariant::Coding(v) = var_c {
          let var_p = mapper.c_to_p(&v, Some("NP_MOCK")).unwrap();
@@ -202,12 +202,12 @@ fn test_cterm_substitution() {
 fn test_repeat_expansion() {
     let hdp = NormMockDataProvider;
     let mapper = VariantMapper::new(&hdp);
-    
+
     // NM_REPEAT_EXP: M A A A *. (ATG GCT GCT GCT TAA).
     // c.4GCT[5] -> p.Ala3_Ala4dup? Or p.Ala2_Ala3dup?
     // Ref has 3 copies. Var has 5. Net +2 copies (+6 bases).
     // Expecting duplication notation.
-    
+
     let var_c = parse_hgvs_variant("NM_REPEAT_EXP:c.4GCT[5]").unwrap();
     if let SequenceVariant::Coding(v) = var_c {
          let var_p = mapper.c_to_p(&v, Some("NP_MOCK")).unwrap();
@@ -219,12 +219,12 @@ fn test_repeat_expansion() {
 fn test_repeat_contraction() {
     let hdp = NormMockDataProvider;
     let mapper = VariantMapper::new(&hdp);
-    
+
     // NM_REPEAT_CON: M A A A A *. (ATG GCA GCA GCA GCA TAA).
     // c.4GCA[2].
     // Ref has 4 copies. Var has 2. Net -2 copies (-6 bases).
     // Expecting deletion notation.
-    
+
     let var_c = parse_hgvs_variant("NM_REPEAT_CON:c.4GCA[2]").unwrap();
     if let SequenceVariant::Coding(v) = var_c {
          let var_p = mapper.c_to_p(&v, Some("NP_MOCK")).unwrap();

@@ -15,8 +15,7 @@ def clean_hgvs(s):
     # Remove parentheses
     s = s.replace("(", "").replace(")", "")
     # Standardize Ter/*
-    s = s.replace("Ter", "*")
-    return s
+    return s.replace("Ter", "*")
 
 
 def is_p_match(pred: str, truth: str) -> bool:
