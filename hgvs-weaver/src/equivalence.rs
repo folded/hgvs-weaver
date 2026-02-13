@@ -439,7 +439,7 @@ impl<'a> VariantEquivalence<'a> {
 mod tests {
     use super::*;
     use crate::data::{IdentifierType, IdentifierKind, TranscriptData, ExonData, Transcript};
-    use crate::coords::{GenomicPos, TranscriptPos};
+    use crate::coords::{GenomicPos, TranscriptPos, IntronicOffset};
 
     struct MockDataProvider;
     impl DataProvider for MockDataProvider {
@@ -477,6 +477,9 @@ mod tests {
         }
         fn get_symbol_accessions(&self, _s: &str, _f: IdentifierKind, _t: IdentifierKind) -> Result<Vec<(IdentifierType, String)>, HgvsError> { Ok(vec![]) }
         fn get_identifier_type(&self, _id: &str) -> Result<IdentifierType, HgvsError> { Ok(IdentifierType::GenomicAccession) }
+        fn c_to_g(&self, _transcript_ac: &str, pos: TranscriptPos, offset: IntronicOffset) -> Result<(String, GenomicPos), HgvsError> {
+            Ok(("NC_000001.11".to_string(), GenomicPos(pos.0 + offset.0)))
+        }
     }
 
     struct MockSearch;

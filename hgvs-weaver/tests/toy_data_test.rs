@@ -1,5 +1,6 @@
 use hgvs_weaver::*;
 use hgvs_weaver::data::TranscriptData;
+use hgvs_weaver::structs::{TranscriptPos, GenomicPos, IntronicOffset};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
@@ -51,6 +52,11 @@ impl DataProvider for JsonDataProvider {
 
     fn get_identifier_type(&self, _identifier: &str) -> Result<hgvs_weaver::data::IdentifierType, HgvsError> {
         Ok(hgvs_weaver::data::IdentifierType::Unknown)
+    }
+
+    fn c_to_g(&self, transcript_ac: &str, pos: TranscriptPos, offset: IntronicOffset) -> Result<(String, GenomicPos), HgvsError> {
+        let tx = self.get_transcript(transcript_ac, None)?;
+        Ok((tx.reference_accession().to_string(), GenomicPos(pos.0 + offset.0)))
     }
 }
 

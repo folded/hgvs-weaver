@@ -1,6 +1,6 @@
 use dyn_clone::DynClone;
 use crate::error::HgvsError;
-use crate::structs::{GenomicPos, TranscriptPos};
+use crate::structs::{GenomicPos, TranscriptPos, IntronicOffset};
 use serde::{Serialize, Deserialize};
 
 pub trait Exon: DynClone {
@@ -70,6 +70,8 @@ pub trait DataProvider {
     fn get_seq(&self, ac: &str, start: i32, end: i32, kind: IdentifierType) -> Result<String, HgvsError>;
     fn get_symbol_accessions(&self, symbol: &str, source_kind: IdentifierKind, target_kind: IdentifierKind) -> Result<Vec<(IdentifierType, String)>, HgvsError>;
     fn get_identifier_type(&self, identifier: &str) -> Result<IdentifierType, HgvsError>;
+    /// Resolves a transcript position and offset to a genomic accession and position.
+    fn c_to_g(&self, transcript_ac: &str, pos: TranscriptPos, offset: IntronicOffset) -> Result<(String, GenomicPos), HgvsError>;
 }
 
 /// Interface for discovering transcripts by region.

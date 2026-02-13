@@ -283,6 +283,15 @@ impl DataProvider for PyDataProviderBridge {
             Ok(py_it.into())
         })
     }
+
+    fn c_to_g(&self, transcript_ac: &str, pos: ::hgvs_weaver::structs::TranscriptPos, offset: ::hgvs_weaver::structs::IntronicOffset) -> Result<(String, ::hgvs_weaver::structs::GenomicPos), HgvsError> {
+        Python::attach(|py| {
+            let res = self.provider.bind(py).call_method1("c_to_g", (transcript_ac, pos.0, offset.0))
+                .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
+            let (ac, g_pos): (String, i32) = res.extract::<(String, i32)>().map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
+            Ok((ac, ::hgvs_weaver::structs::GenomicPos(g_pos)))
+        })
+    }
 }
 
 pub struct PyTranscriptSearchBridge {

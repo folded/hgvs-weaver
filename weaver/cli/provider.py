@@ -447,6 +447,63 @@ class RefSeqDataProvider:
         complement = str.maketrans("ATCGNautcgn", "TAGCNtagcgn")
         return seq.translate(complement)[::-1]
 
+    def c_to_g(self, transcript_ac: str, pos: int, offset: int) -> tuple[str, int]:
+        """Resolves a transcript position and offset to a genomic accession and position.
+
+        Args:
+          transcript_ac: The transcript accession.
+          pos: 0-based transcript index.
+          offset: intronic offset.
+
+        Returns:
+          A tuple of (genomic_accession, 0-based_genomic_position).
+        """
+        tx = self.get_transcript(transcript_ac, None)
+        chrom = tx["reference_accession"]
+        strand = tx["strand"]
+        exons = tx["exons"]
+
+        # This logic should match _genomic_to_tx but in reverse.
+        # Transcript position 'pos' is relative to the start of the transcript sequence.
+        # We need to find the exon containing this position.
+        curr_tx_pos = 0
+        for exon in exons:
+            exon_len = exon["reference_end"] - exon["reference_start"] + 1
+            if exon["transcript_start"] <= pos < exon["transcript_end"]:
+                # Found the exon
+                offset_in_exon = pos - exon["transcript_start"]
+                if strand == 1:
+                    g_base = exon["reference_start"] + offset_in_exon
+                    g_pos = g_base + offset
+                else:
+                    g_base = exon["reference_end"] - offset_in_exon
+                    g_pos = g_base - offset
+                return chrom, g_pos
+
+        # If not in exons (should not happen for valid cDNA variants without offset,
+        # but for offset calculation we might be at exon boundary)
+        # Handle cases where pos might be exactly at boundary for intronic mapping
+        if pos < 0:
+            # Before first exon
+            exon = exons[0]
+            if strand == 1:
+                return chrom, exon["reference_start"] + pos + offset
+            else:
+                return chrom, exon["reference_end"] - pos - offset
+
+        # After last exon or in intron
+        # Just use the last exon for default projection if not found
+        exon = exons[-1]
+        if pos >= exon["transcript_end"]:
+            delta = pos - (exon["transcript_end"] - 1)
+            if strand == 1:
+                return chrom, exon["reference_end"] + delta + offset
+            else:
+                return chrom, exon["reference_start"] - delta - offset
+
+        # If it's a valid transcript position but 'exons' loop failed?
+        return chrom, 0  # Fallback
+
     def to_json(self) -> None:
         return None
 

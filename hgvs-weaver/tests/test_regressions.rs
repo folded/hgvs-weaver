@@ -1,5 +1,5 @@
 use hgvs_weaver::data::{DataProvider, IdentifierType, IdentifierKind, TranscriptData, ExonData, Transcript};
-use hgvs_weaver::coords::{GenomicPos, TranscriptPos, SequenceVariant};
+use hgvs_weaver::coords::{GenomicPos, TranscriptPos, IntronicOffset, SequenceVariant};
 use hgvs_weaver::mapper::VariantMapper;
 use hgvs_weaver::error::HgvsError;
 
@@ -55,6 +55,10 @@ impl DataProvider for RegressionProvider {
         }
     }
     fn get_identifier_type(&self, _id: &str) -> Result<IdentifierType, HgvsError> { Ok(IdentifierType::TranscriptAccession) }
+    fn c_to_g(&self, transcript_ac: &str, pos: TranscriptPos, offset: IntronicOffset) -> Result<(String, GenomicPos), HgvsError> {
+        let tx = self.get_transcript(transcript_ac, None)?;
+        Ok((tx.reference_accession().to_string(), GenomicPos(pos.0 + offset.0)))
+    }
 }
 
 #[test]
