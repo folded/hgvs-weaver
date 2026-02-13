@@ -166,14 +166,14 @@ To rerun the validation, you need the RefSeq annotation and genomic sequence fil
    uv run weaver/cli/validate.py data/clinvar_variants_100k.tsv ...
    ```
 
-### Validation Results (1,000 variants)
+### Validation Results (100,000 variants)
 
 Summary of results comparing `weaver` and `ref-hgvs` against ClinVar ground truth:
 
 | Implementation | Protein Match | SPDI Match  | Parse Errors |
 | :------------- | :-----------: | :---------: | :----------: |
-| weaver         |  **95.100%**  | **86.800%** | 0 |
-| ref-hgvs       |    94.400%    |   86.900%   | 17 |
+| weaver         |  **98.531%**  | **93.878%** | 1 |
+| ref-hgvs       |    98.116%    |   93.916%   | 394 |
 
 RefSeq Data Mismatches: 0 (0.0%)
 
@@ -181,13 +181,13 @@ RefSeq Data Mismatches: 0 (0.0%)
 
 |                     | ref-hgvs Match | ref-hgvs Mismatch |
 | :------------------ | :------------: | :---------------: |
-| **weaver Match**    |     943     |     8     |
-| **weaver Mismatch** |     1     |     48     |
+| **weaver Match**    |     98,044     |     487     |
+| **weaver Mismatch** |     72     |     1,397     |
 
 #### SPDI Mapping Agreement
 
 |                     | ref-hgvs Match | ref-hgvs Mismatch |
 | :------------------ | :------------: | :---------------: |
-| **weaver Match**    |     868     |     0     |
-| **weaver Mismatch** |     1     |     131     |
+| **weaver Match**    |     93,875     |     3     |
+| **weaver Mismatch** |     41     |     6,081     |
 - **Variant Equivalence**: Check if two variants are biologically equivalent using advanced cross-coordinate mapping and normalization. [See Algorithm](docs/source/equivalence_logic.md).
