@@ -112,6 +112,34 @@ def main() -> None:
         print("No variants processed.")
         return
 
+    # Calculate percentages
+    rs_p_pct = rs_p_match / total * 100
+    ref_p_pct = ref_p_match / total * 100
+    rs_spdi_pct = rs_spdi_match / total * 100
+    ref_spdi_pct = ref_spdi_match / total * 100
+
+    # Determine bolds
+    rs_p_str = f"{rs_p_pct:.3f}%"
+    ref_p_str = f"{ref_p_pct:.3f}%"
+    if rs_p_pct > ref_p_pct:
+        rs_p_str = f"**{rs_p_str}**"
+    elif ref_p_pct > rs_p_pct:
+        ref_p_str = f"**{ref_p_str}**"
+
+    rs_spdi_str = f"{rs_spdi_pct:.3f}%"
+    ref_spdi_str = f"{ref_spdi_pct:.3f}%"
+    if rs_spdi_pct > ref_spdi_pct:
+        rs_spdi_str = f"**{rs_spdi_str}**"
+    elif ref_spdi_pct > rs_spdi_pct:
+        ref_spdi_str = f"**{ref_spdi_str}**"
+
+    rs_err_str = f"{rs_parse_err:,}"
+    ref_err_str = f"{ref_parse_err:,}"
+    if rs_parse_err < ref_parse_err:
+        rs_err_str = f"**{rs_err_str}**"
+    elif ref_parse_err < rs_parse_err:
+        ref_err_str = f"**{ref_err_str}**"
+
     report = []
     report.append(f"### Validation Results ({total:,} variants)")
     report.append("")
@@ -119,12 +147,8 @@ def main() -> None:
     report.append("")
     report.append("| Implementation | Protein Match | SPDI Match  | Parse Errors |")
     report.append("| :------------- | :-----------: | :---------: | :----------: |")
-    report.append(
-        f"| weaver         |  **{rs_p_match / total * 100:.3f}%**  | **{rs_spdi_match / total * 100:.3f}%** | {rs_parse_err:,} |"
-    )
-    report.append(
-        f"| ref-hgvs       |    {ref_p_match / total * 100:.3f}%    |   {ref_spdi_match / total * 100:.3f}%   | {ref_parse_err:,} |"
-    )
+    report.append(f"| weaver         |  {rs_p_str}  | {rs_spdi_str} | {rs_err_str} |")
+    report.append(f"| ref-hgvs       |  {ref_p_str}  | {ref_spdi_str} | {ref_err_str} |")
     report.append("")
     report.append(f"RefSeq Data Mismatches: {rs_ref_mismatch:,} ({rs_ref_mismatch / total * 100:.1f}%)")
     report.append("")
