@@ -373,42 +373,42 @@ impl<'a> VariantEquivalence<'a> {
 
     fn n_vs_n_equivalent_c(&self, v1: &crate::structs::CVariant, v2: &crate::structs::CVariant) -> Result<bool, HgvsError> {
         let tx1 = self.hdp.get_transcript(&v1.ac, None)?;
-        let g1 = self.mapper.c_to_g(v1, tx1.reference_accession())?;
         let tx2 = self.hdp.get_transcript(&v2.ac, None)?;
-        let g2 = self.mapper.c_to_g(v2, tx2.reference_accession())?;
+        let g1 = self.mapper.c_to_g(v1, Some(tx1.reference_accession()))?;
+        let g2 = self.mapper.c_to_g(v2, Some(tx2.reference_accession()))?;
         self.n_vs_n_equivalent(&g1, &g2)
     }
 
     fn n_vs_n_equivalent_n(&self, v1: &crate::structs::NVariant, v2: &crate::structs::NVariant) -> Result<bool, HgvsError> {
         let tx1 = self.hdp.get_transcript(&v1.ac, None)?;
-        let g1 = self.mapper.n_to_g(v1, tx1.reference_accession())?;
         let tx2 = self.hdp.get_transcript(&v2.ac, None)?;
-        let g2 = self.mapper.n_to_g(v2, tx2.reference_accession())?;
+        let g1 = self.mapper.n_to_g(v1, Some(tx1.reference_accession()))?;
+        let g2 = self.mapper.n_to_g(v2, Some(tx2.reference_accession()))?;
         self.n_vs_n_equivalent(&g1, &g2)
     }
 
     fn g_vs_c_equivalent(&self, vg: &crate::structs::GVariant, vc: &crate::structs::CVariant) -> Result<bool, HgvsError> {
-        let g2 = self.mapper.c_to_g(vc, &vg.ac)?;
+        let g2 = self.mapper.c_to_g(vc, Some(&vg.ac))?;
         self.n_vs_n_equivalent(vg, &g2)
     }
 
     fn g_vs_n_equivalent(&self, vg: &crate::structs::GVariant, vn: &crate::structs::NVariant) -> Result<bool, HgvsError> {
-        let g2 = self.mapper.n_to_g(vn, &vg.ac)?;
+        let g2 = self.mapper.n_to_g(vn, Some(&vg.ac))?;
         self.n_vs_n_equivalent(vg, &g2)
     }
 
     fn c_vs_n_equivalent(&self, vc: &crate::structs::CVariant, vn: &crate::structs::NVariant) -> Result<bool, HgvsError> {
         let tx = self.hdp.get_transcript(&vc.ac, None)?;
         let ref_ac = tx.reference_accession();
-        let g1 = self.mapper.c_to_g(vc, ref_ac)?;
-        let g2 = self.mapper.n_to_g(vn, ref_ac)?;
+        let g1 = self.mapper.c_to_g(vc, Some(ref_ac))?;
+        let g2 = self.mapper.n_to_g(vn, Some(ref_ac))?;
         self.n_vs_n_equivalent(&g1, &g2)
     }
 
     fn n_vs_p_equivalent(&self, vn: &crate::structs::NVariant, vp: &crate::structs::PVariant) -> Result<bool, HgvsError> {
         let tx = self.hdp.get_transcript(&vn.ac, None)?;
         let ref_ac = tx.reference_accession();
-        let vg = self.mapper.n_to_g(vn, ref_ac)?;
+        let vg = self.mapper.n_to_g(vn, Some(ref_ac))?;
         self.g_vs_p_equivalent(&vg, vp)
     }
 

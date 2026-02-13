@@ -352,12 +352,12 @@ impl PyVariantMapper {
         }
     }
 
-    #[pyo3(signature = (var_c, reference_ac))]
-    #[doc = "Maps a coding cDNA variant (c.) to a genomic variant (g.) on a specific reference.\n\nArgs:\n    var_c: The coding Variant to map.\n    reference_ac: The accession of the target genomic reference.\n\nReturns:\n    A new Variant object in 'g.' coordinates."]
-    fn c_to_g(&self, _py: Python, var_c: &PyVariant, reference_ac: String) -> PyResult<PyVariant> {
+    #[pyo3(signature = (var_c, reference_ac = None))]
+    #[doc = "Maps a coding cDNA variant (c.) to a genomic variant (g.).\n\nArgs:\n    var_c: The coding Variant to map.\n    reference_ac: Optional chromosomal accession. If not provided, the primary chromosome for the transcript will be used.\n\nReturns:\n    A new Variant object in 'g.' coordinates."]
+    fn c_to_g(&self, _py: Python, var_c: &PyVariant, reference_ac: Option<String>) -> PyResult<PyVariant> {
         if let SequenceVariant::Coding(v) = &var_c.inner {
             let mapper = VariantMapper::new(self.bridge.as_ref());
-            let res = mapper.c_to_g(v, &reference_ac)
+            let res = mapper.c_to_g(v, reference_ac.as_deref())
                 .map_err(map_hgvs_error)?;
             Ok(PyVariant { inner: SequenceVariant::Genomic(res) })
         } else {
@@ -365,12 +365,13 @@ impl PyVariantMapper {
         }
     }
 
-    #[pyo3(signature = (var_n, reference_ac))]
-    #[doc = "Maps a non-coding cDNA variant (n.) to a genomic variant (g.) on a specific reference.\n\nArgs:\n    var_n: The non-coding Variant to map.\n    reference_ac: The accession of the target genomic reference.\n\nReturns:\n    A new Variant object in 'g.' coordinates."]
-    fn n_to_g(&self, _py: Python, var_n: &PyVariant, reference_ac: String) -> PyResult<PyVariant> {
+    #[pyo3(signature = (var_n, reference_ac = None))]
+    #[doc = "Maps a non-coding cDNA variant (n.) to a genomic variant (g.).\n\nArgs:\n    var_n: The non-coding Variant to map.\n    reference_ac: Optional chromosomal accession.\n\nReturns:\n    A new Variant object in 'g.' coordinates."]
+    fn n_to_g(&self, _py: Python, var_n: &PyVariant, reference_ac: Option<String>) -> PyResult<PyVariant> {
         if let SequenceVariant::NonCoding(v) = &var_n.inner {
             let mapper = VariantMapper::new(self.bridge.as_ref());
-            let res = mapper.n_to_g(v, &reference_ac).map_err(map_hgvs_error)?;
+            let res = mapper.n_to_g(v, reference_ac.as_deref())
+                .map_err(map_hgvs_error)?;
             Ok(PyVariant { inner: SequenceVariant::Genomic(res) })
         } else {
             Err(pyo3::exceptions::PyValueError::new_err("Expected a non-coding variant (n.)"))
@@ -405,6 +406,22 @@ impl PyVariantMapper {
         let bridge_searcher = PyTranscriptSearchBridge { searcher };
         let equiv = ::hgvs_weaver::equivalence::VariantEquivalence::new(self.bridge.as_ref(), &bridge_searcher);
         equiv.equivalent(&var1.inner, &var2.inner)
+            .map_err(map_hgvs_error)
+    }
+
+    #[pyo3(signature = (var, unambiguous = false))]
+    #[doc = "Converts a variant to a SPDI string format.\n\nArgs:\n    var: The Variant object to convert.\n    unambiguous: If True, expands the variant range to cover the entire ambiguous region of a repeat or homopolymer. Default is False."]
+    fn to_spdi(&self, _py: Python, var: &PyVariant, unambiguous: bool) -> PyResult<String> {
+        let mapper = VariantMapper::new(self.bridge.as_ref());
+        mapper.to_spdi(&var.inner, unambiguous)
+            .map_err(map_hgvs_error)
+    }
+
+    #[pyo3(signature = (var))]
+    #[doc = "Converts a variant to an unambiguous SPDI string format.\n\nThis format is independent of specific shifting conventions (like 3' or 5' shifting)\nby expanding the variant range to cover the entire ambiguous region of a repeat or homopolymer."]
+    fn to_spdi_unambiguous(&self, _py: Python, var: &PyVariant) -> PyResult<String> {
+        let mapper = VariantMapper::new(self.bridge.as_ref());
+        mapper.to_spdi(&var.inner, true)
             .map_err(map_hgvs_error)
     }
 }

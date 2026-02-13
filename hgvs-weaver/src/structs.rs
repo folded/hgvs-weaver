@@ -130,30 +130,20 @@ impl IntervalSpdi for SimpleInterval {
 
 impl IntervalSpdi for BaseOffsetInterval {
     fn spdi_interval(&self, ac: &str, data_provider: &dyn crate::data::DataProvider) -> Result<(i32, i32, String), HgvsError> {
-        // If has offsets, resolve to genomic.
-        if self.start.offset.is_some() || self.end.as_ref().map_or(false, |e| e.offset.is_some()) {
-             let g_start = data_provider.c_to_g(ac, self.start.base.to_index(), self.start.offset.unwrap_or(IntronicOffset(0)))?;
-             let g_end = if let Some(e) = &self.end {
-                 data_provider.c_to_g(ac, e.base.to_index(), e.offset.unwrap_or(IntronicOffset(0)))?
-             } else {
-                 (g_start.0.clone(), GenomicPos(g_start.1.0 + 1))
-             };
-             
-             if g_start.0 != g_end.0 {
-                 return Err(HgvsError::UnsupportedOperation("Interval spans multiple genomic accessions".into()));
-             }
-             
-             return Ok((g_start.1.0, g_end.1.0, g_start.0));
+        // Resolving transcript/non-coding positions to genomic coordinates for SPDI.
+        // This ensures the resulting SPDI uses a chromosomal accession.
+        let g_start = data_provider.c_to_g(ac, self.start.base.to_index(), self.start.offset.unwrap_or(IntronicOffset(0)))?;
+        let g_end = if let Some(e) = &self.end {
+            data_provider.c_to_g(ac, e.base.to_index(), e.offset.unwrap_or(IntronicOffset(0)))?
+        } else {
+            (g_start.0.clone(), GenomicPos(g_start.1.0 + 1))
+        };
+
+        if g_start.0 != g_end.0 {
+            return Err(HgvsError::UnsupportedOperation("Interval spans multiple genomic accessions".into()));
         }
-        
-        let start = self.start.base.0;
-        let end = self.end.as_ref().map_or(start, |e| e.base.0);
-        
-        if start > end {
-             return Err(HgvsError::ValidationError("Invalid range".into()));
-        }
-        
-        Ok((start - 1, end, ac.to_string()))
+
+        Ok((g_start.1.0, g_end.1.0, g_start.0))
     }
 }
 
@@ -174,13 +164,11 @@ impl EditSpdi for NaEdit {
             NaEdit::RefAlt { ref_, alt, .. } => {
                 let r_seq = if let Some(r) = ref_ {
                     if r.chars().all(|c| c.is_ascii_digit()) {
-                        // It's a length/integer? Fetch actual sequence.
                         data_provider.get_seq(ac, start, end, IdentifierType::Unknown)?
                     } else {
                         r.clone()
                     }
                 } else {
-                    // Implicit reference, fetch it.
                     data_provider.get_seq(ac, start, end, IdentifierType::Unknown)?
                 };
                 
@@ -190,114 +178,90 @@ impl EditSpdi for NaEdit {
                     alt.as_deref().unwrap_or("").to_string()
                 };
                 
-                // SPDI format: SEQ:POS:DEL_SEQ:INS_SEQ
-                Ok(format!("{}:{}:{}:{}", ac, start, r_seq, a_seq))
+                let (p_start, r_strip, a_strip) = strip_common_prefix_suffix(start, &r_seq, &a_seq);
+                Ok(format!("{}:{}:{}:{}", ac, p_start, r_strip, a_strip))
             }
             NaEdit::Del { ref_, .. } => {
-                 let r_seq = if let Some(r) = ref_ {
-                    // Logic to check if valid sequence or length 
-                     if r.chars().all(|c| c.is_ascii_digit()) {
-                         data_provider.get_seq(ac, start, end, IdentifierType::Unknown)?
-                     } else {
-                         r.clone()
-                     }
-                 } else {
-                     data_provider.get_seq(ac, start, end, IdentifierType::Unknown)?
-                 };
-                 Ok(format!("{}:{}:{}:", ac, start, r_seq))
+                let r_seq = if let Some(r) = ref_ {
+                    if r.chars().all(|c| c.is_ascii_digit()) {
+                        data_provider.get_seq(ac, start, end, IdentifierType::Unknown)?
+                    } else {
+                        r.clone()
+                    }
+                } else {
+                    data_provider.get_seq(ac, start, end, IdentifierType::Unknown)?
+                };
+                Ok(format!("{}:{}:{}:", ac, start, r_seq))
             }
             NaEdit::Ins { alt, .. } => {
-                // For insertion, HGVS usually points between bases, e.g. c.1_2insA.
-                // Start=1, End=1 (or 2?)
-                // In `BaseOffsetInterval`, if start != end, we calculated range.
-                // But `Ins` usually has start+1 = end in HGVS coordinates?
-                // Wait, logic in `validate.py`: 
-                // `if start_1 < end_1: return ...`
-                // `ac:start_1:ref:alt`
-                
-                // Let's stick to strict interpretation:
-                // SPDI for insertion is at the position.
-                // Ref is empty string (or the base before?).
-                // SPDI spec: "Deletion of 0 length at position".
-                
                 let a_seq = alt.as_deref().unwrap_or("");
                 Ok(format!("{}:{}:{}:{}", ac, start, "", a_seq))
             }
             NaEdit::Dup { ref_, .. } => {
-                // Duplication of sequence at [start, end].
-                // Converted to insertion of that sequence.
-                // Ref is empty (inserting specific sequence).
-                // Or is it? SPDI doesn't have "Dup". It's an insertion of the duplicated sequence.
-                // Where? At end?
-                // HGVS: 10_11dup (duplicates bases 10 and 11).
-                // SPDI: At 11 (0-based 11, which is after 10-11 range?), insert the sequence.
-                // Logic in reference implementation:
-                // `ac:end_1:ref:ref` (ref:ref implies deletion of 3rd arg, insertion of 4th arg?)
-                // No, `ac:pos:del:ins`.
-                // `validate.py` says: `f"{ac}:{end_1}:{ref}:{ref}"` ? 
-                // Wait. `ref` is the sequence being duplicated. 
-                // `del` is `ref`? That would mean deleting the sequence and replacing it with itself? That's Identity.
-                // Ah, `validate.py` logic:
-                // `if edit["type"] == "Dup": ref = get_seq... return f"{ac}:{end_1}:{ref}:{ref}"`
-                // This looks weird. If del=ref and ins=ref, it's a no-op?
-                // Unless it logic meant empty string for del?
-                // CHECK validate.py AGAIN.
-                
                 let r_seq = if let Some(r) = ref_ {
                     r.clone()
                 } else {
                      data_provider.get_seq(ac, start, end, IdentifierType::Unknown)?
                 };
-                
-                // If we assume duplication is "Insert copy of sequence after the sequence".
-                // Deletion: "" (0 chars). Insertion: "SEQUENCE".
-                // Position: end.
-                
                 Ok(format!("{}:{}:{}:{}", ac, end, "", r_seq))
             }
             NaEdit::Repeat { ref_, max, .. } => {
-                // Repeat sequence (e.g., c.7035TGGAAC[3]).
-                // SPDI represents this as a deletion of the original region and insertion of the repeated sequence.
-                // ClinVar SPDI for NM_001291285.3:c.7035TGGAAC[3] is NC_000004.12:125434258:ACTGGAACTGGAAC:ACTGGAACTGGAACTGGAAC
-                // Weaver's interval [start, end) for a point position c.7035 is [7034, 7035).
-                // Repeat unit length is ref_.len().
-                
                 let unit = if let Some(r) = ref_ {
                     r.clone()
                 } else {
-                    // If unit not provided, assume it's the whole interval? 
-                    // HGVS repeats usually have a unit sequence or it's implied by the position.
-                    // For now, fetch from data provider if None.
                     data_provider.get_seq(ac, start, end, IdentifierType::Unknown)?
                 };
-
-                // Del seq is the reference sequence at the interval.
-                // HGVS c.7035TGGAAC[3] usually means the unit TGGAAC is present at c.7035 and we want 3 copies total.
-                // We need to know how many copies were already there to determine the actual delta.
-                // BUT SPDI is absolute. It says "Delete this, Insert that".
-                // ClinVar's example has del=ACTGGAACTGGAAC (2 units?) and ins=ACTGGAACTGGAACTGGAAC (3 units?).
-                // Wait, if it's c.7035TGGAAC[3], and it results in 3 units...
-                // If r_seq at [start, end) is 1 unit, and we want 3 units...
-                // SPDI position should be the start of the repeat region.
-                
-                // For simplicity and matching ClinVar's "minimal" (but sometimes expanded) style:
-                // Canonical SPDI for repeats often settles on the smallest delins that describes the change.
-                // If we want [max] copies of [unit]:
-                // Ins seq = unit * max.
-                // Del seq = we need to know how many units are in the reference to be precise.
-                
                 let ins_seq = unit.repeat(*max as usize);
-                
-                // If we don't know the reference repeat count, we might produce a non-minimal SPDI.
-                // However, SPDI normalization (which weaver does) will clean it up.
-                // Let's at least get the reference sequence for the interval.
                 let r_seq = data_provider.get_seq(ac, start, end, IdentifierType::Unknown)?;
                 
-                Ok(format!("{}:{}:{}:{}", ac, start, r_seq, ins_seq))
+                let (p_start, r_strip, a_strip) = strip_common_prefix_suffix(start, &r_seq, &ins_seq);
+                Ok(format!("{}:{}:{}:{}", ac, p_start, r_strip, a_strip))
+            }
+            NaEdit::Inv { .. } => {
+                let r_seq = data_provider.get_seq(ac, start, end, IdentifierType::Unknown)?;
+                let a_seq = crate::sequence::rev_comp(&r_seq);
+                
+                let (p_start, r_strip, a_strip) = strip_common_prefix_suffix(start, &r_seq, &a_seq);
+                Ok(format!("{}:{}:{}:{}", ac, p_start, r_strip, a_strip))
             }
             _ => Err(HgvsError::UnsupportedOperation(format!("Edit type {:?} not yet supported for SPDI", self)))
         }
     }
+}
+
+pub fn strip_common_prefix_suffix(start: i32, ref_seq: &str, alt_seq: &str) -> (i32, String, String) {
+    let mut r_bytes = ref_seq.as_bytes();
+    let mut a_bytes = alt_seq.as_bytes();
+    let mut p_start = start;
+
+    // Strip prefix
+    let mut prefix_len = 0;
+    while prefix_len < r_bytes.len() && prefix_len < a_bytes.len() && r_bytes[prefix_len] == a_bytes[prefix_len] {
+        prefix_len += 1;
+    }
+    r_bytes = &r_bytes[prefix_len..];
+    a_bytes = &a_bytes[prefix_len..];
+    p_start += prefix_len as i32;
+
+    // Strip suffix
+    let mut suffix_len = 0;
+    while suffix_len < r_bytes.len() && suffix_len < a_bytes.len() {
+        let r_idx = r_bytes.len() - 1 - suffix_len;
+        let a_idx = a_bytes.len() - 1 - suffix_len;
+        if r_bytes[r_idx] == a_bytes[a_idx] {
+            suffix_len += 1;
+        } else {
+            break;
+        }
+    }
+    r_bytes = &r_bytes[..r_bytes.len() - suffix_len];
+    a_bytes = &a_bytes[..a_bytes.len() - suffix_len];
+
+    (
+        p_start,
+        String::from_utf8_lossy(r_bytes).to_string(),
+        String::from_utf8_lossy(a_bytes).to_string(),
+    )
 }
 
 impl EditSpdi for AaEdit {

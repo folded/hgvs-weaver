@@ -86,13 +86,24 @@ class VariantMapper:
         Returns:
             A list of Variant objects in 'c.' coordinates.
         """
-    def c_to_g(self, var_c: Variant, reference_ac: builtins.str) -> Variant:
+    def c_to_g(self, var_c: Variant, reference_ac: builtins.str | None = None) -> Variant:
         r"""
-        Maps a coding cDNA variant (c.) to a genomic variant (g.) on a specific reference.
+        Maps a coding cDNA variant (c.) to a genomic variant (g.).
 
         Args:
             var_c: The coding Variant to map.
-            reference_ac: The accession of the target genomic reference.
+            reference_ac: Optional chromosomal accession. If not provided, the primary chromosome for the transcript will be used.
+
+        Returns:
+            A new Variant object in 'g.' coordinates.
+        """
+    def n_to_g(self, var_n: Variant, reference_ac: builtins.str | None = None) -> Variant:
+        r"""
+        Maps a non-coding cDNA variant (n.) to a genomic variant (g.).
+
+        Args:
+            var_n: The non-coding Variant to map.
+            reference_ac: Optional chromosomal accession.
 
         Returns:
             A new Variant object in 'g.' coordinates.
@@ -133,6 +144,21 @@ class VariantMapper:
 
         Returns:
             True if the variants are equivalent, False otherwise.
+        """
+    def to_spdi(self, var: Variant, unambiguous: builtins.bool = False) -> builtins.str:
+        r"""
+        Converts a variant to a SPDI string format.
+
+        Args:
+            var: The Variant object to convert.
+            unambiguous: If True, expands the variant range to cover the entire ambiguous region of a repeat or homopolymer. Default is False.
+        """
+    def to_spdi_unambiguous(self, var: Variant) -> builtins.str:
+        r"""
+        Converts a variant to an unambiguous SPDI string format.
+
+        This format is independent of specific shifting conventions (like 3' or 5' shifting)
+        by expanding the variant range to cover the entire ambiguous region of a repeat or homopolymer.
         """
 
 @typing.final

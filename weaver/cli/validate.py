@@ -98,12 +98,7 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
             rs_p = f"ERR:{e!s}"
 
         try:
-            if v_rs_raw.coordinate_type != "g":
-                vg_rs = _rs_mapper.c_to_g(v_rs_raw, spdi_ac)
-                vg_rs = _rs_mapper.normalize_variant(vg_rs)  # Normalize in genomic space for SPDI
-            else:
-                vg_rs = v_rs_raw
-            rs_spdi = vg_rs.to_spdi(_rp)
+            rs_spdi = _rs_mapper.to_spdi(v_rs_raw, unambiguous=True)
         except weaver.TranscriptMismatchError as e:
             rs_spdi = f"ERR:TranscriptMismatch:{e!s}"
         except Exception as e:
@@ -129,14 +124,7 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
 
         try:
             vg_ref = _ref_vm.c_to_g(v_ref, spdi_ac) if v_ref.type != "g" else v_ref
-            # Normalize in genomic space for SPDI using weaver normalizer
-            try:
-                vg_ref_rs = weaver.parse(str(vg_ref))
-                vg_ref_rs = _rs_mapper.normalize_variant(vg_ref_rs)
-                ref_spdi = vg_ref_rs.to_spdi(_rp)
-            except Exception:
-                # Fallback to unnormalized if weaver parsing fails
-                ref_spdi = hgvs_lib_to_spdi(vg_ref, _rp)
+            ref_spdi = hgvs_lib_to_spdi(vg_ref, _rp)
         except Exception as e:
             ref_spdi = f"ERR:{e!s}"
     except Exception:
@@ -144,10 +132,10 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
     except BaseException:
         ref_p = ref_spdi = "PANIC"
 
-    row["rs_p"] = rs_p
-    row["rs_spdi"] = rs_spdi
-    row["ref_p"] = ref_p
-    row["ref_spdi"] = ref_spdi
+    row["rs_p"] = rs_p or ""
+    row["rs_spdi"] = rs_spdi or ""
+    row["ref_p"] = ref_p or ""
+    row["ref_spdi"] = ref_spdi or ""
     return row
 
 

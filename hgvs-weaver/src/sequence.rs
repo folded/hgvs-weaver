@@ -98,6 +98,15 @@ impl<'a> Sequence for RevCompSequence<'a> {
     }
 }
 
+pub fn rev_comp(seq: &str) -> String {
+    seq.chars().rev().map(|c| match c {
+        'A' => 'T', 'T' => 'A', 'C' => 'G', 'G' => 'C', 'N' => 'N',
+        'a' => 't', 't' => 'a', 'c' => 'g', 'g' => 'c', 'n' => 'n',
+        'U' => 'A', 'u' => 'a',
+        _ => c
+    }).collect()
+}
+
 /// Adapter for transcription (T -> U).
 pub struct TranscribedSequence<'a> {
     pub inner: &'a dyn Sequence,

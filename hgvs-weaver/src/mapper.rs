@@ -1,5 +1,6 @@
 use crate::error::HgvsError;
-use crate::data::{DataProvider, TranscriptSearch, IdentifierKind, Transcript, IdentifierType};
+use crate::data::{DataProvider, Transcript, TranscriptSearch, IdentifierKind, IdentifierType};
+use crate::coords::{Anchor, GenomicPos, TranscriptPos, HgvsGenomicPos, HgvsTranscriptPos, HgvsProteinPos, SequenceVariant};
 use crate::structs::{GVariant, CVariant, PVariant, BaseOffsetInterval};
 use crate::transcript_mapper::TranscriptMapper;
 use crate::altseq::AltSeqBuilder;
@@ -88,8 +89,8 @@ impl<'a> VariantMapper<'a> {
     }
 
     /// Transforms a coding cDNA variant (`c.`) to a genomic variant (`g.`).
-    pub fn c_to_g(&self, var_c: &CVariant, reference_ac: &str) -> Result<GVariant, HgvsError> {
-        let transcript = self.hdp.get_transcript(&var_c.ac, Some(reference_ac))?;
+    pub fn c_to_g(&self, var_c: &CVariant, reference_ac: Option<&str>) -> Result<GVariant, HgvsError> {
+        let transcript = self.hdp.get_transcript(&var_c.ac, reference_ac)?;
         let am = TranscriptMapper::new(transcript)?;
 
         let pos = var_c.posedit.pos.as_ref().ok_or_else(|| HgvsError::ValidationError("Missing cDNA position".into()))?;
@@ -107,23 +108,23 @@ impl<'a> VariantMapper<'a> {
             }
 
             let mut edit = var_c.posedit.edit.clone();
-        if am.transcript.strand() == -1 {
-            edit = edit.map_sequence(|s| {
-                let seq = MemSequence(s.to_string());
-                let rc = RevCompSequence { inner: &seq };
-                rc.to_string()
-            });
-        }
+            if am.transcript.strand() == -1 {
+                edit = edit.map_sequence(|s| {
+                    let seq = MemSequence(s.to_string());
+                    let rc = RevCompSequence { inner: &seq };
+                    rc.to_string()
+                });
+            }
 
             return Ok(GVariant {
-                ac: reference_ac.to_string(),
+                ac: reference_ac.unwrap_or_else(|| am.transcript.reference_accession()).to_string(),
                 gene: var_c.gene.clone(),
                 posedit: crate::structs::PosEdit {
                     pos: Some(crate::structs::SimpleInterval { start: pos_g, end: Some(pos_g_e), uncertain: false }),
                     edit,
                     uncertain: var_c.posedit.uncertain,
                     predicted: var_c.posedit.predicted,
-                }
+                },
             });
         }
 
@@ -138,20 +139,20 @@ impl<'a> VariantMapper<'a> {
         }
 
         Ok(GVariant {
-            ac: reference_ac.to_string(),
+            ac: reference_ac.unwrap_or_else(|| am.transcript.reference_accession()).to_string(),
             gene: var_c.gene.clone(),
             posedit: crate::structs::PosEdit {
                 pos: Some(crate::structs::SimpleInterval { start: pos_g, end: None, uncertain: false }),
                 edit,
                 uncertain: var_c.posedit.uncertain,
                 predicted: var_c.posedit.predicted,
-            }
+            },
         })
     }
 
     /// Transforms a non-coding cDNA variant (`n.`) to a genomic variant (`g.`).
-    pub fn n_to_g(&self, var_n: &crate::structs::NVariant, reference_ac: &str) -> Result<GVariant, HgvsError> {
-        let transcript = self.hdp.get_transcript(&var_n.ac, Some(reference_ac))?;
+    pub fn n_to_g(&self, var_n: &crate::structs::NVariant, reference_ac: Option<&str>) -> Result<GVariant, HgvsError> {
+        let transcript = self.hdp.get_transcript(&var_n.ac, reference_ac)?;
         let am = TranscriptMapper::new(transcript)?;
 
         let pos = var_n.posedit.pos.as_ref().ok_or_else(|| HgvsError::ValidationError("Missing cDNA position".into()))?;
@@ -169,23 +170,23 @@ impl<'a> VariantMapper<'a> {
             }
 
             let mut edit = var_n.posedit.edit.clone();
-        if am.transcript.strand() == -1 {
-            edit = edit.map_sequence(|s| {
-                let seq = MemSequence(s.to_string());
-                let rc = RevCompSequence { inner: &seq };
-                rc.to_string()
-            });
-        }
+            if am.transcript.strand() == -1 {
+                edit = edit.map_sequence(|s| {
+                    let seq = MemSequence(s.to_string());
+                    let rc = RevCompSequence { inner: &seq };
+                    rc.to_string()
+                });
+            }
 
             return Ok(GVariant {
-                ac: reference_ac.to_string(),
+                ac: reference_ac.unwrap_or_else(|| am.transcript.reference_accession()).to_string(),
                 gene: var_n.gene.clone(),
                 posedit: crate::structs::PosEdit {
                     pos: Some(crate::structs::SimpleInterval { start: pos_g, end: Some(pos_g_e), uncertain: false }),
                     edit,
                     uncertain: var_n.posedit.uncertain,
                     predicted: var_n.posedit.predicted,
-                }
+                },
             });
         }
 
@@ -200,14 +201,14 @@ impl<'a> VariantMapper<'a> {
         }
 
         Ok(GVariant {
-            ac: reference_ac.to_string(),
+            ac: reference_ac.unwrap_or_else(|| am.transcript.reference_accession()).to_string(),
             gene: var_n.gene.clone(),
             posedit: crate::structs::PosEdit {
                 pos: Some(crate::structs::SimpleInterval { start: pos_g, end: None, uncertain: false }),
                 edit,
                 uncertain: var_n.posedit.uncertain,
                 predicted: var_n.posedit.predicted,
-            }
+            },
         })
     }
 
@@ -407,6 +408,8 @@ impl<'a> VariantMapper<'a> {
     }
 
     fn shift_3_prime(&self, ac: &str, kind: IdentifierKind, start: usize, end: usize, edit: &crate::edits::NaEdit) -> Result<(usize, usize), HgvsError> {
+        let storage_r;
+        let storage_a;
         let (ref_str, alt_str) = match edit {
             crate::edits::NaEdit::RefAlt { ref_, alt, .. } => (ref_.as_deref().unwrap_or(""), alt.as_deref().unwrap_or("")),
             crate::edits::NaEdit::Del { ref_: Some(s), .. } => (s.as_str(), ""),
@@ -415,6 +418,16 @@ impl<'a> VariantMapper<'a> {
             crate::edits::NaEdit::Ins { alt: None, .. } => ("", ""),
             crate::edits::NaEdit::Dup { ref_: Some(s), .. } => (s.as_str(), ""),
             crate::edits::NaEdit::Dup { ref_: None, .. } => ("", ""),
+            crate::edits::NaEdit::Repeat { ref_, max, .. } => {
+                storage_r = if let Some(r) = ref_ { r.clone() } else { self.hdp.get_seq(ac, start as i32, end as i32, IdentifierType::GenomicAccession)? };
+                storage_a = storage_r.repeat(*max as usize);
+                (storage_r.as_str(), storage_a.as_str())
+            }
+            crate::edits::NaEdit::Inv { .. } => {
+                storage_r = self.hdp.get_seq(ac, start as i32, end as i32, IdentifierType::GenomicAccession)?;
+                storage_a = crate::sequence::rev_comp(&storage_r);
+                (storage_r.as_str(), storage_a.as_str())
+            }
             _ => return Ok((start, end)),
         };
 
@@ -430,11 +443,15 @@ impl<'a> VariantMapper<'a> {
 
         let is_del_or_dup = matches!(edit, crate::edits::NaEdit::Del { .. } | crate::edits::NaEdit::Dup { .. });
 
-        if is_del_or_dup || (!ref_str.is_empty() && alt_str.is_empty()) {
-            // Deletion or Duplication (explicit or implicit)
-            let mut ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind.into_identifier_type())?;
-            if ref_chunk.is_empty() { return Ok((curr_start, curr_end)); }
-            let mut ref_byte = ref_chunk.as_bytes()[0];
+        if is_del_or_dup || (!ref_str.is_empty() && alt_str.is_empty()) || (matches!(edit, crate::edits::NaEdit::RefAlt { .. }) && start != end && ref_str.len() != alt_str.len()) {
+            // Deletion, Duplication, or DelIns with a non-empty range
+            let mut current_ref = if ref_str.is_empty() {
+                self.hdp.get_seq(ac, curr_start as i32, curr_end as i32, kind.into_identifier_type())?
+            } else {
+                ref_str.to_string()
+            };
+            
+            if current_ref.is_empty() { return Ok((curr_start, curr_end)); }
 
             loop {
                 if (curr_end - chunk_start) >= chunk_bytes.len() {
@@ -446,22 +463,26 @@ impl<'a> VariantMapper<'a> {
                     if chunk_bytes.is_empty() { break; }
                 }
 
-                if ref_byte == chunk_bytes[curr_end - chunk_start] {
+                // To shift a delins/del/dup, the next base must match the first base of the range being shifted.
+                // And the range must be "internally" repetitive or we must match the whole range?
+                // Standard 3' shift: if seq[start] == seq[end], then [start, end) -> [start+1, end+1) is equivalent.
+                let first_ref_byte = current_ref.as_bytes()[0];
+                if first_ref_byte == chunk_bytes[curr_end - chunk_start] {
                     curr_start += 1;
                     curr_end += 1;
-                    ref_chunk = self.hdp.get_seq(ac, curr_start as i32, (curr_start + 1) as i32, kind.into_identifier_type())?;
-                    if ref_chunk.is_empty() { break; }
-                    ref_byte = ref_chunk.as_bytes()[0];
+                    // Update current_ref for the next iteration (it's the sequence at the new [start, end))
+                    current_ref = self.hdp.get_seq(ac, curr_start as i32, curr_end as i32, kind.into_identifier_type())?;
+                    if current_ref.is_empty() { break; }
                 } else {
                     break;
                 }
             }
         } else if ref_str.is_empty() && !alt_str.is_empty() {
-            // Insertion or duplication with no explicit reference
+            // Pure Insertion (start == end)
             let alt_bytes = alt_str.as_bytes();
             let n = alt_bytes.len();
             if n == 0 { return Ok((curr_start, curr_end)); }
-            let mut i = 0;
+            
             loop {
                 if (curr_end - chunk_start) >= chunk_bytes.len() {
                     if chunk_bytes.len() < chunk_size { break; }
@@ -472,15 +493,219 @@ impl<'a> VariantMapper<'a> {
                     if chunk_bytes.is_empty() { break; }
                 }
 
-                if chunk_bytes[curr_end - chunk_start] == alt_bytes[i % n] {
-                    curr_start += 1;
-                    curr_end += 1;
-                    i += 1;
+                // For an insertion to shift right, the base we pass MUST match the base we are putting "behind" it.
+                // If we insert 'A' at pos 1 in 'XA', we can move it to pos 2 only if ref[1] == 'A'.
+                // So 'X | A' -> 'X A |'. Both result in 'XAA'.
+                if chunk_bytes[curr_end - chunk_start] == alt_bytes[0] {
+                    // For 1-base insertions, shifting is simple.
+                    // For multi-base, we'd need to "rotate" the alt string (TODO).
+                    if n == 1 {
+                        curr_start += 1;
+                        curr_end += 1;
+                    } else {
+                        break;
+                    }
                 } else {
                     break;
                 }
             }
         }
         Ok((curr_start, curr_end))
+    }
+
+    fn shift_5_prime(&self, ac: &str, kind: IdentifierKind, start: usize, end: usize, edit: &crate::edits::NaEdit) -> Result<(usize, usize), HgvsError> {
+        let storage_r;
+        let storage_a;
+        let (ref_str, alt_str) = match edit {
+            crate::edits::NaEdit::RefAlt { ref_, alt, .. } => (ref_.as_deref().unwrap_or(""), alt.as_deref().unwrap_or("")),
+            crate::edits::NaEdit::Del { ref_: Some(s), .. } => (s.as_str(), ""),
+            crate::edits::NaEdit::Del { ref_: None, .. } => ("", ""),
+            crate::edits::NaEdit::Ins { alt: Some(s), .. } => ("", s.as_str()),
+            crate::edits::NaEdit::Ins { alt: None, .. } => ("", ""),
+            crate::edits::NaEdit::Dup { ref_: Some(s), .. } => (s.as_str(), ""),
+            crate::edits::NaEdit::Dup { ref_: None, .. } => ("", ""),
+            crate::edits::NaEdit::Repeat { ref_, max, .. } => {
+                storage_r = if let Some(r) = ref_ { r.clone() } else { self.hdp.get_seq(ac, start as i32, end as i32, IdentifierType::GenomicAccession)? };
+                storage_a = storage_r.repeat(*max as usize);
+                (storage_r.as_str(), storage_a.as_str())
+            }
+            crate::edits::NaEdit::Inv { .. } => {
+                storage_r = self.hdp.get_seq(ac, start as i32, end as i32, IdentifierType::GenomicAccession)?;
+                storage_a = crate::sequence::rev_comp(&storage_r);
+                (storage_r.as_str(), storage_a.as_str())
+            }
+            _ => return Ok((start, end)),
+        };
+
+        if ref_str == alt_str && matches!(edit, crate::edits::NaEdit::RefAlt { .. }) { return Ok((start, end)); }
+
+        let mut curr_start = start;
+        let mut curr_end = end;
+
+        let is_del_or_dup = matches!(edit, crate::edits::NaEdit::Del { .. } | crate::edits::NaEdit::Dup { .. });
+
+        if is_del_or_dup || (!ref_str.is_empty() && alt_str.is_empty()) || (matches!(edit, crate::edits::NaEdit::RefAlt { .. }) && start != end && ref_str.len() != alt_str.len()) {
+            // Deletion, Duplication, or DelIns with a non-empty range
+            let mut current_ref = if ref_str.is_empty() {
+                self.hdp.get_seq(ac, curr_start as i32, curr_end as i32, kind.into_identifier_type())?
+            } else {
+                ref_str.to_string()
+            };
+            
+            if current_ref.is_empty() { return Ok((curr_start, curr_end)); }
+
+            loop {
+                if curr_start == 0 { break; }
+                
+                let prev_base_pos = curr_start - 1;
+                let prev_base = self.hdp.get_seq(ac, prev_base_pos as i32, curr_start as i32, kind.into_identifier_type())?;
+                if prev_base.is_empty() { break; }
+                
+                let last_ref_byte = current_ref.as_bytes()[current_ref.len() - 1];
+                if prev_base.as_bytes()[0] == last_ref_byte {
+                    curr_start -= 1;
+                    curr_end -= 1;
+                    current_ref = self.hdp.get_seq(ac, curr_start as i32, curr_end as i32, kind.into_identifier_type())?;
+                } else {
+                    break;
+                }
+            }
+        } else if ref_str.is_empty() && !alt_str.is_empty() {
+            // Pure Insertion
+            let alt_bytes = alt_str.as_bytes();
+            let n = alt_bytes.len();
+            
+            loop {
+                if curr_start == 0 { break; }
+                let prev_base_pos = curr_start - 1;
+                let prev_base = self.hdp.get_seq(ac, prev_base_pos as i32, curr_start as i32, kind.into_identifier_type())?;
+                if prev_base.is_empty() { break; }
+
+                if prev_base.as_bytes()[0] == alt_bytes[n - 1] {
+                    if n == 1 {
+                        curr_start -= 1;
+                        curr_end -= 1;
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+        Ok((curr_start, curr_end))
+    }
+
+    pub fn expand_unambiguous_range(&self, ac: &str, kind: IdentifierKind, start: usize, end: usize, edit: &crate::edits::NaEdit) -> Result<(usize, usize), HgvsError> {
+        // Substitutions in homopolymers are NOT expanded in ClinVar/SPDI standard.
+        // We only expand length-changing variants (Del, Ins, Dup, Repeat).
+        let is_length_changing = match edit {
+            crate::edits::NaEdit::RefAlt { ref_, alt, .. } => {
+                let r_len = ref_.as_deref().unwrap_or("").len();
+                let a_len = alt.as_deref().unwrap_or("").len();
+                r_len != a_len
+            }
+            crate::edits::NaEdit::Del { .. } | crate::edits::NaEdit::Ins { .. } |
+            crate::edits::NaEdit::Dup { .. } | crate::edits::NaEdit::Repeat { .. } => true,
+            _ => false,
+        };
+
+        if !is_length_changing {
+            return Ok((start, end));
+        }
+
+        let (s_5, _) = self.shift_5_prime(ac, kind, start, end, edit)?;
+        let (_, e_3) = self.shift_3_prime(ac, kind, start, end, edit)?;
+        Ok((s_5, e_3))
+    }
+
+    pub fn to_spdi(&self, var: &crate::SequenceVariant, unambiguous: bool) -> Result<String, HgvsError> {
+        if unambiguous {
+            self.to_spdi_unambiguous(var)
+        } else {
+             // 1. Resolve to genomic if possible. 
+            let g_var_obj = match var {
+                crate::SequenceVariant::Genomic(v) => v.clone(),
+                crate::SequenceVariant::Coding(v) => self.c_to_g(v, None)?,
+                crate::SequenceVariant::NonCoding(v) => self.n_to_g(v, None)?,
+                _ => return Err(HgvsError::UnsupportedOperation("SPDI only for genomic/coding/non-coding".into())),
+            };
+            
+            // 2. Normalize (3' shift, minimal delins)
+            let g_norm_var = self.normalize_variant(crate::SequenceVariant::Genomic(g_var_obj))?;
+            let g_norm = match g_norm_var {
+                crate::SequenceVariant::Genomic(v) => v,
+                _ => unreachable!(),
+            };
+            g_norm.posedit.to_spdi(&g_norm.ac, &*self.hdp)
+        }
+    }
+
+    pub fn to_spdi_unambiguous(&self, var: &crate::SequenceVariant) -> Result<String, HgvsError> {
+        // 1. Resolve to genomic if possible. Unambiguous SPDI is ideally on chromosomal coordinates.
+        let g_var_obj = match var {
+            crate::SequenceVariant::Genomic(v) => v.clone(),
+            crate::SequenceVariant::Coding(v) => self.c_to_g(v, None)?,
+            crate::SequenceVariant::NonCoding(v) => self.n_to_g(v, None)?,
+            _ => return Err(HgvsError::UnsupportedOperation("SPDI expansion only for genomic/coding/non-coding".into())),
+        };
+        
+        // 2. Normalize (3' shift, minimal delins)
+        let g_norm_var = self.normalize_variant(crate::SequenceVariant::Genomic(g_var_obj))?;
+        let g_norm = match g_norm_var {
+            crate::SequenceVariant::Genomic(v) => v,
+            _ => unreachable!(),
+        };
+        
+        let ac = &g_norm.ac;
+        if let Some(pos) = &g_norm.posedit.pos {
+             let start_idx = pos.start.base.to_index().0 as usize;
+             let is_ins = matches!(&g_norm.posedit.edit, crate::edits::NaEdit::Ins { .. });
+             let end_idx = pos.end.as_ref().map_or(start_idx + 1, |e| {
+                 let idx = e.base.to_index().0 as usize;
+                 if is_ins { idx } else { idx + 1 }
+             });
+             
+             // 3. Expand range to cover ambiguity
+             let (u_start, u_end) = self.expand_unambiguous_range(ac, IdentifierKind::Genomic, start_idx, end_idx, &g_norm.posedit.edit)?;
+             
+             // 4. Construct expanded sequences
+             let r_seq = self.hdp.get_seq(ac, u_start as i32, u_end as i32, IdentifierType::GenomicAccession)?;
+             
+             let rel_start = start_idx - u_start;
+             let rel_end = end_idx - u_start;
+             
+             let alt_storage;
+             let alt_str = match &g_norm.posedit.edit {
+                 crate::edits::NaEdit::RefAlt { alt, .. } => alt.as_deref().unwrap_or(""),
+                 crate::edits::NaEdit::Ins { alt: Some(s), .. } => s.as_str(),
+                 crate::edits::NaEdit::Del { .. } => "",
+                 crate::edits::NaEdit::Dup { ref_: Some(s), ..} => {
+                    alt_storage = format!("{}{}", s, s);
+                    &alt_storage
+                 }
+                 crate::edits::NaEdit::Repeat { ref_, max, .. } => {
+                    let unit = if let Some(u) = ref_ {
+                        u.clone()
+                    } else {
+                        self.hdp.get_seq(ac, start_idx as i32, end_idx as i32, IdentifierType::GenomicAccession)?
+                    };
+                    alt_storage = unit.repeat(*max as usize);
+                    &alt_storage
+                 }
+                 crate::edits::NaEdit::Inv { .. } => {
+                    let s = self.hdp.get_seq(ac, start_idx as i32, end_idx as i32, IdentifierType::GenomicAccession)?;
+                    alt_storage = crate::sequence::rev_comp(&s);
+                    &alt_storage
+                 }
+                 _ => return g_norm.posedit.to_spdi(ac, &*self.hdp),
+             };
+             
+             let a_seq = format!("{}{}{}", &r_seq[..rel_start], alt_str, &r_seq[rel_end..]);
+             
+             Ok(format!("{}:{}:{}:{}", ac, u_start, r_seq, a_seq))
+        } else {
+             g_norm.posedit.to_spdi(&g_norm.ac, &*self.hdp) // Fallback for identity?
+        }
     }
 }
