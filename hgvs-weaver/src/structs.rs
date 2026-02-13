@@ -200,12 +200,13 @@ impl EditSpdi for NaEdit {
                     data_provider.get_seq(ac, start, end, IdentifierType::Unknown)?
                 };
                 
-                let a_seq = alt.as_deref().unwrap_or("");
+                let a_seq = if ref_.is_none() && alt.is_none() {
+                    r_seq.clone()
+                } else {
+                    alt.as_deref().unwrap_or("").to_string()
+                };
                 
                 // SPDI format: SEQ:POS:DEL_SEQ:INS_SEQ
-                // But wait, normalized SPDI usually just puts the ref/alt.
-                // If ref matches genomic/transcript ref, we use it.
-                
                 Ok(format!("{}:{}:{}:{}", ac, start, r_seq, a_seq))
             }
             NaEdit::Del { ref_, .. } => {

@@ -5,14 +5,19 @@ use hgvs_weaver::data::{ExonData, TranscriptData};
 struct MockDataProvider;
 
 impl DataProvider for MockDataProvider {
-    fn get_seq(&self, _ac: &str, _start: i32, _end: i32, _kind: hgvs_weaver::data::IdentifierType) -> Result<String, HgvsError> {
+    fn get_seq(&self, _ac: &str, start: i32, end: i32, _kind: hgvs_weaver::data::IdentifierType) -> Result<String, HgvsError> {
         let mut s = String::new();
         s.push_str("AAAAAAAAAA"); // 10 A's
         s.push_str("ATG"); // n.11 is c.1
         for _ in 0..25 {
             s.push_str("ATGC");
         }
-        Ok(s)
+        
+        let start = start as usize;
+        let end = if end == -1 { s.len() } else { end as usize };
+        if start > s.len() { return Ok("".into()); }
+        let end = end.min(s.len());
+        Ok(s[start..end].to_string())
     }
 
     fn get_transcript(&self, transcript_ac: &str, _reference_ac: Option<&str>) -> Result<Box<dyn Transcript>, HgvsError> {

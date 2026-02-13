@@ -5,62 +5,42 @@ use hgvs_weaver::data::{ExonData, TranscriptData};
 struct BugMockDataProvider;
 
 impl DataProvider for BugMockDataProvider {
-    fn get_seq(&self, ac: &str, _start: i32, _end: i32, kind: hgvs_weaver::data::IdentifierType) -> Result<String, HgvsError> {
-        if kind == hgvs_weaver::data::IdentifierType::ProteinAccession || ac.starts_with("NP") {
+    fn get_seq(&self, ac: &str, start: i32, end: i32, kind: hgvs_weaver::data::IdentifierType) -> Result<String, HgvsError> {
+        let mut base_seq = if kind == hgvs_weaver::data::IdentifierType::ProteinAccession || ac.starts_with("NP") {
             let mut aa_seq = "K".repeat(10000); // Lysine everywhere
             // Codon 1575 is at index 1574.
             aa_seq.replace_range(1574..1575, "R"); // Arg
-            return Ok(aa_seq);
-        }
+            aa_seq
+        } else {
+            let mut full_seq = "A".repeat(30000);
+            
+            // ATM (NM_000051.4) setup for case 1
+            // ... (existing code for case 1) ...
+            
+            // Case 2: NM_001008844.3 c.4498_4499delinsAT
+            // Let's assume UTR=100 for simplicity.
+            // c.4498 -> index 100 + 4497 = 4597.
+            // Codon 1500 start.
+            // Ref: Pro (CCN). Let's use CCG.
+            // Index 4597..4600.
+            if ac == "NM_001008844.3" {
+                // Set 4597..4600 to CCG (Pro)
+                full_seq.replace_range(4597..4600, "CCG");
+            } else if ac == "NM_BAD_PROVIDER" {
+                // ...
+            } else {
+                full_seq.replace_range(4822..4825, "CAA"); // Original is Gln
+                full_seq.replace_range(4722..4725, "AGA"); // Arg
+                full_seq.replace_range(927..930, "TCA"); // Ser
+            }
+            full_seq
+        };
 
-        let mut full_seq = "A".repeat(30000);
-        
-        // ATM (NM_000051.4) setup for case 1
-        // ... (existing code for case 1) ...
-        
-        // Case 2: NM_001008844.3 c.4498_4499delinsAT
-        // Let's assume UTR=100 for simplicity.
-        // c.4498 -> index 100 + 4497 = 4597.
-        // Codon 1500 start.
-        // Ref: Pro (CCN). Let's use CCG.
-        // Index 4597..4600.
-        if ac == "NM_001008844.3" {
-            // Set 4597..4600 to CCG (Pro)
-            full_seq.replace_range(4597..4600, "CCG");
-            return Ok(full_seq);
-        }
-
-        if ac == "NM_BAD_PROVIDER" {
-            // UTR=100.
-            // But we will say cds_start=0.
-            // Target variant at c.1 (index 0+0=0).
-            // We want index 0 to be UTR.
-            // So seq should start with UTR.
-            // And index 100 should be Start Codon (ATG).
-            // Default "A" repeat is fine for UTR.
-            // Just need ensuring index 0 is valid.
-            return Ok(full_seq);
-        }
-        
-        // Reference at 4822..4825 (correct location for c.4723 if UTR=100): CAA (Gln)
-        // We will apply delinsAGA (Arg).
-        // If correct -> Arg1575= (Wait, the user says GT: p.Arg1575=)
-        // This implies the FINAL is Arg. So if Ref was Arg and Alt is Arg -> identity.
-        // If GT: p.Arg1575=, it means the ground truth THINK it's identity.
-        // If Weaver says p.(Arg1575Gln), it means Weaver thinks Ref is Arg and Alt is Gln.
-        // Wait! Weaver's p.(Arg1575Gln) means Ref=Arg, Alt=Gln.
-        // Let's set Ref=AGA (Arg) at 4822.
-        // And let's see why Alt became Gln.
-        // If Weaver applies delinsAGA to the WRONG place (4722), and at 4822 there was Gln...
-        full_seq.replace_range(4822..4825, "CAA"); // Original is Gln
-        
-        // Reference at 4722..4725: AGA (Arg)
-        full_seq.replace_range(4722..4725, "AGA");
-
-        // Serine codon at 927..930 handled before
-        full_seq.replace_range(927..930, "TCA");
-        
-        Ok(full_seq)
+        let s = start as usize;
+        let e = if end == -1 { base_seq.len() } else { end as usize };
+        if s > base_seq.len() { return Ok("".into()); }
+        let e = e.min(base_seq.len());
+        Ok(base_seq[s..e].to_string())
     }
 
     fn get_transcript(&self, transcript_ac: &str, _reference_ac: Option<&str>) -> Result<Box<dyn Transcript>, HgvsError> {

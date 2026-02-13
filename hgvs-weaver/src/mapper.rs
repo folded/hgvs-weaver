@@ -1,10 +1,10 @@
 use crate::error::HgvsError;
-use crate::data::{DataProvider, TranscriptSearch, IdentifierKind, Transcript};
+use crate::data::{DataProvider, TranscriptSearch, IdentifierKind, Transcript, IdentifierType};
 use crate::structs::{GVariant, CVariant, PVariant, BaseOffsetInterval};
 use crate::transcript_mapper::TranscriptMapper;
 use crate::altseq::AltSeqBuilder;
 use crate::altseq_to_hgvsp::AltSeqToHgvsp;
-use crate::sequence::Sequence;
+use crate::sequence::{Sequence, MemSequence, RevCompSequence, TranslatedSequence, LazySequence};
 
 /// High-level mapper for transforming variants between coordinate systems.
 pub struct VariantMapper<'a> {
@@ -47,7 +47,11 @@ impl<'a> VariantMapper<'a> {
             };
             let mut edit = var_g.posedit.edit.clone();
             if am.transcript.strand() == -1 {
-                edit = edit.map_sequence(|s| Sequence::new(s.to_string()).reverse_complement().as_str().to_string());
+                edit = edit.map_sequence(|s| {
+                    let seq = crate::sequence::MemSequence(s.to_string());
+                    let rc = crate::sequence::RevCompSequence { inner: &seq };
+                    rc.to_string()
+                });
             }
 
             return Ok(CVariant {
@@ -64,7 +68,11 @@ impl<'a> VariantMapper<'a> {
 
         let mut edit = var_g.posedit.edit.clone();
         if am.transcript.strand() == -1 {
-            edit = edit.map_sequence(|s| Sequence::new(s.to_string()).reverse_complement().as_str().to_string());
+            edit = edit.map_sequence(|s| {
+                let seq = crate::sequence::MemSequence(s.to_string());
+                let rc = crate::sequence::RevCompSequence { inner: &seq };
+                rc.to_string()
+            });
         }
 
         Ok(CVariant {
@@ -99,9 +107,13 @@ impl<'a> VariantMapper<'a> {
             }
 
             let mut edit = var_c.posedit.edit.clone();
-            if am.transcript.strand() == -1 {
-                edit = edit.map_sequence(|s| Sequence::new(s.to_string()).reverse_complement().as_str().to_string());
-            }
+        if am.transcript.strand() == -1 {
+            edit = edit.map_sequence(|s| {
+                let seq = MemSequence(s.to_string());
+                let rc = RevCompSequence { inner: &seq };
+                rc.to_string()
+            });
+        }
 
             return Ok(GVariant {
                 ac: reference_ac.to_string(),
@@ -118,7 +130,11 @@ impl<'a> VariantMapper<'a> {
         let pos_g = crate::structs::SimplePosition { base: g_pos.to_hgvs(), end: None, uncertain: false };
         let mut edit = var_c.posedit.edit.clone();
         if am.transcript.strand() == -1 {
-            edit = edit.map_sequence(|s| Sequence::new(s.to_string()).reverse_complement().as_str().to_string());
+            edit = edit.map_sequence(|s| {
+                let seq = crate::sequence::MemSequence(s.to_string());
+                let rc = crate::sequence::RevCompSequence { inner: &seq };
+                rc.to_string()
+            });
         }
 
         Ok(GVariant {
@@ -153,9 +169,13 @@ impl<'a> VariantMapper<'a> {
             }
 
             let mut edit = var_n.posedit.edit.clone();
-            if am.transcript.strand() == -1 {
-                edit = edit.map_sequence(|s| Sequence::new(s.to_string()).reverse_complement().as_str().to_string());
-            }
+        if am.transcript.strand() == -1 {
+            edit = edit.map_sequence(|s| {
+                let seq = MemSequence(s.to_string());
+                let rc = RevCompSequence { inner: &seq };
+                rc.to_string()
+            });
+        }
 
             return Ok(GVariant {
                 ac: reference_ac.to_string(),
@@ -172,7 +192,11 @@ impl<'a> VariantMapper<'a> {
         let pos_g = crate::structs::SimplePosition { base: g_pos.to_hgvs(), end: None, uncertain: false };
         let mut edit = var_n.posedit.edit.clone();
         if am.transcript.strand() == -1 {
-            edit = edit.map_sequence(|s| Sequence::new(s.to_string()).reverse_complement().as_str().to_string());
+            edit = edit.map_sequence(|s| {
+                let seq = crate::sequence::MemSequence(s.to_string());
+                let rc = crate::sequence::RevCompSequence { inner: &seq };
+                rc.to_string()
+            });
         }
 
         Ok(GVariant {
@@ -223,22 +247,32 @@ impl<'a> VariantMapper<'a> {
         let cds_start_idx = transcript.cds_start_index().ok_or_else(|| HgvsError::ValidationError("Missing CDS start".into()))?.0 as usize;
         let cds_end_idx = transcript.cds_end_index().ok_or_else(|| HgvsError::ValidationError("Missing CDS end".into()))?.0 as usize;
 
-        if ref_seq.len() < cds_end_idx {
-            return Err(HgvsError::ValidationError(format!("Transcript sequence too short (len={}, expected at least {})", ref_seq.len(), cds_end_idx)));
+        let ref_seq_obj = MemSequence(ref_seq);
+
+        if ref_seq_obj.len() < cds_end_idx {
+            return Err(HgvsError::ValidationError(format!("Transcript sequence too short (len={}, expected at least {})", ref_seq_obj.len(), cds_end_idx)));
         }
 
-        if cds_start_idx > ref_seq.len() {
-            return Err(HgvsError::ValidationError(format!("CDS start {} out of sequence bounds {}", cds_start_idx, ref_seq.len())));
+        if cds_start_idx > ref_seq_obj.len() {
+            return Err(HgvsError::ValidationError(format!("CDS start {} out of sequence bounds {}", cds_start_idx, ref_seq_obj.len())));
         }
 
         // Use Sequence abstraction for translation
-        let seq_obj = Sequence::new(ref_seq.clone());
-        let ref_aa = seq_obj.translate(cds_start_idx)?;
+        let trans_obj = TranslatedSequence { 
+            inner: &LazySequence {
+                hdp: self.hdp,
+                ac: transcript_ac.to_string(),
+                start: cds_start_idx,
+                end: ref_seq_obj.len(),
+                kind: IdentifierType::TranscriptAccession,
+            }
+        };
+        let ref_aa = trans_obj.to_string();
 
 
         let builder = AltSeqBuilder {
             var_c,
-            transcript_sequence: ref_seq,
+            transcript_sequence: &ref_seq_obj,
             cds_start_index: transcript.cds_start_index().unwrap(),
             cds_end_index: transcript.cds_end_index().unwrap(),
             protein_accession: pro_ac_str,
@@ -422,8 +456,8 @@ impl<'a> VariantMapper<'a> {
                     break;
                 }
             }
-        } else if (ref_str.is_empty() && start == end) && !alt_str.is_empty() {
-            // Insertion
+        } else if ref_str.is_empty() && !alt_str.is_empty() {
+            // Insertion or duplication with no explicit reference
             let alt_bytes = alt_str.as_bytes();
             let n = alt_bytes.len();
             if n == 0 { return Ok((curr_start, curr_end)); }

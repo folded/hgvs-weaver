@@ -5,60 +5,34 @@ use hgvs_weaver::data::{ExonData, TranscriptData};
 struct NormMockDataProvider;
 
 impl DataProvider for NormMockDataProvider {
-    fn get_seq(&self, _ac: &str, _start: i32, _end: i32, _kind: hgvs_weaver::data::IdentifierType) -> Result<String, HgvsError> {
-        let mut s = String::new();
-        s.push_str("AAAAAAAAAA"); // 10 A's
-        // NM_0001.1: ATG AAA TAG (9 bases)
-        s.push_str("ATGAAATAG");
-        for _ in 0..20 {
-            s.push_str("ATGC");
-        }
-        
-        // NM_SHIFT_BUG sequence
-        // We want context "CCAT" at index 0.
-        // And we want variant c.1_2delinsAT.
-        // Result ATAT.
-        // If shifted -> c.3_4delinsAT.
-        // Ref AT. Alt AT. Result CCAT. (Identity).
-        if _ac == "NM_SHIFT_BUG" {
-            return Ok("CCATTTTTTT".to_string());
-        }
-        if _ac == "NM_PREMATURE_STOP" {
-            // ATG CAACAAGATGATTAA
-            return Ok("ATGCAACAAGATGATTAA".to_string());
-        }
-        if _ac == "NM_INFRAME_DEL" {
-            // ATG GCT GCA TGC GAT TAA (M A A C D *)
-            // We want A A C D *.
-            // c.4_6del. (del GCT -> A).
-            // Actually, let's make it simpler.
-            // M A B C D *.
-            // c.4_6del. Del A.
-            // Result M B C D *.
-            // Tail match "B C D *".
-            return Ok("ATGGCTGCATGCGATTAA".to_string());
-        }
-        if _ac == "NM_CTERM_SUBST" {
-            // M A B C D *.
-            // c.14T>G. (D -> E).
-            // DNA: M A B C D *. (D is GAT).
-            // GAT -> GAG (E).
-            // Result: M A B C E *.
-            // Tail match: *. (Len 1).
-            // This is a 1 vs 1 substitution. Should be p.Asp5Glu.
-            return Ok("ATGGCTGCATGCGATTAA".to_string());
-        }
-        if _ac == "NM_REPEAT_EXP" {
-            // M A A A F *.
-            // ATG GCT GCT GCT TTT TAA.
-            return Ok("ATGGCTGCTGCTTTTTAA".to_string());
-        }
-        if _ac == "NM_REPEAT_CON" {
-            // M A A A A F *.
-            // ATG GCA GCA GCA GCA TTT TAA.
-            return Ok("ATGGCAGCAGCAGCATTTTAA".to_string());
-        }
-        Ok(s)
+    fn get_seq(&self, ac: &str, start: i32, end: i32, _kind: hgvs_weaver::data::IdentifierType) -> Result<String, HgvsError> {
+        let mut base_seq = if ac == "NM_SHIFT_BUG" {
+            "CCATTTTTTT".to_string()
+        } else if ac == "NM_PREMATURE_STOP" {
+            "ATGCAACAAGATGATTAA".to_string()
+        } else if ac == "NM_INFRAME_DEL" {
+            "ATGGCTGCATGCGATTAA".to_string()
+        } else if ac == "NM_CTERM_SUBST" {
+            "ATGGCTGCATGCGATTAA".to_string()
+        } else if ac == "NM_REPEAT_EXP" {
+            "ATGGCTGCTGCTTTTTAA".to_string()
+        } else if ac == "NM_REPEAT_CON" {
+            "ATGGCAGCAGCAGCATTTTAA".to_string()
+        } else {
+            let mut s = String::new();
+            s.push_str("AAAAAAAAAA"); // 10 A's
+            s.push_str("ATGAAATAG");
+            for _ in 0..20 {
+                s.push_str("ATGC");
+            }
+            s
+        };
+
+        let s = start as usize;
+        let e = if end == -1 { base_seq.len() } else { end as usize };
+        if s > base_seq.len() { return Ok("".into()); }
+        let e = e.min(base_seq.len());
+        Ok(base_seq[s..e].to_string())
     }
 
     fn get_transcript(&self, transcript_ac: &str, _reference_ac: Option<&str>) -> Result<Box<dyn Transcript>, HgvsError> {

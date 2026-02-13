@@ -32,6 +32,7 @@ dev = [
     "mypy",
     "myst-parser",
     "pytest>=8.4.1",
+    "pytest-cov>=7.0.0",
     "ruff",
     "sphinx",
     "sphinx-rtd-theme",
