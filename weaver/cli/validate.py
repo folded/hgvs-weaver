@@ -98,11 +98,11 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
             rs_p = f"ERR:{e!s}"
 
         try:
-            if v_rs.coordinate_type != "g":
-                vg_rs = _rs_mapper.c_to_g(v_rs, spdi_ac)
+            if v_rs_raw.coordinate_type != "g":
+                vg_rs = _rs_mapper.c_to_g(v_rs_raw, spdi_ac)
                 vg_rs = _rs_mapper.normalize_variant(vg_rs)  # Normalize in genomic space for SPDI
             else:
-                vg_rs = v_rs
+                vg_rs = v_rs_raw
             rs_spdi = vg_rs.to_spdi(_rp)
         except weaver.TranscriptMismatchError as e:
             rs_spdi = f"ERR:TranscriptMismatch:{e!s}"
