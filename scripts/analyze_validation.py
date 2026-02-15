@@ -66,7 +66,8 @@ def analyze(filepath: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
+    min_args = 2
+    if len(sys.argv) < min_args:
         print("Usage: python analyze_validation.py <results_file>")
         sys.exit(1)
     analyze(sys.argv[1])

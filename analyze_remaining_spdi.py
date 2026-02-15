@@ -1,9 +1,27 @@
 import csv
 
 
-def analyze_spdi_mismatches(results_file) -> None:
-    mismatches = []
-    unsupported = {}
+def get_variant_type(row: dict[str, str]) -> str:
+    nuc = row["variant_nuc"]
+    v_type = "Unknown"
+    if "dup" in nuc:
+        v_type = "dup"
+    elif "delins" in nuc:
+        v_type = "delins"
+    elif "del" in nuc:
+        v_type = "del"
+    elif "ins" in nuc:
+        v_type = "ins"
+    elif "[" in nuc:
+        v_type = "repeat"
+    elif ">" in nuc:
+        v_type = "subst"
+    return v_type
+
+
+def analyze_spdi_mismatches(results_file: str) -> None:
+    mismatches: list[dict[str, str]] = []
+    unsupported: dict[str, int] = {}
 
     with open(results_file) as f:
         reader = csv.DictReader(f, delimiter="\t")
@@ -21,21 +39,7 @@ def analyze_spdi_mismatches(results_file) -> None:
                     unsupported[f"Other ERR: {prefix}"] = unsupported.get(f"Other ERR: {prefix}", 0) + 1
                 else:
                     unsupported["Real Mismatch"] = unsupported.get("Real Mismatch", 0) + 1
-                    # Categorize by cDNA variant type
-                    v_type = "Unknown"
-                    if "dup" in row["variant_nuc"]:
-                        v_type = "dup"
-                    elif "delins" in row["variant_nuc"]:
-                        v_type = "delins"
-                    elif "del" in row["variant_nuc"]:
-                        v_type = "del"
-                    elif "ins" in row["variant_nuc"]:
-                        v_type = "ins"
-                    elif "[" in row["variant_nuc"]:
-                        v_type = "repeat"
-                    elif ">" in row["variant_nuc"]:
-                        v_type = "subst"
-
+                    v_type = get_variant_type(row)
                     unsupported[f"Mismatch: {v_type}"] = unsupported.get(f"Mismatch: {v_type}", 0) + 1
 
     print(f"Total Mismatches: {len(mismatches)}")
@@ -45,7 +49,8 @@ def analyze_spdi_mismatches(results_file) -> None:
 
     print("\nTop 10 Real Mismatches:")
     real_mismatches = [m for m in mismatches if not m["rs_spdi"].startswith("ERR:")]
-    for m in real_mismatches[:10]:
+    max_to_show = 10
+    for m in real_mismatches[:max_to_show]:
         print(f"  {m['variant_nuc']:30} Truth: {m['spdi']:50} Weaver: {m['rs_spdi']}")
 
 

@@ -4,7 +4,7 @@ import sys
 from scripts.classify_failures import classify
 
 
-def extract_category(input_file, category, limit=50) -> None:
+def extract_category(input_file: str, category: str, limit: int = 50) -> None:
     with open(input_file) as f:
         reader = csv.DictReader(f, delimiter="\t")
         count = 0
@@ -16,14 +16,16 @@ def extract_category(input_file, category, limit=50) -> None:
                 print(f"GT:  {row['variant_prot']}")
                 print(f"W:   {row['rs_p']}")
                 print(f"R:   {row['ref_p']}")
-                print("-" * 40)
+                padding = 40
+                print("-" * padding)
                 count += 1
                 if count >= limit:
                     break
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
+    min_args = 3
+    if len(sys.argv) < min_args:
         print("Usage: python extract_category.py <results_tsv> <category>")
     else:
         extract_category(sys.argv[1], sys.argv[2])

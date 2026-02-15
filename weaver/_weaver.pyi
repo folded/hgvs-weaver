@@ -92,7 +92,8 @@ class VariantMapper:
 
         Args:
             var_c: The coding Variant to map.
-            reference_ac: Optional chromosomal accession. If not provided, the primary chromosome for the transcript will be used.
+            reference_ac: Optional chromosomal accession. If not provided,
+                the primary chromosome for the transcript will be used.
 
         Returns:
             A new Variant object in 'g.' coordinates.
@@ -151,14 +152,16 @@ class VariantMapper:
 
         Args:
             var: The Variant object to convert.
-            unambiguous: If True, expands the variant range to cover the entire ambiguous region of a repeat or homopolymer. Default is False.
+            unambiguous: If True, expands the variant range to cover the entire
+                ambiguous region of a repeat or homopolymer. Default is False.
         """
     def to_spdi_unambiguous(self, var: Variant) -> builtins.str:
         r"""
         Converts a variant to an unambiguous SPDI string format.
 
         This format is independent of specific shifting conventions (like 3' or 5' shifting)
-        by expanding the variant range to cover the entire ambiguous region of a repeat or homopolymer.
+        by expanding the variant range to cover the entire ambiguous region of a repeat
+        or homopolymer.
         """
 
 @typing.final

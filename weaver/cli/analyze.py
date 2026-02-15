@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 
-def clean_hgvs(s):
+def clean_hgvs(s: str) -> str:
     if not s:
         return ""
     # Remove accession prefix

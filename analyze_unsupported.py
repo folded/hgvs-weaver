@@ -2,11 +2,11 @@ import collections
 import csv
 
 
-def analyze_unsupported_vs_ref(input_file) -> None:
+def analyze_unsupported_vs_ref(input_file: str) -> None:
     total_unsupported = 0
-    ref_hgvs_performance = collections.Counter()
+    ref_hgvs_performance: collections.Counter[str] = collections.Counter()
     total = 0
-    examples = []
+    examples: list[dict[str, str]] = []
 
     with open(input_file) as f:
         reader = csv.DictReader(f, delimiter="\t")
@@ -21,12 +21,17 @@ def analyze_unsupported_vs_ref(input_file) -> None:
 
                 if ref_spdi == cv_spdi:
                     ref_hgvs_performance["Matched ClinVar"] += 1
-                    if len(examples) < 10:
+                    max_examples = 10
+                    if len(examples) < max_examples:
                         examples.append({"variant": row["variant_nuc"], "cv": cv_spdi, "ref": ref_spdi})
                 elif ref_spdi.startswith("ERR:"):
                     ref_hgvs_performance["Ref Error"] += 1
                 else:
                     ref_hgvs_performance["Ref Unique Mismatch"] += 1
+
+    if total_unsupported == 0:
+        print("No 'Unsupported Operation' cases found.")
+        return
 
     print(f"Total Weaver 'Unsupported Operation' cases: {total_unsupported}")
     print("\nRef-hgvs performance in these cases:")

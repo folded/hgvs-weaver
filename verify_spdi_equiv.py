@@ -4,7 +4,7 @@ import sys
 from weaver.cli.provider import RefSeqDataProvider
 
 
-def verify_equivalence(results_file) -> None:
+def verify_equivalence(results_file: str) -> None:
     provider = RefSeqDataProvider(
         gff_path="GRCh38_latest_genomic.gff.gz",
         fasta_path="GCF_000001405.40_GRCh38.p14_genomic.fna",
@@ -54,32 +54,33 @@ def verify_equivalence(results_file) -> None:
 
                 # Apply T
                 t_rel_pos = t_pos - context_start
-                t_seq = ref_seq[:t_rel_pos] + t_ins + ref_seq[t_rel_pos + len(t_del) :]
+                t_seq = ref_seq[0:t_rel_pos] + t_ins + ref_seq[t_rel_pos + len(t_del) :]
 
                 # Apply W
                 w_rel_pos = w_pos - context_start
-                w_seq = ref_seq[:w_rel_pos] + w_ins + ref_seq[w_rel_pos + len(w_del) :]
+                w_seq = ref_seq[0:w_rel_pos] + w_ins + ref_seq[w_rel_pos + len(w_del) :]
 
                 if t_seq == w_seq:
                     equivalent += 1
                 else:
                     real_diff += 1
-                    if real_diff <= 5:
+                    max_examples = 5
+                    if real_diff <= max_examples:
                         print(f"Mismatch {i}: {row['variant_nuc']}")
                         print(f"  Truth:  {truth}")
                         print(f"  Weaver: {weaver_spdi}")
-                        # print(f"  Ref:    {ref_seq[t_rel_pos-5:t_rel_pos+len(t_del)+5]}")
-            except Exception:
-                # print(f"Error checking {row['variant_nuc']}: {e}")
+            except (ValueError, KeyError, IndexError, TypeError):
                 real_diff += 1
 
     print(f"\nSummary of {mismatches} lexical mismatches:")
-    print(f"  Equivalent (biologically same): {equivalent} ({equivalent / mismatches:.1%})")
+    if mismatches > 0:
+        print(f"  Equivalent (biologically same): {equivalent} ({equivalent / mismatches:.1%})")
     print(f"  Real differences:               {real_diff}")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
+    min_args = 2
+    if len(sys.argv) < min_args:
         print("Usage: python verify_spdi_equiv.py <results_file>")
         sys.exit(1)
     verify_equivalence(sys.argv[1])
