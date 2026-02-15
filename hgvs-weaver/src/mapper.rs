@@ -443,7 +443,7 @@ impl<'a> VariantMapper<'a> {
 
         let is_del_or_dup = matches!(edit, crate::edits::NaEdit::Del { .. } | crate::edits::NaEdit::Dup { .. });
 
-        if is_del_or_dup || (!ref_str.is_empty() && alt_str.is_empty()) || (matches!(edit, crate::edits::NaEdit::RefAlt { .. }) && start != end && ref_str.len() != alt_str.len()) {
+        if is_del_or_dup || (!ref_str.is_empty() && alt_str.is_empty()) || (matches!(edit, crate::edits::NaEdit::RefAlt { .. }) && (end - start) != alt_str.len()) {
             // Deletion, Duplication, or DelIns with a non-empty range
             let mut current_ref = if ref_str.is_empty() {
                 self.hdp.get_seq(ac, curr_start as i32, curr_end as i32, kind.into_identifier_type())?
@@ -477,7 +477,7 @@ impl<'a> VariantMapper<'a> {
                     break;
                 }
             }
-        } else if ref_str.is_empty() && !alt_str.is_empty() {
+        } else if start == end && !alt_str.is_empty() {
             // Pure Insertion (start == end)
             let alt_bytes = alt_str.as_bytes();
             let n = alt_bytes.len();
@@ -544,7 +544,7 @@ impl<'a> VariantMapper<'a> {
 
         let is_del_or_dup = matches!(edit, crate::edits::NaEdit::Del { .. } | crate::edits::NaEdit::Dup { .. });
 
-        if is_del_or_dup || (!ref_str.is_empty() && alt_str.is_empty()) || (matches!(edit, crate::edits::NaEdit::RefAlt { .. }) && start != end && ref_str.len() != alt_str.len()) {
+        if is_del_or_dup || (!ref_str.is_empty() && alt_str.is_empty()) || (matches!(edit, crate::edits::NaEdit::RefAlt { .. }) && (end - start) != alt_str.len()) {
             // Deletion, Duplication, or DelIns with a non-empty range
             let mut current_ref = if ref_str.is_empty() {
                 self.hdp.get_seq(ac, curr_start as i32, curr_end as i32, kind.into_identifier_type())?
@@ -570,7 +570,7 @@ impl<'a> VariantMapper<'a> {
                     break;
                 }
             }
-        } else if ref_str.is_empty() && !alt_str.is_empty() {
+        } else if start == end && !alt_str.is_empty() {
             // Pure Insertion
             let alt_bytes = alt_str.as_bytes();
             let n = alt_bytes.len();
@@ -600,8 +600,8 @@ impl<'a> VariantMapper<'a> {
         // Substitutions in homopolymers are NOT expanded in ClinVar/SPDI standard.
         // We only expand length-changing variants (Del, Ins, Dup, Repeat).
         let is_length_changing = match edit {
-            crate::edits::NaEdit::RefAlt { ref_, alt, .. } => {
-                let r_len = ref_.as_deref().unwrap_or("").len();
+            crate::edits::NaEdit::RefAlt { alt, .. } => {
+                let r_len = end - start;
                 let a_len = alt.as_deref().unwrap_or("").len();
                 r_len != a_len
             }
