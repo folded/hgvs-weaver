@@ -19,12 +19,12 @@ def clean_hgvs(s: str) -> str:
 
 
 def is_p_match(pred: str, truth: str) -> bool:
-    """Checks if predicted protein matches truth with fuzzy logic."""
+    """Checks if predicted protein matches truth."""
     if not pred or pred.startswith("ERR:"):
         return False
     p = clean_hgvs(pred)
     t = clean_hgvs(truth)
-    return p == t or ("*" in p and "*" in t) or ("fs" in p and "fs" in t) or ("=" in p and "=" in t)
+    return p == t
 
 
 def main() -> None:
