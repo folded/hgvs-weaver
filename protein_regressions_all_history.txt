@@ -344,4 +344,3 @@ Variant: NM_207391.3:c.380_381delinsTT
   Truth: NP_997274.2:p.Arg127Leu
   Tip Result: p.(Ala128_Leu129=)
   Succeeded in: 08f9ef2
-

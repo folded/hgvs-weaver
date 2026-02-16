@@ -1,12 +1,24 @@
-import subprocess
-import os
-import sys
-import json
 import csv
+import json
+import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
+from typing import TypedDict
 
 # Commits to benchmark (approx 12 selected from 42)
+
+
+class Stats(TypedDict, total=False):
+    total: int
+    p_match: int
+    spdi_match: int
+    p_perc: float
+    spdi_perc: float
+    commit: str
+
+
 COMMITS = [
     "08f9ef2",
     "8ed0107",
@@ -38,9 +50,14 @@ DATA_FILES = [
 ]
 
 
-def run(cmd, cwd=REPO_ROOT, check=True, env=None):
-    print(f"Running: {' '.join(cmd) if isinstance(cmd, list) else cmd}")
-    res = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, env=env)
+def run(
+    cmd: list[str],
+    cwd: Path = REPO_ROOT,
+    check: bool = True,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    print(f"Running: {' '.join(cmd)}")
+    res = subprocess.run(cmd, check=False, capture_output=True, text=True, cwd=cwd, env=env)  # noqa: S603
     if check and res.returncode != 0:
         print(f"ERROR: Command failed with code {res.returncode}")
         print(f"STDOUT: {res.stdout}")
@@ -49,7 +66,7 @@ def run(cmd, cwd=REPO_ROOT, check=True, env=None):
     return res
 
 
-def setup_worktree():
+def setup_worktree() -> None:
     if WORKTREE_DIR.exists():
         print(f"Cleaning up existing worktree at {WORKTREE_DIR}...")
         run(["git", "worktree", "remove", "-f", str(WORKTREE_DIR)])
@@ -59,7 +76,7 @@ def setup_worktree():
     run(["git", "worktree", "add", "--detach", str(WORKTREE_DIR), "HEAD"])
 
 
-def link_data(target_dir):
+def link_data(target_dir: Path) -> None:
     for f in DATA_FILES:
         src = REPO_ROOT / f
         dst = target_dir / f
@@ -75,28 +92,28 @@ def link_data(target_dir):
         os.symlink(venv_src, venv_dst)
 
 
-def build_weaver(target_dir):
+def build_weaver(target_dir: Path) -> None:
     print(f"Building weaver in {target_dir}...")
     # Use the venv in the root
     venv_bin = REPO_ROOT / ".venv" / "bin"
-    maturin_exe = venv_bin / "maturin"
-    if not maturin_exe.exists():
+    maturin_exe = str(venv_bin / "maturin")
+    if not os.path.exists(maturin_exe):
         maturin_exe = "maturin"  # Fallback
 
     env = os.environ.copy()
     env["VIRTUAL_ENV"] = str(REPO_ROOT / ".venv")
     env["PATH"] = f"{venv_bin}:{env.get('PATH', '')}"
 
-    run([str(maturin_exe), "develop"], cwd=target_dir, env=env)
+    run([maturin_exe, "develop"], cwd=target_dir, env=env)
 
 
-def validate(target_dir, commit_hash, max_variants=5000):
+def validate(target_dir: Path, commit_hash: str, max_variants: int = 100000) -> Path | None:
     output_file = RESULTS_DIR / f"results_{commit_hash}.tsv"
     print(f"Validating {commit_hash} in worktree (max={max_variants})...")
 
     venv_bin = REPO_ROOT / ".venv" / "bin"
-    python_exe = venv_bin / "python"
-    if not python_exe.exists():
+    python_exe = str(venv_bin / "python")
+    if not os.path.exists(python_exe):
         python_exe = sys.executable
 
     env = os.environ.copy()
@@ -118,18 +135,18 @@ def validate(target_dir, commit_hash, max_variants=5000):
     try:
         run(cmd, cwd=target_dir, env=env)
         return output_file
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         print(f"Validation failed for {commit_hash}")
         return None
 
 
-def analyze(results_file):
+def analyze(results_file: Path | None) -> Stats | None:
     if not results_file or not results_file.exists():
         return None
 
-    stats = {"total": 0, "p_match": 0, "spdi_match": 0}
+    stats: Stats = {"total": 0, "p_match": 0, "spdi_match": 0}
     try:
-        with open(results_file) as f:
+        with open(results_file, encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter="\t")
             for row in reader:
                 stats["total"] += 1
@@ -146,7 +163,7 @@ def analyze(results_file):
                 # SPDI Match
                 if row.get("spdi") and row.get("spdi") == row.get("rs_spdi"):
                     stats["spdi_match"] += 1
-    except Exception as e:
+    except (OSError, csv.Error) as e:
         print(f"Analysis failed: {e}")
         return None
 
@@ -154,12 +171,12 @@ def analyze(results_file):
         stats["p_perc"] = (stats["p_match"] / stats["total"]) * 100
         stats["spdi_perc"] = (stats["spdi_match"] / stats["total"]) * 100
     else:
-        stats["p_perc"] = stats["spdi_perc"] = 0
+        stats["p_perc"] = stats["spdi_perc"] = 0.0
     return stats
 
 
-def main():
-    history = []
+def main() -> None:
+    history: list[Stats] = []
     try:
         setup_worktree()
         link_data(WORKTREE_DIR)

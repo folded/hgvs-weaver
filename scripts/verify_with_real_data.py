@@ -2,9 +2,10 @@ import weaver
 import weaver.cli.provider as p
 
 
-def main():
+def main() -> None:
     dp = p.RefSeqDataProvider(
-        gff_path="GRCh38_latest_genomic.gff.gz", fasta_path="GCF_000001405.40_GRCh38.p14_genomic.fna"
+        gff_path="GRCh38_latest_genomic.gff.gz",
+        fasta_path="GCF_000001405.40_GRCh38.p14_genomic.fna",
     )
     mapper = weaver.VariantMapper(dp)
 
@@ -27,8 +28,8 @@ def main():
             norm_var = mapper.normalize_variant(var)
             p_with_norm = mapper.c_to_p(norm_var)
 
-            print(f"{hgvs_c:<60} | {truth_p:<50} | {str(p_no_norm):<50} | {p_with_norm}")
-        except Exception as e:
+            print(f"{hgvs_c:<60} | {truth_p:<50} | {p_no_norm!s:<50} | {p_with_norm}")
+        except OSError as e:
             print(f"{hgvs_c:<60} | {truth_p:<50} | ERROR: {e}")
 
 
