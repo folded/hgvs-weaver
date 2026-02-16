@@ -21,6 +21,7 @@ COMMITS = [
     "a551cff",
     "01372cc",
     "204362e",
+    "e225ee6",
 ]
 
 REPO_ROOT = Path(__file__).parent.parent.resolve()
