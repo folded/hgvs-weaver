@@ -62,5 +62,37 @@
     "p_perc": 93.765,
     "spdi_perc": 93.917,
     "commit": "b6888ea"
+  },
+  {
+    "total": 100000,
+    "p_match": 93762,
+    "spdi_match": 97852,
+    "p_perc": 93.762,
+    "spdi_perc": 97.85199999999999,
+    "commit": "070cb95"
+  },
+  {
+    "total": 100000,
+    "p_match": 93762,
+    "spdi_match": 97852,
+    "p_perc": 93.762,
+    "spdi_perc": 97.85199999999999,
+    "commit": "a551cff"
+  },
+  {
+    "total": 100000,
+    "p_match": 93826,
+    "spdi_match": 97968,
+    "p_perc": 93.826,
+    "spdi_perc": 97.968,
+    "commit": "01372cc"
+  },
+  {
+    "total": 100000,
+    "p_match": 93826,
+    "spdi_match": 97968,
+    "p_perc": 93.826,
+    "spdi_perc": 97.968,
+    "commit": "204362e"
   }
 ]

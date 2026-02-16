@@ -20,11 +20,6 @@ repos:
     hooks:
       - id: markdownlint
 
-  - repo: https://github.com/populationgenomics/pre-commits
-    rev: "e37928f761f17d54aca5cedf93848b40ec7cff26"
-    hooks:
-      - id: cpg-id-checker
-
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
     rev: v0.14.1
