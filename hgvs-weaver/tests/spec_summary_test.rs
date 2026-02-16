@@ -16,7 +16,6 @@ fn test_spec_summary_variants() {
         "NC_000001.11:g.123delinsAC",
         "NC_000023.10:g.33038255C>A",
         "NG_012232.1(NM_004006.2):c.93+1G>T",
-
         // RNA
         "NM_004006.3:r.123_124insauc",
         "NM_004006.3:r.123_127del",
@@ -24,7 +23,6 @@ fn test_spec_summary_variants() {
         "NM_004006.3:r.123_345dup",
         "NM_004006.3:r.123_345inv",
         "NM_004006.3:r.123c>g",
-
         // Protein
         "NP_003070.3:p.Glu125_Ala132delinsGlyLeuHisArgPheIleValLeu",
         "NP_003997.1:p.Trp24Cys",
@@ -39,7 +37,12 @@ fn test_spec_summary_variants() {
 
     for v in variants {
         let result = parse_hgvs_variant(v);
-        assert!(result.is_ok(), "Failed to parse spec example: {} - {:?}", v, result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse spec example: {} - {:?}",
+            v,
+            result.err()
+        );
         let parsed = result.unwrap();
 
         let rt = parsed.to_string();
@@ -52,7 +55,10 @@ fn test_spec_summary_variants_normalized() {
     let variants = vec![
         ("NP_003997.1:p.W24*", "NP_003997.1:p.W24Ter"),
         ("NP_003997.1:p.(Trp24Cys)", "NP_003997.1:p.(Trp24Cys)"),
-        ("NP_0123456.1:p.Arg97ProfsTer23", "NP_0123456.1:p.Arg97ProfsTer23"),
+        (
+            "NP_0123456.1:p.Arg97ProfsTer23",
+            "NP_0123456.1:p.Arg97ProfsTer23",
+        ),
     ];
 
     for (v, expected) in variants {
@@ -87,7 +93,8 @@ fn test_uncertain_intervals() {
     ];
 
     for v in variants {
-        let parsed = parse_hgvs_variant(v).unwrap_or_else(|_| panic!("Failed to parse uncertain interval: {}", v));
+        let parsed = parse_hgvs_variant(v)
+            .unwrap_or_else(|_| panic!("Failed to parse uncertain interval: {}", v));
         assert_eq!(parsed.to_string(), v);
     }
 }
