@@ -26,10 +26,10 @@ def classify(row: dict[str, str]) -> str:
 
     category = "Other Mismatch"
 
-    if c_rs != "" and c_rs == c_ref:
-        category = "Parity Match"
-    elif c_rs != "" and c_rs == c_gt:
+    if c_rs != "" and c_rs == c_gt:
         category = "ClinVar Match"
+    elif c_rs != "" and c_rs == c_ref:
+        category = "Parity Match"
     elif rs_p == "ERR" or rs_p.startswith("ERR:"):
         # Categorize known errors
         if "Transcript" in rs_p and "not found" in rs_p:
@@ -71,7 +71,7 @@ def main() -> None:
             total += 1
             cat = classify(row)
             stats[cat] = stats.get(cat, 0) + 1
-            if cat in ["Parity Match", "ClinVar Match"]:
+            if cat in ["ClinVar Match"]:
                 success_count += 1
             elif len(mismatches[cat]) < max_samples:
                 mismatches[cat].append(row)

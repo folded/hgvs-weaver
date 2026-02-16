@@ -140,6 +140,18 @@ def validate(target_dir: Path, commit_hash: str, max_variants: int = 100000) -> 
         return None
 
 
+def standardize_p(s: str) -> str:
+    if not s:
+        return ""
+    # Remove accession prefix
+    if ":" in s:
+        s = s.split(":")[-1]
+    # Remove parentheses
+    s = s.replace("(", "").replace(")", "")
+    # Standardize Ter/*
+    return s.replace("Ter", "*")
+
+
 def analyze(results_file: Path | None) -> Stats | None:
     if not results_file or not results_file.exists():
         return None
@@ -151,12 +163,8 @@ def analyze(results_file: Path | None) -> Stats | None:
             for row in reader:
                 stats["total"] += 1
                 # Protein Match normalization
-                gp = row.get("variant_prot", "").replace("(", "").replace(")", "")
-                if ":" in gp:
-                    gp = gp.split(":")[-1]
-                rp = row.get("rs_p", "").replace("(", "").replace(")", "")
-                if ":" in rp:
-                    rp = rp.split(":")[-1]
+                gp = standardize_p(row.get("variant_prot", ""))
+                rp = standardize_p(row.get("rs_p", ""))
                 if gp and gp == rp:
                     stats["p_match"] += 1
 

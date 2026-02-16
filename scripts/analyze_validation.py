@@ -9,7 +9,9 @@ def normalize_p(p_str: str | None) -> str:
     if ":" in p_str:
         p_str = p_str.split(":")[-1]
     # Strip parentheses
-    return p_str.replace("(", "").replace(")", "")
+    p_str = p_str.replace("(", "").replace(")", "")
+    # Standardize Ter/*
+    return p_str.replace("Ter", "*")
 
 
 def analyze(filepath: str) -> None:
