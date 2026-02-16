@@ -1,14 +1,22 @@
-use hgvs_weaver::*;
-use hgvs_weaver::structs::{TranscriptPos, GenomicPos, IntronicOffset};
 use hgvs_weaver::data::{ExonData, TranscriptData};
+use hgvs_weaver::structs::{GenomicPos, IntronicOffset, TranscriptPos};
+use hgvs_weaver::*;
 
 struct BugMockDataProvider;
 
 impl DataProvider for BugMockDataProvider {
-    fn get_seq(&self, ac: &str, start: i32, end: i32, kind: hgvs_weaver::data::IdentifierType) -> Result<String, HgvsError> {
-        let mut base_seq = if kind == hgvs_weaver::data::IdentifierType::ProteinAccession || ac.starts_with("NP") {
+    fn get_seq(
+        &self,
+        ac: &str,
+        start: i32,
+        end: i32,
+        kind: hgvs_weaver::data::IdentifierType,
+    ) -> Result<String, HgvsError> {
+        let mut base_seq = if kind == hgvs_weaver::data::IdentifierType::ProteinAccession
+            || ac.starts_with("NP")
+        {
             let mut aa_seq = "K".repeat(10000); // Lysine everywhere
-            // Codon 1575 is at index 1574.
+                                                // Codon 1575 is at index 1574.
             aa_seq.replace_range(1574..1575, "R"); // Arg
             aa_seq
         } else {
@@ -37,24 +45,36 @@ impl DataProvider for BugMockDataProvider {
         };
 
         let s = start as usize;
-        let e = if end == -1 { base_seq.len() } else { end as usize };
-        if s > base_seq.len() { return Ok("".into()); }
+        let e = if end == -1 {
+            base_seq.len()
+        } else {
+            end as usize
+        };
+        if s > base_seq.len() {
+            return Ok("".into());
+        }
         let e = e.min(base_seq.len());
         Ok(base_seq[s..e].to_string())
     }
 
-    fn get_transcript(&self, transcript_ac: &str, _reference_ac: Option<&str>) -> Result<Box<dyn Transcript>, HgvsError> {
-        let cds_start = if transcript_ac == "NM_000051.4" || transcript_ac == "NM_001008844.3" { 100 } else { 0 };
-        let exons = vec![
-            ExonData {
-                transcript_start: TranscriptPos(0),
-                transcript_end: TranscriptPos(30000),
-                reference_start: GenomicPos(1000),
-                reference_end: GenomicPos(31000),
-                alt_strand: 1,
-                cigar: "30000M".to_string(),
-            }
-        ];
+    fn get_transcript(
+        &self,
+        transcript_ac: &str,
+        _reference_ac: Option<&str>,
+    ) -> Result<Box<dyn Transcript>, HgvsError> {
+        let cds_start = if transcript_ac == "NM_000051.4" || transcript_ac == "NM_001008844.3" {
+            100
+        } else {
+            0
+        };
+        let exons = vec![ExonData {
+            transcript_start: TranscriptPos(0),
+            transcript_end: TranscriptPos(30000),
+            reference_start: GenomicPos(1000),
+            reference_end: GenomicPos(31000),
+            alt_strand: 1,
+            cigar: "30000M".to_string(),
+        }];
 
         let td = TranscriptData {
             ac: transcript_ac.to_string(),
@@ -63,22 +83,41 @@ impl DataProvider for BugMockDataProvider {
             cds_end_index: Some(TranscriptPos(20000)),
             strand: 1,
             reference_accession: "NC_0001.10".to_string(),
-            exons
+            exons,
         };
         Ok(Box::new(td))
     }
 
-    fn get_symbol_accessions(&self, _symbol: &str, _sk: hgvs_weaver::data::IdentifierKind, _tk: hgvs_weaver::data::IdentifierKind) -> Result<Vec<(hgvs_weaver::data::IdentifierType, String)>, HgvsError> {
-        Ok(vec![(hgvs_weaver::data::IdentifierType::ProteinAccession, "NP001".to_string())])
+    fn get_symbol_accessions(
+        &self,
+        _symbol: &str,
+        _sk: hgvs_weaver::data::IdentifierKind,
+        _tk: hgvs_weaver::data::IdentifierKind,
+    ) -> Result<Vec<(hgvs_weaver::data::IdentifierType, String)>, HgvsError> {
+        Ok(vec![(
+            hgvs_weaver::data::IdentifierType::ProteinAccession,
+            "NP001".to_string(),
+        )])
     }
 
-    fn get_identifier_type(&self, _identifier: &str) -> Result<hgvs_weaver::data::IdentifierType, HgvsError> {
+    fn get_identifier_type(
+        &self,
+        _identifier: &str,
+    ) -> Result<hgvs_weaver::data::IdentifierType, HgvsError> {
         Ok(hgvs_weaver::data::IdentifierType::Unknown)
     }
 
-    fn c_to_g(&self, transcript_ac: &str, pos: TranscriptPos, offset: IntronicOffset) -> Result<(String, GenomicPos), HgvsError> {
+    fn c_to_g(
+        &self,
+        transcript_ac: &str,
+        pos: TranscriptPos,
+        offset: IntronicOffset,
+    ) -> Result<(String, GenomicPos), HgvsError> {
         let tx = self.get_transcript(transcript_ac, None)?;
-        Ok((tx.reference_accession().to_string(), GenomicPos(pos.0 + offset.0)))
+        Ok((
+            tx.reference_accession().to_string(),
+            GenomicPos(pos.0 + offset.0),
+        ))
     }
 }
 
@@ -121,7 +160,10 @@ fn test_repro_redundant_interval_multiple_codons() {
     let var_c = parse_hgvs_variant("NM_001008844.3:c.4498_4499delinsAT").unwrap();
     if let SequenceVariant::Coding(v) = var_c {
         let var_p = mapper.c_to_p(&v, None).unwrap();
-        println!("DEBUG: NM_001008844.3:c.4498_4499delinsAT -> {}", var_p.to_string());
+        println!(
+            "DEBUG: NM_001008844.3:c.4498_4499delinsAT -> {}",
+            var_p.to_string()
+        );
         // Should be a single codon substitution, not an interval identity.
         assert!(!var_p.to_string().contains("_"));
     }

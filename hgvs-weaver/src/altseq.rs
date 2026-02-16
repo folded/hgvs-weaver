@@ -1,6 +1,6 @@
 use crate::error::HgvsError;
-use crate::structs::{CVariant, NaEdit, Anchor, TranscriptPos, ProteinPos};
-use crate::sequence::{Sequence, MemSequence, SplicedSequence, TranslatedSequence, SliceSequence};
+use crate::sequence::{MemSequence, Sequence, SliceSequence, SplicedSequence, TranslatedSequence};
+use crate::structs::{Anchor, CVariant, NaEdit, ProteinPos, TranscriptPos};
 
 /// Represents the data for a transcript with a variant applied.
 pub struct AltTranscriptData {
@@ -33,15 +33,22 @@ impl<'a> AltSeqBuilder<'a> {
 
         // --- Validate reference sequence ---
         match &self.var_c.posedit.edit {
-            NaEdit::RefAlt { ref_: Some(r), .. } | NaEdit::Del { ref_: Some(r), .. } | NaEdit::Dup { ref_: Some(r), .. } => {
+            NaEdit::RefAlt { ref_: Some(r), .. }
+            | NaEdit::Del { ref_: Some(r), .. }
+            | NaEdit::Dup { ref_: Some(r), .. } => {
                 if !r.is_empty() && !r.chars().all(|c| c.is_ascii_digit()) {
-                    let actual_ref = SliceSequence { inner: self.transcript_sequence, start: start_idx, end: end_idx }.to_string();
+                    let actual_ref = SliceSequence {
+                        inner: self.transcript_sequence,
+                        start: start_idx,
+                        end: end_idx,
+                    }
+                    .to_string();
                     if actual_ref != *r {
                         return Err(HgvsError::TranscriptMismatch {
                             expected: r.to_string(),
                             found: actual_ref,
                             start: start_idx,
-                            end: end_idx
+                            end: end_idx,
                         });
                     }
                 }
@@ -50,14 +57,26 @@ impl<'a> AltSeqBuilder<'a> {
         }
         // --- End validation ---
 
-        let pos = self.var_c.posedit.pos.as_ref().ok_or_else(|| HgvsError::ValidationError("Missing position".into()))?;
+        let pos = self
+            .var_c
+            .posedit
+            .pos
+            .as_ref()
+            .ok_or_else(|| HgvsError::ValidationError("Missing position".into()))?;
         let pos_start_c_0 = pos.start.base.to_index();
         let variant_start_aa = Some(ProteinPos(pos_start_c_0.0.max(0) / 3));
 
         let (is_substitution, is_frameshift, alt_transcript) = match &self.var_c.posedit.edit {
             NaEdit::RefAlt { ref_, alt, .. } => {
                 let is_identity = ref_.is_none() && alt.is_none();
-                let is_ins = ref_.is_none() && !is_identity && self.var_c.posedit.pos.as_ref().is_some_and(|p| p.end.is_some());
+                let is_ins = ref_.is_none()
+                    && !is_identity
+                    && self
+                        .var_c
+                        .posedit
+                        .pos
+                        .as_ref()
+                        .is_some_and(|p| p.end.is_some());
                 let alt_str = alt.as_deref().unwrap_or("");
 
                 let (is_subst, is_fs, res) = if is_identity {
@@ -65,98 +84,269 @@ impl<'a> AltSeqBuilder<'a> {
                 } else if is_ins {
                     let alt_seq = MemSequence(alt_str.to_string());
                     let ins_pos = (start_idx + 1).min(self.transcript_sequence.len());
-                    let p1 = SliceSequence { inner: self.transcript_sequence, start: 0, end: ins_pos };
-                    let p3 = SliceSequence { inner: self.transcript_sequence, start: ins_pos, end: self.transcript_sequence.len() };
-                    (false, alt_str.len() % 3 != 0, SplicedSequence { pieces: vec![&p1 as &dyn Sequence, &alt_seq as &dyn Sequence, &p3 as &dyn Sequence] }.to_string())
+                    let p1 = SliceSequence {
+                        inner: self.transcript_sequence,
+                        start: 0,
+                        end: ins_pos,
+                    };
+                    let p3 = SliceSequence {
+                        inner: self.transcript_sequence,
+                        start: ins_pos,
+                        end: self.transcript_sequence.len(),
+                    };
+                    (
+                        false,
+                        alt_str.len() % 3 != 0,
+                        SplicedSequence {
+                            pieces: vec![
+                                &p1 as &dyn Sequence,
+                                &alt_seq as &dyn Sequence,
+                                &p3 as &dyn Sequence,
+                            ],
+                        }
+                        .to_string(),
+                    )
                 } else {
                     let alt_seq = MemSequence(alt_str.to_string());
                     let r_len = if let Some(r) = ref_ {
-                        if r.chars().all(|c| c.is_ascii_digit()) { end_idx - start_idx }
-                        else { r.len() }
-                    } else { end_idx - start_idx };
+                        if r.chars().all(|c| c.is_ascii_digit()) {
+                            end_idx - start_idx
+                        } else {
+                            r.len()
+                        }
+                    } else {
+                        end_idx - start_idx
+                    };
 
-                    let p1 = SliceSequence { inner: self.transcript_sequence, start: 0, end: start_idx };
-                    let p3 = SliceSequence { inner: self.transcript_sequence, start: end_idx, end: self.transcript_sequence.len() };
-                    let is_subst = ref_.is_some() && alt.is_some() && r_len == 1 && alt_str.len() == 1;
+                    let p1 = SliceSequence {
+                        inner: self.transcript_sequence,
+                        start: 0,
+                        end: start_idx,
+                    };
+                    let p3 = SliceSequence {
+                        inner: self.transcript_sequence,
+                        start: end_idx,
+                        end: self.transcript_sequence.len(),
+                    };
+                    let is_subst =
+                        ref_.is_some() && alt.is_some() && r_len == 1 && alt_str.len() == 1;
                     let is_fs = (alt_str.len() as i32 - r_len as i32) % 3 != 0;
-                    (is_subst, is_fs, SplicedSequence { pieces: vec![&p1 as &dyn Sequence, &alt_seq as &dyn Sequence, &p3 as &dyn Sequence] }.to_string())
+                    (
+                        is_subst,
+                        is_fs,
+                        SplicedSequence {
+                            pieces: vec![
+                                &p1 as &dyn Sequence,
+                                &alt_seq as &dyn Sequence,
+                                &p3 as &dyn Sequence,
+                            ],
+                        }
+                        .to_string(),
+                    )
                 };
 
                 (is_subst, is_fs, res)
             }
             NaEdit::Del { ref_, .. } => {
                 let r_len = if let Some(r) = ref_ {
-                    if r.chars().all(|c| c.is_ascii_digit()) { end_idx - start_idx }
-                    else { r.len() }
-                } else { end_idx - start_idx };
+                    if r.chars().all(|c| c.is_ascii_digit()) {
+                        end_idx - start_idx
+                    } else {
+                        r.len()
+                    }
+                } else {
+                    end_idx - start_idx
+                };
 
-                let p1 = SliceSequence { inner: self.transcript_sequence, start: 0, end: start_idx };
-                let p3 = SliceSequence { inner: self.transcript_sequence, start: end_idx, end: self.transcript_sequence.len() };
-                let res = SplicedSequence { pieces: vec![&p1 as &dyn Sequence, &p3 as &dyn Sequence] }.to_string();
+                let p1 = SliceSequence {
+                    inner: self.transcript_sequence,
+                    start: 0,
+                    end: start_idx,
+                };
+                let p3 = SliceSequence {
+                    inner: self.transcript_sequence,
+                    start: end_idx,
+                    end: self.transcript_sequence.len(),
+                };
+                let res = SplicedSequence {
+                    pieces: vec![&p1 as &dyn Sequence, &p3 as &dyn Sequence],
+                }
+                .to_string();
                 (false, (r_len as i32) % 3 != 0, res)
             }
             NaEdit::Ins { alt: Some(alt), .. } => {
                 let alt_seq = MemSequence(alt.clone());
                 let ins_pos = (start_idx + 1).min(self.transcript_sequence.len());
-                let p1 = SliceSequence { inner: self.transcript_sequence, start: 0, end: ins_pos };
-                let p3 = SliceSequence { inner: self.transcript_sequence, start: ins_pos, end: self.transcript_sequence.len() };
-                let res = SplicedSequence { pieces: vec![&p1 as &dyn Sequence, &alt_seq as &dyn Sequence, &p3 as &dyn Sequence] }.to_string();
+                let p1 = SliceSequence {
+                    inner: self.transcript_sequence,
+                    start: 0,
+                    end: ins_pos,
+                };
+                let p3 = SliceSequence {
+                    inner: self.transcript_sequence,
+                    start: ins_pos,
+                    end: self.transcript_sequence.len(),
+                };
+                let res = SplicedSequence {
+                    pieces: vec![
+                        &p1 as &dyn Sequence,
+                        &alt_seq as &dyn Sequence,
+                        &p3 as &dyn Sequence,
+                    ],
+                }
+                .to_string();
                 (false, (alt.len() as i32) % 3 != 0, res)
             }
             NaEdit::Dup { ref_, .. } => {
                 let dup_str = if let Some(r) = ref_ {
-                    if r.chars().all(|c| c.is_ascii_digit()) { SliceSequence { inner: self.transcript_sequence, start: start_idx, end: end_idx }.to_string() }
-                    else { r.clone() }
-                } else { SliceSequence { inner: self.transcript_sequence, start: start_idx, end: end_idx }.to_string() };
+                    if r.chars().all(|c| c.is_ascii_digit()) {
+                        SliceSequence {
+                            inner: self.transcript_sequence,
+                            start: start_idx,
+                            end: end_idx,
+                        }
+                        .to_string()
+                    } else {
+                        r.clone()
+                    }
+                } else {
+                    SliceSequence {
+                        inner: self.transcript_sequence,
+                        start: start_idx,
+                        end: end_idx,
+                    }
+                    .to_string()
+                };
 
                 let dup_seq = MemSequence(dup_str.clone());
                 let ins_pos = end_idx.min(self.transcript_sequence.len());
-                let p1 = SliceSequence { inner: self.transcript_sequence, start: 0, end: ins_pos };
-                let p3 = SliceSequence { inner: self.transcript_sequence, start: ins_pos, end: self.transcript_sequence.len() };
-                let res = SplicedSequence { pieces: vec![&p1 as &dyn Sequence, &dup_seq as &dyn Sequence, &p3 as &dyn Sequence] }.to_string();
+                let p1 = SliceSequence {
+                    inner: self.transcript_sequence,
+                    start: 0,
+                    end: ins_pos,
+                };
+                let p3 = SliceSequence {
+                    inner: self.transcript_sequence,
+                    start: ins_pos,
+                    end: self.transcript_sequence.len(),
+                };
+                let res = SplicedSequence {
+                    pieces: vec![
+                        &p1 as &dyn Sequence,
+                        &dup_seq as &dyn Sequence,
+                        &p3 as &dyn Sequence,
+                    ],
+                }
+                .to_string();
                 (false, (dup_str.len() as i32) % 3 != 0, res)
             }
             NaEdit::Inv { .. } => {
-                let sub = SliceSequence { inner: self.transcript_sequence, start: start_idx, end: end_idx }.to_string();
+                let sub = SliceSequence {
+                    inner: self.transcript_sequence,
+                    start: start_idx,
+                    end: end_idx,
+                }
+                .to_string();
                 let inv_str = crate::utils::reverse_complement(&sub);
                 let inv_seq = MemSequence(inv_str);
-                let p1 = SliceSequence { inner: self.transcript_sequence, start: 0, end: start_idx };
-                let p3 = SliceSequence { inner: self.transcript_sequence, start: end_idx, end: self.transcript_sequence.len() };
-                let res = SplicedSequence { pieces: vec![&p1 as &dyn Sequence, &inv_seq as &dyn Sequence, &p3 as &dyn Sequence] }.to_string();
+                let p1 = SliceSequence {
+                    inner: self.transcript_sequence,
+                    start: 0,
+                    end: start_idx,
+                };
+                let p3 = SliceSequence {
+                    inner: self.transcript_sequence,
+                    start: end_idx,
+                    end: self.transcript_sequence.len(),
+                };
+                let res = SplicedSequence {
+                    pieces: vec![
+                        &p1 as &dyn Sequence,
+                        &inv_seq as &dyn Sequence,
+                        &p3 as &dyn Sequence,
+                    ],
+                }
+                .to_string();
                 (false, false, res)
             }
             NaEdit::Repeat { min, ref_, .. } => {
-                let unit = if let Some(r) = ref_ { r.clone() }
-                           else { SliceSequence { inner: self.transcript_sequence, start: start_idx, end: end_idx }.to_string() };
+                let unit = if let Some(r) = ref_ {
+                    r.clone()
+                } else {
+                    SliceSequence {
+                        inner: self.transcript_sequence,
+                        start: start_idx,
+                        end: end_idx,
+                    }
+                    .to_string()
+                };
 
                 let mut current_idx = start_idx;
                 loop {
-                    if current_idx + unit.len() > self.transcript_sequence.len() { break; }
-                    let next_unit = SliceSequence { inner: self.transcript_sequence, start: current_idx, end: current_idx + unit.len() }.to_string();
-                    if next_unit == unit { current_idx += unit.len(); }
-                    else { break; }
+                    if current_idx + unit.len() > self.transcript_sequence.len() {
+                        break;
+                    }
+                    let next_unit = SliceSequence {
+                        inner: self.transcript_sequence,
+                        start: current_idx,
+                        end: current_idx + unit.len(),
+                    }
+                    .to_string();
+                    if next_unit == unit {
+                        current_idx += unit.len();
+                    } else {
+                        break;
+                    }
                 }
 
                 let mut total_str = String::new();
-                for _ in 0..*min { total_str.push_str(&unit); }
+                for _ in 0..*min {
+                    total_str.push_str(&unit);
+                }
                 let alt_seq = MemSequence(total_str);
-                let p1 = SliceSequence { inner: self.transcript_sequence, start: 0, end: start_idx };
-                let p3 = SliceSequence { inner: self.transcript_sequence, start: current_idx, end: self.transcript_sequence.len() };
-                let res = SplicedSequence { pieces: vec![&p1 as &dyn Sequence, &alt_seq as &dyn Sequence, &p3 as &dyn Sequence] }.to_string();
+                let p1 = SliceSequence {
+                    inner: self.transcript_sequence,
+                    start: 0,
+                    end: start_idx,
+                };
+                let p3 = SliceSequence {
+                    inner: self.transcript_sequence,
+                    start: current_idx,
+                    end: self.transcript_sequence.len(),
+                };
+                let res = SplicedSequence {
+                    pieces: vec![
+                        &p1 as &dyn Sequence,
+                        &alt_seq as &dyn Sequence,
+                        &p3 as &dyn Sequence,
+                    ],
+                }
+                .to_string();
 
-                let net_change = (unit.len() as i32 * (*min as i32)) - (current_idx as i32 - start_idx as i32);
+                let net_change =
+                    (unit.len() as i32 * (*min as i32)) - (current_idx as i32 - start_idx as i32);
                 (false, net_change % 3 != 0, res)
             }
             NaEdit::None => (false, false, self.transcript_sequence.to_string()),
-            _ => return Err(HgvsError::UnsupportedOperation("Unsupported edit for altseq".into())),
+            _ => {
+                return Err(HgvsError::UnsupportedOperation(
+                    "Unsupported edit for altseq".into(),
+                ))
+            }
         };
 
         let cds_start = self.cds_start_index.0 as usize;
         let alt_transcript_seq = MemSequence(alt_transcript);
         let aa_sequence = if cds_start < alt_transcript_seq.len() {
-            let slice = SliceSequence { inner: &alt_transcript_seq, start: cds_start, end: alt_transcript_seq.len() };
+            let slice = SliceSequence {
+                inner: &alt_transcript_seq,
+                start: cds_start,
+                end: alt_transcript_seq.len(),
+            };
             TranslatedSequence { inner: &slice }.to_string()
-        } else { "".to_string() };
+        } else {
+            "".to_string()
+        };
 
         // Find cds_end_i in the new sequence.
         // It's original_cds_end + net_change.
@@ -192,9 +382,18 @@ impl<'a> AltSeqBuilder<'a> {
     }
 
     fn get_variant_indices(&self) -> Result<(usize, usize), HgvsError> {
-        let pos = self.var_c.posedit.pos.as_ref().ok_or_else(|| HgvsError::ValidationError("Missing position".into()))?;
+        let pos = self
+            .var_c
+            .posedit
+            .pos
+            .as_ref()
+            .ok_or_else(|| HgvsError::ValidationError("Missing position".into()))?;
         let start = self.pos_to_idx(&pos.start)?;
-        let mut end = if let Some(e) = &pos.end { self.pos_to_idx(e)? } else { start };
+        let mut end = if let Some(e) = &pos.end {
+            self.pos_to_idx(e)?
+        } else {
+            start
+        };
         end += 1;
         Ok((start, end))
     }
@@ -203,23 +402,40 @@ impl<'a> AltSeqBuilder<'a> {
         let base_idx_0 = pos.base.to_index();
 
         if pos.offset.is_some() && pos.offset.unwrap().0 != 0 {
-             return Err(HgvsError::UnsupportedOperation("Intronic variants not yet supported in c_to_p".into()));
+            return Err(HgvsError::UnsupportedOperation(
+                "Intronic variants not yet supported in c_to_p".into(),
+            ));
         }
 
         let idx = match pos.anchor {
             Anchor::TranscriptStart => {
                 let i = base_idx_0.0;
-                if i < 0 { return Err(HgvsError::ValidationError(format!("Position {} before transcript start", i))); }
+                if i < 0 {
+                    return Err(HgvsError::ValidationError(format!(
+                        "Position {} before transcript start",
+                        i
+                    )));
+                }
                 i as usize
             }
             Anchor::CdsStart => {
                 let i = (self.cds_start_index.0 + base_idx_0.0) as i32;
-                if i < 0 { return Err(HgvsError::ValidationError(format!("Position {} before transcript start", i))); }
+                if i < 0 {
+                    return Err(HgvsError::ValidationError(format!(
+                        "Position {} before transcript start",
+                        i
+                    )));
+                }
                 i as usize
             }
             Anchor::CdsEnd => {
                 let i = (self.cds_end_index.0 + base_idx_0.0) as i32;
-                if i < 0 { return Err(HgvsError::ValidationError(format!("Position {} before transcript start", i))); }
+                if i < 0 {
+                    return Err(HgvsError::ValidationError(format!(
+                        "Position {} before transcript start",
+                        i
+                    )));
+                }
                 i as usize
             }
         };

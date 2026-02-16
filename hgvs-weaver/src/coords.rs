@@ -1,6 +1,6 @@
-use std::ops::{Add, Sub};
-use serde::{Serialize, Deserialize};
 use crate::error::HgvsError;
+use serde::{Deserialize, Serialize};
+use std::ops::{Add, Sub};
 
 /// HGVS coordinate system anchor point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -19,15 +19,21 @@ pub struct GenomicPos(pub i32);
 
 impl Add<i32> for GenomicPos {
     type Output = Self;
-    fn add(self, rhs: i32) -> Self { GenomicPos(self.0 + rhs) }
+    fn add(self, rhs: i32) -> Self {
+        GenomicPos(self.0 + rhs)
+    }
 }
 impl Sub<i32> for GenomicPos {
     type Output = Self;
-    fn sub(self, rhs: i32) -> Self { GenomicPos(self.0 - rhs) }
+    fn sub(self, rhs: i32) -> Self {
+        GenomicPos(self.0 - rhs)
+    }
 }
 impl Sub<GenomicPos> for GenomicPos {
     type Output = i32;
-    fn sub(self, rhs: GenomicPos) -> i32 { self.0 - rhs.0 }
+    fn sub(self, rhs: GenomicPos) -> i32 {
+        self.0 - rhs.0
+    }
 }
 
 impl GenomicPos {
@@ -43,15 +49,21 @@ pub struct TranscriptPos(pub i32);
 
 impl Add<i32> for TranscriptPos {
     type Output = Self;
-    fn add(self, rhs: i32) -> Self { TranscriptPos(self.0 + rhs) }
+    fn add(self, rhs: i32) -> Self {
+        TranscriptPos(self.0 + rhs)
+    }
 }
 impl Sub<i32> for TranscriptPos {
     type Output = Self;
-    fn sub(self, rhs: i32) -> Self { TranscriptPos(self.0 - rhs) }
+    fn sub(self, rhs: i32) -> Self {
+        TranscriptPos(self.0 - rhs)
+    }
 }
 impl Sub<TranscriptPos> for TranscriptPos {
     type Output = i32;
-    fn sub(self, rhs: TranscriptPos) -> i32 { self.0 - rhs.0 }
+    fn sub(self, rhs: TranscriptPos) -> i32 {
+        self.0 - rhs.0
+    }
 }
 
 impl TranscriptPos {
@@ -67,15 +79,21 @@ pub struct ProteinPos(pub i32);
 
 impl Add<i32> for ProteinPos {
     type Output = Self;
-    fn add(self, rhs: i32) -> Self { ProteinPos(self.0 + rhs) }
+    fn add(self, rhs: i32) -> Self {
+        ProteinPos(self.0 + rhs)
+    }
 }
 impl Sub<i32> for ProteinPos {
     type Output = Self;
-    fn sub(self, rhs: i32) -> Self { ProteinPos(self.0 - rhs) }
+    fn sub(self, rhs: i32) -> Self {
+        ProteinPos(self.0 - rhs)
+    }
 }
 impl Sub<ProteinPos> for ProteinPos {
     type Output = i32;
-    fn sub(self, rhs: ProteinPos) -> i32 { self.0 - rhs.0 }
+    fn sub(self, rhs: ProteinPos) -> i32 {
+        self.0 - rhs.0
+    }
 }
 
 impl ProteinPos {
@@ -97,15 +115,21 @@ pub struct IntronicOffset(pub i32);
 
 impl Add<i32> for IntronicOffset {
     type Output = Self;
-    fn add(self, rhs: i32) -> Self { IntronicOffset(self.0 + rhs) }
+    fn add(self, rhs: i32) -> Self {
+        IntronicOffset(self.0 + rhs)
+    }
 }
 impl Sub<i32> for IntronicOffset {
     type Output = Self;
-    fn sub(self, rhs: i32) -> Self { IntronicOffset(self.0 - rhs) }
+    fn sub(self, rhs: i32) -> Self {
+        IntronicOffset(self.0 - rhs)
+    }
 }
 impl Sub<IntronicOffset> for IntronicOffset {
     type Output = i32;
-    fn sub(self, rhs: IntronicOffset) -> i32 { self.0 - rhs.0 }
+    fn sub(self, rhs: IntronicOffset) -> i32 {
+        self.0 - rhs.0
+    }
 }
 
 // --- 1-based HGVS tagged types ---
@@ -133,7 +157,11 @@ impl HgvsTranscriptPos {
     /// Converts a 1-based HGVS transcript coordinate to a 0-based internal sequence index.
     /// Correctly handles the non-existent position 0 in HGVS cDNA coordinates.
     pub fn to_index(&self) -> TranscriptPos {
-        if self.0 > 0 { TranscriptPos(self.0 - 1) } else { TranscriptPos(self.0) }
+        if self.0 > 0 {
+            TranscriptPos(self.0 - 1)
+        } else {
+            TranscriptPos(self.0)
+        }
     }
 }
 
@@ -159,7 +187,7 @@ impl From<HgvsProteinPos> for ProteinPos {
     }
 }
 
-use crate::structs::{GVariant, CVariant, PVariant, MVariant, NVariant, RVariant, Variant};
+use crate::structs::{CVariant, GVariant, MVariant, NVariant, PVariant, RVariant, Variant};
 
 /// A complete HGVS variant spanning any coordinate system.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -218,7 +246,11 @@ impl Variant for SequenceVariant {
 
 impl From<TranscriptPos> for HgvsTranscriptPos {
     fn from(pos: TranscriptPos) -> Self {
-        if pos.0 >= 0 { HgvsTranscriptPos(pos.0 + 1) } else { HgvsTranscriptPos(pos.0) }
+        if pos.0 >= 0 {
+            HgvsTranscriptPos(pos.0 + 1)
+        } else {
+            HgvsTranscriptPos(pos.0)
+        }
     }
 }
 
@@ -255,8 +287,14 @@ mod tests {
         assert_eq!(TranscriptPos(-1).to_hgvs(), HgvsTranscriptPos(-1));
         assert_eq!(TranscriptPos(0).to_hgvs(), HgvsTranscriptPos(1));
         assert_eq!(TranscriptPos(1).to_hgvs(), HgvsTranscriptPos(2));
-        assert_eq!(HgvsTranscriptPos::from(TranscriptPos(0)), HgvsTranscriptPos(1));
-        assert_eq!(HgvsTranscriptPos::from(TranscriptPos(-1)), HgvsTranscriptPos(-1));
+        assert_eq!(
+            HgvsTranscriptPos::from(TranscriptPos(0)),
+            HgvsTranscriptPos(1)
+        );
+        assert_eq!(
+            HgvsTranscriptPos::from(TranscriptPos(-1)),
+            HgvsTranscriptPos(-1)
+        );
 
         // 1-based HGVS -> 0-based
         assert_eq!(HgvsTranscriptPos(-2).to_index(), TranscriptPos(-2));
@@ -264,7 +302,10 @@ mod tests {
         assert_eq!(HgvsTranscriptPos(1).to_index(), TranscriptPos(0));
         assert_eq!(HgvsTranscriptPos(2).to_index(), TranscriptPos(1));
         assert_eq!(TranscriptPos::from(HgvsTranscriptPos(1)), TranscriptPos(0));
-        assert_eq!(TranscriptPos::from(HgvsTranscriptPos(-1)), TranscriptPos(-1));
+        assert_eq!(
+            TranscriptPos::from(HgvsTranscriptPos(-1)),
+            TranscriptPos(-1)
+        );
     }
 
     #[test]
@@ -294,8 +335,14 @@ mod tests {
         assert_eq!(ProteinPos(-1).to_hgvs(), HgvsProteinPos(0));
 
         // Extremely large/small values
-        assert_eq!(HgvsGenomicPos(i32::MAX).to_index(), GenomicPos(i32::MAX - 1));
-        assert_eq!(HgvsTranscriptPos(i32::MIN).to_index(), TranscriptPos(i32::MIN));
+        assert_eq!(
+            HgvsGenomicPos(i32::MAX).to_index(),
+            GenomicPos(i32::MAX - 1)
+        );
+        assert_eq!(
+            HgvsTranscriptPos(i32::MIN).to_index(),
+            TranscriptPos(i32::MIN)
+        );
     }
 
     #[test]

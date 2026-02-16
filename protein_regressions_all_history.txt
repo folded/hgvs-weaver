@@ -1,0 +1,347 @@
+Total History Regressions (Protein): 69
+--------------------------------------------------------------------------------
+Variant: NM_000038.6:c.1972_1973delinsAT
+  Truth: NP_000029.2:p.Glu658Met
+  Tip Result: p.(Asn659Tyr)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000038.6:c.5465_5466delinsAA
+  Truth: NP_000029.2:p.Val1822Glu
+  Tip Result: p.(Phe1823Ile)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000051.4:c.3147_3153delinsTTGCATTTTTTTA
+  Truth: NP_000042.3:p.Leu1049_Glu1051delinsPheCysIlePheLeu
+  Tip Result: p.(Glu1051_Ala1052delinsCysIlePheLeu)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000051.4:c.4256_4258delinsCTT
+  Truth: NP_000042.3:p.Leu1419_Leu1420delinsProPhe
+  Tip Result: p.(Leu1420=)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000077.5:c.304_305delinsTT
+  Truth: NP_000068.1:p.Ala102Leu
+  Tip Result: p.(Arg103Leu)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000138.5:c.7604_7605delinsTG
+  Truth: NP_000129.3:p.Cys2535Leu
+  Tip Result: p.(Cys2535_Gly2536=)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000203.5:c.1537_1538delinsTT
+  Truth: NP_000194.2:p.Ala513Leu
+  Tip Result: p.(Ala513Val)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000212.3:c.1544_1545delinsAA
+  Truth: NP_000203.2:p.Arg515Gln
+  Tip Result: p.(Glu516Lys)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000245.4:c.3856_3858delinsAAT
+  Truth: NP_000236.2:p.Asp1286Asn
+  Tip Result: p.(Asp1286_Val1287delinsGluLeu)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000257.4:c.2581_2582delinsTT
+  Truth: NP_000248.2:p.Glu861Leu
+  Tip Result: p.(Glu861Val)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000297.4:c.402_403delinsAA
+  Truth: NP_000288.1:p.Gly135Ser
+  Tip Result: p.(Gly135Asn)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000329.3:c.208_209delinsGG
+  Truth: NP_000320.1:p.Phe70Gly
+  Tip Result: p.(Phe70Trp)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000371.4:c.220_221delinsCT
+  Truth: NP_000362.1:p.Glu74Leu
+  Tip Result: p.(Glu74Ala)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000383.4:c.1094_1095delinsTC
+  Truth: NP_000374.1:p.Pro365Leu
+  Tip Result: p.(Pro365_Leu366=)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000426.4:c.1756_1757delinsCT
+  Truth: NP_000417.3:p.Ala586Leu
+  Tip Result: p.(Pro587Ser)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000443.4:c.2828_2829delinsAT
+  Truth: NP_000434.1:p.Ile943Asn
+  Tip Result: p.(Ser944Ile)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000465.4:c.66_70delinsTGCGT
+  Truth: NP_000456.2:p.Pro24Ser
+  Tip Result: p.(Ala23_Pro24delinsCysVal)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000478.6:c.876_882delinsT
+  Truth: NP_000469.3:p.Gly293_Asp294del
+  Tip Result: p.(Gly293_Met295delinsLeu)
+  Succeeded in: 59292bd, 8ed0107, 4b164cc, 8e92cf2, 1d04b5c, 08f9ef2, b6888ea, 028489c
+
+Variant: NM_000527.5:c.669_683delinsAACTGCGGTAAACTGCGGTAAACT
+  Truth: NP_000518.1:p.Asp224_Glu228delinsThrAlaValAsnCysGlyLysLeu
+  Tip Result: p.(Asp224_Glu229delinsGluThrAlaValAsnCysGlyLysLeu)
+  Succeeded in: 59292bd, 8ed0107, 4b164cc, 8e92cf2, 1d04b5c, 08f9ef2, b6888ea, 028489c
+
+Variant: NM_000548.5:c.1057_1059delinsTTT
+  Truth: NP_000539.2:p.Leu353Phe
+  Tip Result: p.(Gln354Ter)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000553.6:c.513_514delinsTC
+  Truth: NP_000544.2:p.Thr172Pro
+  Tip Result: p.(Thr172Ile)
+  Succeeded in: 08f9ef2
+
+Variant: NM_000824.5:c.798_800delinsGATGATGGGGGT
+  Truth: NP_000815.1:p.Gly267delinsMetMetGlyVal
+  Tip Result: p.(Val266_Gly267insAspAspGly)
+  Succeeded in: 59292bd, 8ed0107, 4b164cc, 8e92cf2, 1d04b5c, 08f9ef2, b6888ea, 028489c
+
+Variant: NM_001017423.2:c.1558_1559delinsTT
+  Truth: NP_001017423.1:p.Glu520Leu
+  Tip Result: p.(Glu520Val)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001024858.4:c.2407_2408delinsTG
+  Truth: NP_001020029.1:p.Glu803Trp
+  Tip Result: p.(Glu803Val)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001042410.2:c.1154_1156delinsTAC
+  Truth: NP_001035869.1:p.Cys385Leu
+  Tip Result: p.(Arg386Thr)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001042537.2:c.1093_1095delinsCTG
+  Truth: NP_001036002.1:p.Phe365Leu
+  Tip Result: p.(Leu367Trp)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001082537.3:c.163_164delinsAA
+  Truth: NP_001076006.1:p.Gly55Lys
+  Tip Result: p.(Gly55Glu)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001083606.3:c.3490_3491delinsTT
+  Truth: NP_001077075.1:p.Pro1164Phe
+  Tip Result: p.(Pro1164Leu)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001122606.1:c.763_768delinsTGAAGT
+  Truth: NP_001116078.1:p.Asn255_Pro256delinsTer
+  Tip Result: p.(Pro256_Asn257delinsGluVal)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001130009.3:c.929_930delinsAG
+  Truth: NP_001123481.3:p.Ser310Lys
+  Tip Result: p.(Ser310Arg)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001130992.3:c.150_151delinsTG
+  Truth: NP_001124464.1:p.Pro51Ala
+  Tip Result: p.(Pro51Trp)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001143760.1:c.505_506delinsAT
+  Truth: NP_001137232.1:p.Ser169Ile
+  Tip Result: p.(Ser169Tyr)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001160227.2:c.5570delinsGTTC
+  Truth: NP_001153699.1:p.Leu1857delinsArgSer
+  Tip Result: p.(Leu1857_Asn1858insPhe)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001161520.2:c.1902_1904delinsCTT
+  Truth: NP_001154992.2:p.Met634_Lys635delinsIleLeu
+  Tip Result: p.(Lys635Leu)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001165962.2:c.2272_2273delinsTT
+  Truth: NP_001159434.1:p.Glu758Leu
+  Tip Result: p.(Glu758Val)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001171933.1:c.2200_2201delinsTT
+  Truth: NP_001165404.1:p.Glu734Leu
+  Tip Result: p.(Glu734Val)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001195794.1:c.151_152delinsAT
+  Truth: NP_001182723.1:p.Gly51Met
+  Tip Result: p.(Gly51Asp)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001256849.1:c.2952_2953delinsAA
+  Truth: NP_001243778.1:p.Leu984_Arg985=
+  Tip Result: p.(Arg985Lys)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001260489.2:c.17_18delinsAA
+  Truth: NP_001247418.2:p.Gly6Glu
+  Tip Result: p.(Gly7Arg)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001276270.2:c.1659_1660delinsTA
+  Truth: NP_001263199.1:p.Glu553_Asp554delinsAspAsn
+  Tip Result: p.(Asp554Tyr)
+  Succeeded in: 59292bd, 8ed0107, 4b164cc, 8e92cf2, 1d04b5c, 08f9ef2, b6888ea, 028489c
+
+Variant: NM_001277961.3:c.2043_2044delinsTA
+  Truth: NP_001264890.1:p.Pro682Thr
+  Tip Result: p.(Pro682Tyr)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001278055.2:c.11581_11590delinsAATGAAC
+  Truth: NP_001264984.1:p.Ser3861_Phe3864delinsAsnGluLeu
+  Tip Result: p.(Glu3862_Phe3864delinsMetAsn)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001282625.2:c.91_92delinsAG
+  Truth: NP_001269554.1:p.Glu31Arg
+  Tip Result: p.(Lys32Glu)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001301128.2:c.4046_4049delinsTGGT
+  Truth: NP_001288057.1:p.Ala1349_Gly1350delinsValVal
+  Tip Result: p.(Gly1350_Gly1351=)
+  Succeeded in: 59292bd, 8ed0107, 4b164cc, 8e92cf2, 1d04b5c, 08f9ef2, b6888ea, 028489c
+
+Variant: NM_001302455.2:c.251_254delinsAGGG
+  Truth: NP_001289384.1:p.Ala84_Ala85delinsGluGly
+  Tip Result: p.(Ala85Arg)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001324192.1:c.832_833delinsAC
+  Truth: NP_001311121.1:p.Arg278Thr
+  Tip Result: p.(Arg278His)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001326358.2:c.2512_2514delinsTGT
+  Truth: NP_001313287.1:p.Gly838Cys
+  Tip Result: p.(Gly838_Val839delinsValLeu)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001346897.2:c.2168_2169delinsTT
+  Truth: NP_001333826.1:p.Ser723Ile
+  Tip Result: p.(Val724Leu)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001347828.2:c.906_907delinsTT
+  Truth: NP_001334757.1:p.Pro303Ser
+  Tip Result: p.(Pro303Leu)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001372031.1:c.1171_1172delinsAT
+  Truth: NP_001358960.1:p.Ser391Ile
+  Tip Result: p.(Ser391Tyr)
+  Succeeded in: 08f9ef2
+
+Variant: NM_001382708.1:c.1101_1102delinsAT
+  Truth: NP_001369637.1:p.Arg368Cys
+  Tip Result: p.(Arg368His)
+  Succeeded in: 08f9ef2
+
+Variant: NM_002470.4:c.3943_3944delinsAT
+  Truth: NP_002461.2:p.Glu1315Met
+  Tip Result: p.(Glu1315Asp)
+  Succeeded in: 08f9ef2
+
+Variant: NM_002769.5:c.303_305delinsCCG
+  Truth: NP_002760.1:p.Arg101_Lys102delinsSerArg
+  Tip Result: p.(Lys102_Thr103delinsThrAla)
+  Succeeded in: 08f9ef2
+
+Variant: NM_003737.4:c.4586_4587delinsTT
+  Truth: NP_003728.1:p.Arg1529Leu
+  Tip Result: p.(Val1530Phe)
+  Succeeded in: 08f9ef2
+
+Variant: NM_003742.4:c.896_897delinsTT
+  Truth: NP_003733.2:p.Arg299Ile
+  Tip Result: p.(Glu300Val)
+  Succeeded in: 08f9ef2
+
+Variant: NM_004525.3:c.11996_11997delinsGA
+  Truth: NP_004516.2:p.Val3999Gly
+  Tip Result: p.(Phe4000Ter)
+  Succeeded in: 08f9ef2
+
+Variant: NM_004646.4:c.3312_3315delinsATCA
+  Truth: NP_004637.1:p.Gly1104_Ser1105=
+  Tip Result: p.(Ser1105_Glu1106delinsIleLys)
+  Succeeded in: 08f9ef2
+
+Variant: NM_006231.4:c.5488_5489delinsAT
+  Truth: NP_006222.2:p.Ser1830Ile
+  Tip Result: p.(Leu1831Met)
+  Succeeded in: 08f9ef2
+
+Variant: NM_006517.5:c.269_270delinsAA
+  Truth: NP_006508.2:p.Arg90Gln
+  Tip Result: p.(Gly91Ser)
+  Succeeded in: 08f9ef2
+
+Variant: NM_007215.4:c.318_319delinsAA
+  Truth: NP_009146.2:p.Leu106_Arg107=
+  Tip Result: p.(Arg107Lys)
+  Succeeded in: 08f9ef2
+
+Variant: NM_014208.3:c.3535_3537delinsGAC
+  Truth: NP_055023.2:p.Asn1179Asp
+  Tip Result: p.(Asn1179_Ser1180delinsArgArg)
+  Succeeded in: 08f9ef2
+
+Variant: NM_015425.6:c.4042_4043delinsCT
+  Truth: NP_056240.2:p.Lys1348Leu
+  Tip Result: p.(Lys1348Thr)
+  Succeeded in: 08f9ef2
+
+Variant: NM_024675.4:c.1221_1222delinsTC
+  Truth: NP_078951.2:p.Glu407_Tyr408delinsAspHis
+  Tip Result: p.(Tyr408Phe)
+  Succeeded in: 08f9ef2
+
+Variant: NM_033071.5:c.21690_21691delinsGG
+  Truth: NP_149062.2:p.Phe7230_Phe7231delinsLeuVal
+  Tip Result: p.(Phe7231Trp)
+  Succeeded in: 59292bd, 8ed0107, 4b164cc, 8e92cf2, 1d04b5c, 08f9ef2, b6888ea, 028489c
+
+Variant: NM_080473.5:c.740_741delinsTA
+  Truth: NP_536721.1:p.His247Leu
+  Tip Result: p.(Thr248Ter)
+  Succeeded in: 08f9ef2
+
+Variant: NM_144701.3:c.929_930delinsCC
+  Truth: NP_653302.2:p.Leu310Pro
+  Tip Result: p.(Phe311Leu)
+  Succeeded in: 08f9ef2
+
+Variant: NM_152393.4:c.1136_1137delinsAA
+  Truth: NP_689606.2:p.Ser379Lys
+  Tip Result: p.(Ala380Lys)
+  Succeeded in: 08f9ef2
+
+Variant: NM_173354.5:c.1257_1258delinsTG
+  Truth: NP_775490.2:p.Pro420Ala
+  Tip Result: p.(Pro420Trp)
+  Succeeded in: 08f9ef2
+
+Variant: NM_207391.3:c.380_381delinsTT
+  Truth: NP_997274.2:p.Arg127Leu
+  Tip Result: p.(Ala128_Leu129=)
+  Succeeded in: 08f9ef2
+

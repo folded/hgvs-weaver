@@ -1,7 +1,7 @@
-use crate::error::HgvsError;
-use crate::structs::{PVariant, AAPosition, AaInterval, AaEdit, PosEdit, ProteinPos};
 use crate::altseq::AltTranscriptData;
+use crate::error::HgvsError;
 use crate::fmt::aa1_to_aa3;
+use crate::structs::{AAPosition, AaEdit, AaInterval, PVariant, PosEdit, ProteinPos};
 
 pub struct AltSeqToHgvsp<'a> {
     pub ref_aa: String,
@@ -15,11 +15,21 @@ impl<'a> AltSeqToHgvsp<'a> {
         let alt_chars: Vec<char> = alt_aa.chars().collect();
 
         if self.ref_aa == *alt_aa {
-            let c_pos = self.alt_data.c_variant.posedit.pos.as_ref().ok_or_else(|| HgvsError::ValidationError("Missing position".into()))?;
+            let c_pos = self
+                .alt_data
+                .c_variant
+                .posedit
+                .pos
+                .as_ref()
+                .ok_or_else(|| HgvsError::ValidationError("Missing position".into()))?;
             let start_0 = ProteinPos(c_pos.start.base.to_index().0 / 3);
             let end_0 = if let Some(e) = &c_pos.end {
                 let e0 = ProteinPos(e.base.to_index().0 / 3);
-                if e0 == start_0 { None } else { Some(e0) }
+                if e0 == start_0 {
+                    None
+                } else {
+                    Some(e0)
+                }
             } else {
                 None
             };
@@ -28,7 +38,10 @@ impl<'a> AltSeqToHgvsp<'a> {
 
         // Find first difference
         let mut start_idx = self.alt_data.variant_start_aa.unwrap_or(ProteinPos(0)).0 as usize;
-        while start_idx < ref_chars.len() && start_idx < alt_chars.len() && ref_chars[start_idx] == alt_chars[start_idx] {
+        while start_idx < ref_chars.len()
+            && start_idx < alt_chars.len()
+            && ref_chars[start_idx] == alt_chars[start_idx]
+        {
             start_idx += 1;
         }
 
@@ -60,7 +73,7 @@ impl<'a> AltSeqToHgvsp<'a> {
                 term,
                 Some(length),
                 true,
-                false
+                false,
             );
         }
 
@@ -78,7 +91,10 @@ impl<'a> AltSeqToHgvsp<'a> {
         let mut alt_end = alt_chars.len();
 
         // 1. Perform standard tail trimming
-        while ref_end > start_idx && alt_end > start_idx && ref_chars[ref_end-1] == alt_chars[alt_end-1] {
+        while ref_end > start_idx
+            && alt_end > start_idx
+            && ref_chars[ref_end - 1] == alt_chars[alt_end - 1]
+        {
             ref_end -= 1;
             alt_end -= 1;
         }
@@ -89,50 +105,54 @@ impl<'a> AltSeqToHgvsp<'a> {
 
         // Check if we trimmed a stop codon
         if tail_match_len > 0 && alt_chars[alt_chars.len() - 1] == '*' {
-             if tail_match_len == 1 {
-                 // Only '*' matched. Ambiguous.
-                 // Check if it's a simple substitution (1 AA replaced by 1 AA).
-                 // Mismatch block length = total length - match length (from start) - tail match length.
-                 // But we don't track "match length from start" here explicitly, we just know start_idx.
-                 // So mismatch length = end (before tail trim) - start_idx.
+            if tail_match_len == 1 {
+                // Only '*' matched. Ambiguous.
+                // Check if it's a simple substitution (1 AA replaced by 1 AA).
+                // Mismatch block length = total length - match length (from start) - tail match length.
+                // But we don't track "match length from start" here explicitly, we just know start_idx.
+                // So mismatch length = end (before tail trim) - start_idx.
 
-                 let ref_mismatch_len = ref_end - start_idx;
-                 let alt_mismatch_len = alt_end - start_idx;
+                let ref_mismatch_len = ref_end - start_idx;
+                let alt_mismatch_len = alt_end - start_idx;
 
-                 if ref_mismatch_len == 1 && alt_mismatch_len == 1 {
-                     // 1-vs-1 substitution at C-terminus.
-                     // Treat as Original Stop (Trim).
-                     is_premature_stop = false;
-                 } else {
-                     // Check variant type for other cases.
-                     match &self.alt_data.c_variant.posedit.edit {
-                         crate::structs::NaEdit::RefAlt { .. } |
-                         crate::structs::NaEdit::Ins { .. } => {
-                             // Likely a premature stop if not 1-vs-1 subst.
-                             is_premature_stop = true;
-                         }
-                         _ => {} // Del/Dup etc assume original stop.
-                     }
-                 }
-             }
+                if ref_mismatch_len == 1 && alt_mismatch_len == 1 {
+                    // 1-vs-1 substitution at C-terminus.
+                    // Treat as Original Stop (Trim).
+                    is_premature_stop = false;
+                } else {
+                    // Check variant type for other cases.
+                    match &self.alt_data.c_variant.posedit.edit {
+                        crate::structs::NaEdit::RefAlt { .. }
+                        | crate::structs::NaEdit::Ins { .. } => {
+                            // Likely a premature stop if not 1-vs-1 subst.
+                            is_premature_stop = true;
+                        }
+                        _ => {} // Del/Dup etc assume original stop.
+                    }
+                }
+            }
         } else if alt_end < alt_chars.len() && alt_chars[alt_end] == '*' {
-             // Stop was NOT trimmed? (Mismatch before stop).
-             // Can happen if stop is part of the mismatch.
-             // But loop trims from end. If alt ends in *, ref ends in *, they SHOULD match.
-             // So this branch is unlikely unless ref does NOT end in *.
+            // Stop was NOT trimmed? (Mismatch before stop).
+            // Can happen if stop is part of the mismatch.
+            // But loop trims from end. If alt ends in *, ref ends in *, they SHOULD match.
+            // So this branch is unlikely unless ref does NOT end in *.
         }
 
         if is_premature_stop {
-             // Undo trimming for the stop codon.
-             // We want the variant to include the stop codon to describe it as "delins...Ter".
-             alt_end += 1;
-             ref_end += 1;
+            // Undo trimming for the stop codon.
+            // We want the variant to include the stop codon to describe it as "delins...Ter".
+            alt_end += 1;
+            ref_end += 1;
 
-             // Recalculate ref_end based on DNA span, because the "Ref" part of delins should match the DNA deletion.
-             // (The Ref part after that is implicitly truncated).
-             if let Some(pos) = &self.alt_data.c_variant.posedit.pos {
+            // Recalculate ref_end based on DNA span, because the "Ref" part of delins should match the DNA deletion.
+            // (The Ref part after that is implicitly truncated).
+            if let Some(pos) = &self.alt_data.c_variant.posedit.pos {
                 let start_c = pos.start.base.to_index().0;
-                let end_c = if let Some(e) = &pos.end { e.base.to_index().0 } else { start_c };
+                let end_c = if let Some(e) = &pos.end {
+                    e.base.to_index().0
+                } else {
+                    start_c
+                };
 
                 // c variant indices are 0-based from start of CDS.
                 let _start_codon = start_c / 3;
@@ -158,7 +178,7 @@ impl<'a> AltSeqToHgvsp<'a> {
                 None,
                 None,
                 false,
-                false
+                false,
             );
         }
 
@@ -176,7 +196,11 @@ impl<'a> AltSeqToHgvsp<'a> {
             }
 
             let alt_curr = aa1_to_aa3(alt_chars.get(start_idx).cloned().unwrap_or('*')).to_string();
-            let length = if found_stop { Some(ext_len.to_string()) } else { Some("?".to_string()) };
+            let length = if found_stop {
+                Some(ext_len.to_string())
+            } else {
+                Some("?".to_string())
+            };
 
             return Ok(PVariant {
                 ac: self.alt_data.protein_accession.clone(),
@@ -186,7 +210,7 @@ impl<'a> AltSeqToHgvsp<'a> {
                         start: AAPosition {
                             base: ProteinPos(start_idx as i32).to_hgvs(),
                             aa: "Ter".to_string(),
-                            uncertain: false
+                            uncertain: false,
                         },
                         end: None,
                         uncertain: false,
@@ -196,22 +220,34 @@ impl<'a> AltSeqToHgvsp<'a> {
                         alt: alt_curr,
                         aaterm: Some("*".to_string()),
                         length,
-                        uncertain: !found_stop
+                        uncertain: !found_stop,
                     },
                     uncertain: false,
                     predicted: false,
-                }
+                },
             });
         }
 
-        let del_seq: String = ref_chars[start_idx..ref_end].iter().map(|c| aa1_to_aa3(*c)).collect::<Vec<&str>>().join("");
-        let ins_seq: String = alt_chars[start_idx..alt_end].iter().map(|c| aa1_to_aa3(*c)).collect::<Vec<&str>>().join("");
+        let del_seq: String = ref_chars[start_idx..ref_end]
+            .iter()
+            .map(|c| aa1_to_aa3(*c))
+            .collect::<Vec<&str>>()
+            .join("");
+        let ins_seq: String = alt_chars[start_idx..alt_end]
+            .iter()
+            .map(|c| aa1_to_aa3(*c))
+            .collect::<Vec<&str>>()
+            .join("");
 
         // Detect duplication
         if del_seq.is_empty() && !ins_seq.is_empty() {
             let aa_ins_len = ins_seq.len() / 3;
             if start_idx >= aa_ins_len {
-                let prev_seq: String = ref_chars[start_idx - aa_ins_len..start_idx].iter().map(|c| aa1_to_aa3(*c)).collect::<Vec<&str>>().join("");
+                let prev_seq: String = ref_chars[start_idx - aa_ins_len..start_idx]
+                    .iter()
+                    .map(|c| aa1_to_aa3(*c))
+                    .collect::<Vec<&str>>()
+                    .join("");
                 if prev_seq == ins_seq {
                     let start_pos_0 = ProteinPos((start_idx - aa_ins_len) as i32);
                     let end_pos_0 = ProteinPos((start_idx - 1) as i32);
@@ -223,18 +259,29 @@ impl<'a> AltSeqToHgvsp<'a> {
                         gene: None,
                         posedit: PosEdit {
                             pos: Some(AaInterval {
-                                start: AAPosition { base: start_pos_0.to_hgvs(), aa: aa_start, uncertain: false },
+                                start: AAPosition {
+                                    base: start_pos_0.to_hgvs(),
+                                    aa: aa_start,
+                                    uncertain: false,
+                                },
                                 end: if aa_ins_len > 1 {
-                                    Some(AAPosition { base: end_pos_0.to_hgvs(), aa: aa_end, uncertain: false })
+                                    Some(AAPosition {
+                                        base: end_pos_0.to_hgvs(),
+                                        aa: aa_end,
+                                        uncertain: false,
+                                    })
                                 } else {
                                     None
                                 },
                                 uncertain: false,
                             }),
-                            edit: AaEdit::Dup { ref_: Some(ins_seq), uncertain: false },
+                            edit: AaEdit::Dup {
+                                ref_: Some(ins_seq),
+                                uncertain: false,
+                            },
                             uncertain: false,
                             predicted: false,
-                        }
+                        },
                     });
                 }
             }
@@ -244,27 +291,45 @@ impl<'a> AltSeqToHgvsp<'a> {
         if del_seq.is_empty() && !ins_seq.is_empty() {
             let start_pos_0 = ProteinPos((start_idx as i32).saturating_sub(1));
             let end_pos_0 = ProteinPos(start_idx as i32);
-            let aa_start = aa1_to_aa3(ref_chars.get(start_pos_0.0 as usize).cloned().unwrap_or('*')).to_string();
-            let aa_end = aa1_to_aa3(ref_chars.get(end_pos_0.0 as usize).cloned().unwrap_or('*')).to_string();
+            let aa_start = aa1_to_aa3(
+                ref_chars
+                    .get(start_pos_0.0 as usize)
+                    .cloned()
+                    .unwrap_or('*'),
+            )
+            .to_string();
+            let aa_end =
+                aa1_to_aa3(ref_chars.get(end_pos_0.0 as usize).cloned().unwrap_or('*')).to_string();
             return Ok(PVariant {
                 ac: self.alt_data.protein_accession.clone(),
                 gene: None,
                 posedit: PosEdit {
                     pos: Some(AaInterval {
-                        start: AAPosition { base: start_pos_0.to_hgvs(), aa: aa_start, uncertain: false },
-                        end: Some(AAPosition { base: end_pos_0.to_hgvs(), aa: aa_end, uncertain: false }),
+                        start: AAPosition {
+                            base: start_pos_0.to_hgvs(),
+                            aa: aa_start,
+                            uncertain: false,
+                        },
+                        end: Some(AAPosition {
+                            base: end_pos_0.to_hgvs(),
+                            aa: aa_end,
+                            uncertain: false,
+                        }),
                         uncertain: false,
                     }),
-                    edit: AaEdit::Ins { alt: ins_seq, uncertain: false },
+                    edit: AaEdit::Ins {
+                        alt: ins_seq,
+                        uncertain: false,
+                    },
                     uncertain: false,
                     predicted: false,
-                }
+                },
             });
         }
 
         // Del / DelIns / Subst
         if ins_seq.len() == 3 && del_seq.len() == 3 {
-             return self.create_variant(
+            return self.create_variant(
                 ProteinPos(start_idx as i32),
                 None,
                 Some(del_seq),
@@ -272,19 +337,31 @@ impl<'a> AltSeqToHgvsp<'a> {
                 None,
                 None,
                 false,
-                false
+                false,
             );
         }
 
         let start_pos_0 = ProteinPos(start_idx as i32);
-        let end_pos_0 = if ref_end > start_idx + 1 { Some(ProteinPos((ref_end - 1) as i32)) } else { None };
+        let end_pos_0 = if ref_end > start_idx + 1 {
+            Some(ProteinPos((ref_end - 1) as i32))
+        } else {
+            None
+        };
         let aa_start = aa1_to_aa3(ref_chars.get(start_idx).cloned().unwrap_or('*')).to_string();
-        let aa_end = end_pos_0.map(|e| aa1_to_aa3(ref_chars.get(e.0 as usize).cloned().unwrap_or('*')).to_string());
+        let aa_end = end_pos_0
+            .map(|e| aa1_to_aa3(ref_chars.get(e.0 as usize).cloned().unwrap_or('*')).to_string());
 
         let edit = if ins_seq.is_empty() {
-            AaEdit::Del { ref_: del_seq, uncertain: false }
+            AaEdit::Del {
+                ref_: del_seq,
+                uncertain: false,
+            }
         } else {
-            AaEdit::DelIns { ref_: del_seq, alt: ins_seq, uncertain: false }
+            AaEdit::DelIns {
+                ref_: del_seq,
+                alt: ins_seq,
+                uncertain: false,
+            }
         };
 
         Ok(PVariant {
@@ -292,14 +369,22 @@ impl<'a> AltSeqToHgvsp<'a> {
             gene: None,
             posedit: PosEdit {
                 pos: Some(AaInterval {
-                    start: AAPosition { base: start_pos_0.to_hgvs(), aa: aa_start, uncertain: false },
-                    end: end_pos_0.map(|e| e.to_hgvs()).map(|base| AAPosition { base, aa: aa_end.unwrap(), uncertain: false }),
+                    start: AAPosition {
+                        base: start_pos_0.to_hgvs(),
+                        aa: aa_start,
+                        uncertain: false,
+                    },
+                    end: end_pos_0.map(|e| e.to_hgvs()).map(|base| AAPosition {
+                        base,
+                        aa: aa_end.unwrap(),
+                        uncertain: false,
+                    }),
                     uncertain: false,
                 }),
                 edit,
                 uncertain: false,
                 predicted: false,
-            }
+            },
         })
     }
 
@@ -327,29 +412,53 @@ impl<'a> AltSeqToHgvsp<'a> {
                     edit: AaEdit::Identity { uncertain: false },
                     uncertain: false,
                     predicted: false,
-                }
+                },
             });
         }
 
-        let aa_start = aa1_to_aa3(ref_chars.get(start_0.0 as usize).cloned().unwrap_or('*')).to_string();
+        let aa_start =
+            aa1_to_aa3(ref_chars.get(start_0.0 as usize).cloned().unwrap_or('*')).to_string();
 
         let edit = if is_silent {
             AaEdit::Identity { uncertain: false }
         } else if alt_aa.as_ref().is_some_and(|a| a == "Ter") {
             // Nonsense
-            AaEdit::Subst { ref_: ref_aa.unwrap_or_default(), alt: "Ter".to_string(), uncertain: false }
+            AaEdit::Subst {
+                ref_: ref_aa.unwrap_or_default(),
+                alt: "Ter".to_string(),
+                uncertain: false,
+            }
         } else if is_fs {
             let len_str = length.map(|l| l.replace("Ter", ""));
-            AaEdit::Fs { ref_: "".into(), alt: alt_aa.unwrap_or_default(), term, length: len_str, uncertain: false }
+            AaEdit::Fs {
+                ref_: "".into(),
+                alt: alt_aa.unwrap_or_default(),
+                term,
+                length: len_str,
+                uncertain: false,
+            }
         } else {
-            AaEdit::Subst { ref_: ref_aa.unwrap_or_default(), alt: alt_aa.unwrap_or_default(), uncertain: false }
+            AaEdit::Subst {
+                ref_: ref_aa.unwrap_or_default(),
+                alt: alt_aa.unwrap_or_default(),
+                uncertain: false,
+            }
         };
 
-        let aa_end = end_0.map(|e| aa1_to_aa3(ref_chars.get(e.0 as usize).cloned().unwrap_or('*')).to_string());
+        let aa_end = end_0
+            .map(|e| aa1_to_aa3(ref_chars.get(e.0 as usize).cloned().unwrap_or('*')).to_string());
 
         let interval = AaInterval {
-            start: AAPosition { base: start_0.to_hgvs(), aa: aa_start, uncertain: false },
-            end: end_0.map(|e| e.to_hgvs()).map(|base| AAPosition { base, aa: aa_end.clone().unwrap(), uncertain: false }),
+            start: AAPosition {
+                base: start_0.to_hgvs(),
+                aa: aa_start,
+                uncertain: false,
+            },
+            end: end_0.map(|e| e.to_hgvs()).map(|base| AAPosition {
+                base,
+                aa: aa_end.clone().unwrap(),
+                uncertain: false,
+            }),
             uncertain: false,
         };
 
@@ -361,7 +470,7 @@ impl<'a> AltSeqToHgvsp<'a> {
                 edit,
                 uncertain: false,
                 predicted: false,
-            }
+            },
         })
     }
 }

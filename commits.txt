@@ -1,0 +1,44 @@
+58be7ce feat: implement are_equivalent functionality for variant comparison
+aef0d99 fix: rename methods, fix stubs, and correct pre-commits
+f549718 feat: use dynamic identifier identification for symbol resolution
+c477c07 feat: rename identify_identifier to get_identifier_type and add granular types
+884639e Refine `DataProvider` API and improve variant equivalence logic
+f49a164 Add documentation for variant equivalence algorithm
+4aa9713 Fix markdown lints
+e588ab9 Fix mermaid syntax in equivalence logic docs
+527ecff trailing newline cleanups
+a6595dd feat: Implement sequence mocking and caching for integration tests
+8c65d7a Fix `EvalCase` indexing and resolve `fetch_gff.py` pre-commit errors
+be0693b Refactor `normalize_ins_to_dup` to support Coding and NonCoding variants and improve robustness
+977fcc7 Update `equivalence_logic.md` documentation with relative links and new variant support information
+6c464de Remove unused and redundant eq_dup_ins method from equivalence.rs
+3292270 Clean up Rust compile warnings: unused variables, naming conventions, and unused imports
+bd79d43 Remove biocommons_hgvs_eval_README.md to resolve linting errors and repository clutter
+f144e3d Optimize shift_3_prime: exponential chunk growth and redundant loop removal
+f10d769 Refactor shift_3_prime inner loops: remove continue and improve readability
+08f9ef2 Add validation analysis script
+534f837 Fix delins and identity variant bugs in hgvs-weaver
+4e927e0 Refine protein normalization and implement missing parser features
+efaecf0 Fix redundant identity intervals and 3' UTR variant mapping
+2e64127 checkpoint
+8ed0107 checkpoint
+59292bd Fix repeat variants handling and update validation stats
+b9f618f Refactor: Implement SPDI generation in Rust and integrate into Python validation
+1d04b5c Refactor error handling and fix warnings\n\n- Introduce structured HgvsError::TranscriptMismatch\n- Expose TranscriptMismatchError to Python\n- Update validation scripts to use structured errors\n- Fix unreachable pattern warnings in sequence.rs\n- Move SPDI logic to Rust and expose via PyO3
+8e92cf2 Fix validate.py not catching TranscriptMismatchError in rs_p calculation
+4b164cc Refactor: sequence abstraction and fix synonymous variant regressions
+0f26279 update readme
+a924c9e benchmarks: highlight best performance values in validation table
+028489c Fix HGVS regressions: identity variants, stop codons, and minus-strand SPDI shifting. Update benchmarks to 100k variants.
+fbf7afc Cleanup: remove analysis and coverage files from repo and update .gitignore.
+b6888ea feat: implement SPDI support for `Repeat` variants and intronic offsets
+
+- Added `to_spdi` logic for `NaEdit::Repeat` in `structs.rs`
+- Implemented `c_to_g` in `DataProvider` trait for intronic offset resolution
+- Updated Python bridge and `RefSeqDataProvider` with `c_to_g` support
+- Fixed all test mocks and resolved `Unsupported operation` errors for these categories
+- Updated README.md with 100k ClinVar validation results (93.917% SPDI match)
+070cb95 Implement configurable `to_spdi` and decouple validation logic
+4f3b711 ruff cleanups
+a551cff chore: resolve pre-commit errors across python scripts and stubs
+01372cc fix(protein): resolve coordinate shift by correcting normalization length check and insertion detection in `mapper.rs`

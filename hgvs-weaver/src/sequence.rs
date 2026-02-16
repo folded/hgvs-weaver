@@ -1,5 +1,5 @@
-use crate::error::HgvsError;
 use crate::data::{DataProvider, IdentifierType};
+use crate::error::HgvsError;
 
 /// Trait for a sequence of bases (DNA, RNA, or Protein).
 pub trait Sequence {
@@ -17,15 +17,27 @@ pub trait Sequence {
     /// Fetches a subsequence as a MemSequence.
     fn subseq(&self, start: usize, end: usize) -> Result<MemSequence, HgvsError> {
         if start > self.len() || end > self.len() || start > end {
-            return Err(HgvsError::ValidationError(format!("Invalid subsequence range {}..{} for length {}", start, end, self.len())));
+            return Err(HgvsError::ValidationError(format!(
+                "Invalid subsequence range {}..{} for length {}",
+                start,
+                end,
+                self.len()
+            )));
         }
         let seq: String = self.iter().skip(start).take(end - start).collect();
         Ok(MemSequence(seq))
     }
 
     /// Returns a lazy slice of the sequence.
-    fn slice(&self, start: usize, end: usize) -> SliceSequence<'_> where Self: Sized {
-        SliceSequence { inner: self, start, end }
+    fn slice(&self, start: usize, end: usize) -> SliceSequence<'_>
+    where
+        Self: Sized,
+    {
+        SliceSequence {
+            inner: self,
+            start,
+            end,
+        }
     }
 
     /// Converts the sequence back to a String.
@@ -69,7 +81,10 @@ pub struct LazySequence<'a> {
 
 impl<'a> Sequence for LazySequence<'a> {
     fn iter(&self) -> Box<dyn Iterator<Item = char> + '_> {
-        let seq = self.hdp.get_seq(&self.ac, self.start as i32, self.end as i32, self.kind).unwrap_or_default();
+        let seq = self
+            .hdp
+            .get_seq(&self.ac, self.start as i32, self.end as i32, self.kind)
+            .unwrap_or_default();
         Box::new(seq.chars().collect::<Vec<_>>().into_iter()) // Still collecting to string/vec for now to avoid borrow checker hell with provider
     }
 
@@ -85,12 +100,28 @@ pub struct RevCompSequence<'a> {
 
 impl<'a> Sequence for RevCompSequence<'a> {
     fn iter(&self) -> Box<dyn Iterator<Item = char> + '_> {
-        Box::new(self.inner.iter().collect::<Vec<_>>().into_iter().rev().map(|c| match c {
-            'A' => 'T', 'T' => 'A', 'C' => 'G', 'G' => 'C', 'N' => 'N',
-            'a' => 't', 't' => 'a', 'c' => 'g', 'g' => 'c', 'n' => 'n',
-            'U' => 'A', 'u' => 'a',
-            _ => c
-        }))
+        Box::new(
+            self.inner
+                .iter()
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .map(|c| match c {
+                    'A' => 'T',
+                    'T' => 'A',
+                    'C' => 'G',
+                    'G' => 'C',
+                    'N' => 'N',
+                    'a' => 't',
+                    't' => 'a',
+                    'c' => 'g',
+                    'g' => 'c',
+                    'n' => 'n',
+                    'U' => 'A',
+                    'u' => 'a',
+                    _ => c,
+                }),
+        )
     }
 
     fn len(&self) -> usize {
@@ -99,12 +130,24 @@ impl<'a> Sequence for RevCompSequence<'a> {
 }
 
 pub fn rev_comp(seq: &str) -> String {
-    seq.chars().rev().map(|c| match c {
-        'A' => 'T', 'T' => 'A', 'C' => 'G', 'G' => 'C', 'N' => 'N',
-        'a' => 't', 't' => 'a', 'c' => 'g', 'g' => 'c', 'n' => 'n',
-        'U' => 'A', 'u' => 'a',
-        _ => c
-    }).collect()
+    seq.chars()
+        .rev()
+        .map(|c| match c {
+            'A' => 'T',
+            'T' => 'A',
+            'C' => 'G',
+            'G' => 'C',
+            'N' => 'N',
+            'a' => 't',
+            't' => 'a',
+            'c' => 'g',
+            'g' => 'c',
+            'n' => 'n',
+            'U' => 'A',
+            'u' => 'a',
+            _ => c,
+        })
+        .collect()
 }
 
 /// Adapter for transcription (T -> U).
@@ -115,8 +158,9 @@ pub struct TranscribedSequence<'a> {
 impl<'a> Sequence for TranscribedSequence<'a> {
     fn iter(&self) -> Box<dyn Iterator<Item = char> + '_> {
         Box::new(self.inner.iter().map(|c| match c {
-            'T' => 'U', 't' => 'u',
-            _ => c
+            'T' => 'U',
+            't' => 'u',
+            _ => c,
         }))
     }
 
@@ -170,7 +214,9 @@ impl<'a> Iterator for TranslateIterator<'a> {
     type Item = char;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.done { return None; }
+        if self.done {
+            return None;
+        }
 
         let c1 = self.inner.next()?;
         let c2 = self.inner.next()?;
@@ -179,21 +225,66 @@ impl<'a> Iterator for TranslateIterator<'a> {
         let codon = [c1, c2, c3];
         let aa = match codon {
             ['T', 'T', 'T'] | ['T', 'T', 'C'] | ['U', 'U', 'U'] | ['U', 'U', 'C'] => 'F',
-            ['T', 'T', 'A'] | ['T', 'T', 'G'] | ['U', 'U', 'A'] | ['U', 'U', 'G'] |
-            ['C', 'T', 'T'] | ['C', 'T', 'C'] | ['C', 'T', 'A'] | ['C', 'T', 'G'] |
-            ['C', 'U', 'T'] | ['C', 'U', 'C'] | ['C', 'U', 'A'] | ['C', 'U', 'G'] => 'L',
-            ['A', 'T', 'T'] | ['A', 'T', 'C'] | ['A', 'T', 'A'] | ['A', 'U', 'T'] | ['A', 'U', 'C'] | ['A', 'U', 'A'] => 'I',
+            ['T', 'T', 'A']
+            | ['T', 'T', 'G']
+            | ['U', 'U', 'A']
+            | ['U', 'U', 'G']
+            | ['C', 'T', 'T']
+            | ['C', 'T', 'C']
+            | ['C', 'T', 'A']
+            | ['C', 'T', 'G']
+            | ['C', 'U', 'T']
+            | ['C', 'U', 'C']
+            | ['C', 'U', 'A']
+            | ['C', 'U', 'G'] => 'L',
+            ['A', 'T', 'T']
+            | ['A', 'T', 'C']
+            | ['A', 'T', 'A']
+            | ['A', 'U', 'T']
+            | ['A', 'U', 'C']
+            | ['A', 'U', 'A'] => 'I',
             ['A', 'T', 'G'] | ['A', 'U', 'G'] => 'M',
-            ['G', 'T', 'T'] | ['G', 'T', 'C'] | ['G', 'T', 'A'] | ['G', 'T', 'G'] |
-            ['G', 'U', 'T'] | ['G', 'U', 'C'] | ['G', 'U', 'A'] | ['G', 'U', 'G'] => 'V',
-            ['T', 'C', 'T'] | ['T', 'C', 'C'] | ['T', 'C', 'A'] | ['T', 'C', 'G'] |
-            ['U', 'C', 'T'] | ['U', 'C', 'C'] | ['U', 'C', 'A'] | ['U', 'C', 'G'] |
-            ['A', 'G', 'T'] | ['A', 'G', 'C'] | ['A', 'G', 'U'] => 'S',
-            ['C', 'C', 'T'] | ['C', 'C', 'C'] | ['C', 'C', 'A'] | ['C', 'C', 'G'] | ['C', 'C', 'U'] => 'P',
-            ['A', 'C', 'T'] | ['A', 'C', 'C'] | ['A', 'C', 'A'] | ['A', 'C', 'G'] | ['A', 'C', 'U'] => 'T',
-            ['G', 'C', 'T'] | ['G', 'C', 'C'] | ['G', 'C', 'A'] | ['G', 'C', 'G'] | ['G', 'C', 'U'] => 'A',
+            ['G', 'T', 'T']
+            | ['G', 'T', 'C']
+            | ['G', 'T', 'A']
+            | ['G', 'T', 'G']
+            | ['G', 'U', 'T']
+            | ['G', 'U', 'C']
+            | ['G', 'U', 'A']
+            | ['G', 'U', 'G'] => 'V',
+            ['T', 'C', 'T']
+            | ['T', 'C', 'C']
+            | ['T', 'C', 'A']
+            | ['T', 'C', 'G']
+            | ['U', 'C', 'T']
+            | ['U', 'C', 'C']
+            | ['U', 'C', 'A']
+            | ['U', 'C', 'G']
+            | ['A', 'G', 'T']
+            | ['A', 'G', 'C']
+            | ['A', 'G', 'U'] => 'S',
+            ['C', 'C', 'T']
+            | ['C', 'C', 'C']
+            | ['C', 'C', 'A']
+            | ['C', 'C', 'G']
+            | ['C', 'C', 'U'] => 'P',
+            ['A', 'C', 'T']
+            | ['A', 'C', 'C']
+            | ['A', 'C', 'A']
+            | ['A', 'C', 'G']
+            | ['A', 'C', 'U'] => 'T',
+            ['G', 'C', 'T']
+            | ['G', 'C', 'C']
+            | ['G', 'C', 'A']
+            | ['G', 'C', 'G']
+            | ['G', 'C', 'U'] => 'A',
             ['T', 'A', 'T'] | ['T', 'A', 'C'] | ['U', 'A', 'U'] | ['U', 'A', 'C'] => 'Y',
-            ['T', 'A', 'A'] | ['T', 'A', 'G'] | ['T', 'G', 'A'] | ['U', 'A', 'A'] | ['U', 'A', 'G'] | ['U', 'G', 'A'] => '*',
+            ['T', 'A', 'A']
+            | ['T', 'A', 'G']
+            | ['T', 'G', 'A']
+            | ['U', 'A', 'A']
+            | ['U', 'A', 'G']
+            | ['U', 'G', 'A'] => '*',
             ['C', 'A', 'T'] | ['C', 'A', 'C'] | ['C', 'A', 'U'] => 'H',
             ['C', 'A', 'A'] | ['C', 'A', 'G'] => 'Q',
             ['A', 'A', 'T'] | ['A', 'A', 'C'] | ['A', 'A', 'U'] => 'N',
@@ -202,13 +293,24 @@ impl<'a> Iterator for TranslateIterator<'a> {
             ['G', 'A', 'A'] | ['G', 'A', 'G'] => 'E',
             ['T', 'G', 'T'] | ['T', 'G', 'C'] | ['U', 'G', 'T'] | ['U', 'G', 'C'] => 'C',
             ['T', 'G', 'G'] | ['U', 'G', 'G'] => 'W',
-            ['C', 'G', 'T'] | ['C', 'G', 'C'] | ['C', 'G', 'A'] | ['C', 'G', 'G'] | ['C', 'G', 'U'] |
-            ['A', 'G', 'A'] | ['A', 'G', 'G'] => 'R',
-            ['G', 'G', 'T'] | ['G', 'G', 'C'] | ['G', 'G', 'A'] | ['G', 'G', 'G'] | ['G', 'G', 'U'] => 'G',
+            ['C', 'G', 'T']
+            | ['C', 'G', 'C']
+            | ['C', 'G', 'A']
+            | ['C', 'G', 'G']
+            | ['C', 'G', 'U']
+            | ['A', 'G', 'A']
+            | ['A', 'G', 'G'] => 'R',
+            ['G', 'G', 'T']
+            | ['G', 'G', 'C']
+            | ['G', 'G', 'A']
+            | ['G', 'G', 'G']
+            | ['G', 'G', 'U'] => 'G',
             _ => 'X',
         };
 
-        if aa == '*' { self.done = true; }
+        if aa == '*' {
+            self.done = true;
+        }
         Some(aa)
     }
 }
@@ -243,7 +345,9 @@ mod tests {
         let s1 = MemSequence::new("ATG".to_string());
         let s2 = MemSequence::new("GCT".to_string());
         let s3 = MemSequence::new("TAA".to_string());
-        let spliced = SplicedSequence { pieces: vec![&s1, &s2, &s3] };
+        let spliced = SplicedSequence {
+            pieces: vec![&s1, &s2, &s3],
+        };
         assert_eq!(spliced.len(), 9);
         assert_eq!(spliced.to_string(), "ATGGCTTAA");
 
@@ -269,7 +373,12 @@ pub struct SliceSequence<'a> {
 
 impl<'a> Sequence for SliceSequence<'a> {
     fn iter(&self) -> Box<dyn Iterator<Item = char> + '_> {
-        Box::new(self.inner.iter().skip(self.start).take(self.end - self.start))
+        Box::new(
+            self.inner
+                .iter()
+                .skip(self.start)
+                .take(self.end - self.start),
+        )
     }
 
     fn len(&self) -> usize {

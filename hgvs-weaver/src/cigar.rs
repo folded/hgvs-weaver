@@ -14,14 +14,16 @@ pub struct Cigar {
 
 impl Cigar {
     pub fn ref_len(&self) -> i32 {
-        self.ops.iter()
+        self.ops
+            .iter()
             .filter(|op| "=MXDN".contains(op.op))
             .map(|op| op.len)
             .sum()
     }
 
     pub fn tgt_len(&self) -> i32 {
-        self.ops.iter()
+        self.ops
+            .iter()
             .filter(|op| "=MXI".contains(op.op))
             .map(|op| op.len)
             .sum()
@@ -110,12 +112,34 @@ impl CigarMapper {
         *self.tgt_pos.last().unwrap()
     }
 
-    pub fn map_ref_to_tgt(&self, pos: i32, end_strategy: &str, strict_bounds: bool) -> Result<(i32, i32, char), HgvsError> {
-        self.map_internal(&self.ref_pos, &self.tgt_pos, pos, end_strategy, strict_bounds)
+    pub fn map_ref_to_tgt(
+        &self,
+        pos: i32,
+        end_strategy: &str,
+        strict_bounds: bool,
+    ) -> Result<(i32, i32, char), HgvsError> {
+        self.map_internal(
+            &self.ref_pos,
+            &self.tgt_pos,
+            pos,
+            end_strategy,
+            strict_bounds,
+        )
     }
 
-    pub fn map_tgt_to_ref(&self, pos: i32, end_strategy: &str, strict_bounds: bool) -> Result<(i32, i32, char), HgvsError> {
-        self.map_internal(&self.tgt_pos, &self.ref_pos, pos, end_strategy, strict_bounds)
+    pub fn map_tgt_to_ref(
+        &self,
+        pos: i32,
+        end_strategy: &str,
+        strict_bounds: bool,
+    ) -> Result<(i32, i32, char), HgvsError> {
+        self.map_internal(
+            &self.tgt_pos,
+            &self.ref_pos,
+            pos,
+            end_strategy,
+            strict_bounds,
+        )
     }
 
     fn map_internal(
@@ -128,12 +152,14 @@ impl CigarMapper {
     ) -> Result<(i32, i32, char), HgvsError> {
         let last_pos = *from_pos.last().unwrap();
         if strict_bounds && (pos < 0 || pos > last_pos) {
-            return Err(HgvsError::Other("Position is beyond the bounds of sequence".to_string()));
+            return Err(HgvsError::Other(
+                "Position is beyond the bounds of sequence".to_string(),
+            ));
         }
 
         let mut pos_i = 0;
         for i in 0..self.cigar.ops.len() {
-            if pos < from_pos[i+1] {
+            if pos < from_pos[i + 1] {
                 pos_i = i;
                 break;
             }

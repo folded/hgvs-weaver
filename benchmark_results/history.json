@@ -1,0 +1,98 @@
+[
+  {
+    "total": 100000,
+    "p_match": 90831,
+    "spdi_match": 92522,
+    "p_perc": 90.83099999999999,
+    "spdi_perc": 92.522,
+    "commit": "08f9ef2"
+  },
+  {
+    "total": 100000,
+    "p_match": 93534,
+    "spdi_match": 92522,
+    "p_perc": 93.53399999999999,
+    "spdi_perc": 92.522,
+    "commit": "8ed0107"
+  },
+  {
+    "total": 100000,
+    "p_match": 93832,
+    "spdi_match": 92522,
+    "p_perc": 93.83200000000001,
+    "spdi_perc": 92.522,
+    "commit": "59292bd"
+  },
+  {
+    "total": 100000,
+    "p_match": 93832,
+    "spdi_match": 93990,
+    "p_perc": 93.83200000000001,
+    "spdi_perc": 93.99,
+    "commit": "1d04b5c"
+  },
+  {
+    "total": 100000,
+    "p_match": 93832,
+    "spdi_match": 93990,
+    "p_perc": 93.83200000000001,
+    "spdi_perc": 93.99,
+    "commit": "8e92cf2"
+  },
+  {
+    "total": 100000,
+    "p_match": 93765,
+    "spdi_match": 93878,
+    "p_perc": 93.765,
+    "spdi_perc": 93.878,
+    "commit": "4b164cc"
+  },
+  {
+    "total": 100000,
+    "p_match": 93765,
+    "spdi_match": 93917,
+    "p_perc": 93.765,
+    "spdi_perc": 93.917,
+    "commit": "028489c"
+  },
+  {
+    "total": 100000,
+    "p_match": 93765,
+    "spdi_match": 93917,
+    "p_perc": 93.765,
+    "spdi_perc": 93.917,
+    "commit": "b6888ea"
+  },
+  {
+    "total": 100000,
+    "p_match": 93762,
+    "spdi_match": 97852,
+    "p_perc": 93.762,
+    "spdi_perc": 97.85199999999999,
+    "commit": "070cb95"
+  },
+  {
+    "total": 100000,
+    "p_match": 93762,
+    "spdi_match": 97852,
+    "p_perc": 93.762,
+    "spdi_perc": 97.85199999999999,
+    "commit": "a551cff"
+  },
+  {
+    "total": 100000,
+    "p_match": 93826,
+    "spdi_match": 97968,
+    "p_perc": 93.826,
+    "spdi_perc": 97.968,
+    "commit": "01372cc"
+  },
+  {
+    "total": 100000,
+    "p_match": 93826,
+    "spdi_match": 97968,
+    "p_perc": 93.826,
+    "spdi_perc": 97.968,
+    "commit": "204362e"
+  }
+]
