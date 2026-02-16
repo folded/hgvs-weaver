@@ -166,3 +166,7 @@ dmypy.json
 *.tsv
 !data/*.tsv
 *.gpff.gz
+analysis*.txt
+lcov.info
+*.tsv.tmp
+results_*.tsv

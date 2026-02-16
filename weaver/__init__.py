@@ -1,16 +1,24 @@
-"""weaver: High-performance HGVS variant mapping and validation engine."""
-
 from typing import Protocol, TypedDict
 
 from ._weaver import (
-    Variant as Variant,
+    IdentifierType,
+    TranscriptMismatchError,
+    Variant,
+    VariantMapper,
+    parse,
 )
-from ._weaver import (
-    VariantMapper as VariantMapper,
-)
-from ._weaver import (
-    parse as parse,
-)
+
+__all__ = [
+    "DataProvider",
+    "ExonData",
+    "IdentifierType",
+    "TranscriptData",
+    "TranscriptMismatchError",
+    "TranscriptSearch",
+    "Variant",
+    "VariantMapper",
+    "parse",
+]
 
 
 class ExonData(TypedDict):
@@ -66,18 +74,33 @@ class DataProvider(Protocol):
         """
         ...
 
-    def get_seq(self, ac: str, start: int, end: int, kind: str) -> str:
-        """Fetch sequence for an accession.
+    def get_seq(self, ac: str, start: int, end: int, kind: str | IdentifierType) -> str:
+        """Fetch sequence for an accession. kind should be an IdentifierType."""
+        ...
 
-        - kind: one of 'g' (genomic), 'c' (transcript), 'p' (protein).
-        - start/end: 0-based half-open (interbase) coordinates.
-        - end=-1: fetch to the end of the sequence.
+    def get_symbol_accessions(
+        self,
+        symbol: str,
+        source_kind: str,
+        target_kind: str,
+    ) -> list[tuple[str, str]] | list[tuple[IdentifierType, str]]:
+        """Map identifiers between different namespaces.
+
+        Returns a list of tuples (identifier_type, accession).
+        identifier_type should be one of 'genomic_accession', 'transcript_accession',
+        'protein_accession', 'gene_symbol', or a member of the IdentifierType enum.
         """
         ...
 
-    def get_symbol_accessions(self, symbol: str, source_kind: str, target_kind: str) -> list[str]:
-        """Map identifiers between different namespaces.
+    def get_identifier_type(self, identifier: str) -> str | IdentifierType:
+        """Identify what type of identifier a string is.
 
-        Usually used to map gene symbols to transcript accessions.
+        Should return one of:
+        - 'genomic_accession'
+        - 'transcript_accession'
+        - 'protein_accession'
+        - 'gene_symbol'
+        - 'unknown'
+        Or the equivalent IdentifierType enum value.
         """
         ...

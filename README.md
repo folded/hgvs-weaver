@@ -74,7 +74,7 @@ When implementing a `DataProvider`, you must provide coordinates in the followin
         - `transcript_start`: 0-based inclusive start index in the transcript.
         - `transcript_end`: 0-based **exclusive** end index in the transcript.
         - `reference_start`: 0-based inclusive start index on the genomic reference.
-        - `reference_end`: 0-based **inclusive** end index on the genomic reference.
+        - `reference_end`: 0-based inclusive end index on the genomic reference.
 
 - **Sequence Retrieval**:
     - `get_seq(ac, start, end, kind)`: Should return the sequence for accession `ac`. `start` and `end` are 0-based half-open (interbase) coordinates.
@@ -87,12 +87,16 @@ class DataProvider(Protocol):
         """Return a dictionary matching the TranscriptData structure."""
         ...
 
-    def get_seq(self, ac: str, start: int, end: int, kind: str) -> str:
-        """Fetch sequence for an accession. kind is 'g', 'c', or 'p'."""
+    def get_seq(self, ac: str, start: int, end: int, kind: str | IdentifierType) -> str:
+        """Fetch sequence for an accession. kind is an IdentifierType."""
         ...
 
-    def get_symbol_accessions(self, symbol: str, source_kind: str, target_kind: str) -> list[str]:
-        """Map gene symbols to accessions (e.g., 'ATM' -> ['NM_000051.3'])."""
+    def get_symbol_accessions(self, symbol: str, source_kind: str, target_kind: str) -> list[tuple[str, str]] | list[tuple[IdentifierType, str]]:
+        """Map gene symbols to accessions (e.g., 'ATM' -> [('transcript_accession', 'NM_000051.3')])."""
+        ...
+
+    def get_identifier_type(self, identifier: str) -> str | IdentifierType:
+        """Identify what type of identifier a string is (e.g., 'genomic_accession', 'gene_symbol')."""
         ...
 ```
 
@@ -164,23 +168,27 @@ To rerun the validation, you need the RefSeq annotation and genomic sequence fil
 
 ### Validation Results (100,000 variants)
 
-Summary of results comparing `weaver` and `ref-hgvs` (`biocommons.hgvs`) against ClinVar ground truth:
+Summary of results comparing `weaver` and `ref-hgvs` against ClinVar ground truth:
 
-| Implementation | Protein Match | SPDI Match |
-| :--- | :---: | :---: |
-| **weaver** | **92.3%** | **91.1%** |
-| ref-hgvs | 89.1% | 91.1% |
+| Implementation | Protein Match | SPDI Match  | Parse Errors |
+| :------------- | :-----------: | :---------: | :----------: |
+| weaver         |  **93.826%**  | **97.968%** |    **1**     |
+| ref-hgvs       |    93.337%    |   94.022%   |     394      |
+
+RefSeq Data Mismatches: 0 (0.0%)
 
 #### Protein Translation Agreement
 
-| | ref-hgvs Match | ref-hgvs Mismatch |
-| :--- | :---: | :---: |
-| **weaver Match** | 86,634 | 5,682 |
-| **weaver Mismatch** | 2,480 | 5,204 |
+|                     | ref-hgvs Match | ref-hgvs Mismatch |
+| :------------------ | :------------: | :---------------: |
+| **weaver Match**    |     93,330     |        496        |
+| **weaver Mismatch** |       7        |       6,167       |
 
 #### SPDI Mapping Agreement
 
-| | ref-hgvs Match | ref-hgvs Mismatch |
-| :--- | :---: | :---: |
-| **weaver Match** | 91,059 | 8 |
-| **weaver Mismatch** | 1 | 8,932 |
+|                     | ref-hgvs Match | ref-hgvs Mismatch |
+| :------------------ | :------------: | :---------------: |
+| **weaver Match**    |     93,919     |       4,049       |
+| **weaver Mismatch** |      103       |       1,929       |
+
+- **Variant Equivalence**: Check if two variants are biologically equivalent using advanced cross-coordinate mapping and normalization. [See Algorithm](docs/source/equivalence_logic.md).

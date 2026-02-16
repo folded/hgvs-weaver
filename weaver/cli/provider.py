@@ -2,7 +2,9 @@
 
 import collections
 import gzip
+import json
 import logging
+import os
 import sys
 import typing
 
@@ -36,6 +38,101 @@ class IdentifierKind:
     Protein = "p"
 
 
+class SequenceProxy:
+    """Proxy for accessing genomic sequences, supporting recording and replay."""
+
+    def __init__(self, fasta_path: str, cache_path: str | None = None, mode: str | None = None) -> None:
+        self.fasta_path = fasta_path
+        self.cache_path = cache_path or os.environ.get("WEAVER_SEQ_CACHE")
+        self.mode = mode or os.environ.get("WEAVER_SEQ_MODE", "live")
+        self.cache: dict[str, str] = {}
+        self.fasta: typing.Any = None
+        self.references: list[str] = []
+
+        if self.mode == "replay":
+            if self.cache_path and os.path.exists(self.cache_path):
+                try:
+                    with open(self.cache_path) as f:
+                        self.cache = json.load(f)
+
+                    # Try to get references from manifest first
+                    manifest_data = self.cache.get("_manifest")
+                    if isinstance(manifest_data, dict):
+                        manifest = typing.cast("dict[str, list[str]]", manifest_data)
+                        fname = os.path.basename(self.fasta_path)
+                        if fname in manifest:
+                            self.references = manifest[fname]
+                    else:
+                        # Fallback: extract unique accessions from keys like "AC:start-end"
+                        refs = set()
+                        for key in self.cache:
+                            if ":" in key and not key.startswith("_"):
+                                refs.add(key.split(":")[0])
+                        self.references = list(refs)
+                except (OSError, json.JSONDecodeError) as e:
+                    logger.error("Failed to load sequence cache from %s: %s", self.cache_path, e)
+            else:
+                logger.warning("Replay mode enabled but cache file not found: %s", self.cache_path)
+        elif os.path.exists(fasta_path):
+            try:
+                self.fasta = pysam.FastaFile(fasta_path)
+                self.references = list(self.fasta.references)
+            except Exception as e:
+                logger.error("Failed to load FASTA from %s: %s", fasta_path, e)
+        elif self.mode != "replay":
+            logger.warning("FASTA file not found: %s", fasta_path)
+
+    def fetch(self, ac: str, start: int, end: int | None = None) -> str:
+        # Normalize end for consistency in the key (None and -1 should be same)
+        key_end = end
+        if end == -1:
+            key_end = None
+        key = f"{ac}:{start}-{key_end}"
+
+        if self.mode == "replay":
+            if key in self.cache:
+                return self.cache[key]
+            logger.error("Missing sequence in cache for %s", key)
+            return ""
+
+        if not self.fasta:
+            return ""
+
+        try:
+            # pysam handles end=-1 or None as end-of-ref
+            seq = str(self.fasta.fetch(ac, start, end).upper())
+            if self.mode == "record":
+                self.cache[key] = seq
+            return seq
+        except Exception as e:
+            logger.error("Error fetching from FASTA for %s: %s", key, e)
+            return ""
+
+    def save_cache(self) -> None:
+        if self.mode == "record" and self.cache_path:
+            try:
+                # Merge with existing cache if it exists
+                existing = {}
+                if os.path.exists(self.cache_path):
+                    with open(self.cache_path) as f:
+                        existing = json.load(f)
+
+                # Update sequences
+                existing.update(self.cache)
+
+                # Update manifest
+                manifest = existing.setdefault("_manifest", {})
+                fname = os.path.basename(self.fasta_path)
+                manifest[fname] = self.references
+
+                os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
+                with open(self.cache_path, "w") as f:
+                    json.dump(existing, f, indent=2)
+                logger.info("Saved cache with %d sequences and manifest for %s", len(existing) - 1, fname)
+            except Exception as e:
+                logger.error("Failed to save sequence cache to %s: %s", self.cache_path, e)
+
+
 class RefSeqDataProvider:
     """DataProvider implementation using RefSeq GFF and FASTA files."""
 
@@ -57,7 +154,7 @@ class RefSeqDataProvider:
         self.accession_map: dict[str, tuple[str, str]] = {}  # protein_id -> tx_id
 
         self._load_gff()
-        self.fasta = pysam.FastaFile(fasta_path)
+        self.fasta = SequenceProxy(fasta_path)
 
     def _load_gff(self) -> None:
         """Parses the GFF file into internal transcript models."""
@@ -68,6 +165,7 @@ class RefSeqDataProvider:
             lambda: {"exons": set(), "cds": set(), "info": {}},
         )
         genes: dict[str, str] = {}
+        id_to_tx_ac: dict[str, str] = {}
 
         opener = gzip.open if self.gff_path.endswith(".gz") else open
 
@@ -95,6 +193,8 @@ class RefSeqDataProvider:
                         tx_ac = feat_id[4:]
                     elif parent and (parent.startswith(("rna-NM_", "rna-NR_"))):
                         tx_ac = parent[4:]
+                    elif parent in id_to_tx_ac:
+                        tx_ac = id_to_tx_ac[parent]
 
                 if feature_type == "gene":
                     if feat_id:
@@ -112,6 +212,8 @@ class RefSeqDataProvider:
                     "snoRNA",
                 ]:
                     if tx_ac:
+                        if feat_id:
+                            id_to_tx_ac[feat_id] = tx_ac
                         key = (tx_ac, chrom)
                         if not tx_data[key]["info"] or source in ["RefSeq", "BestRefSeq"]:
                             tx_data[key]["info"] = {
@@ -225,38 +327,38 @@ class RefSeqDataProvider:
 
     def get_seq(self, ac: str, start: int, end: int, kind: str, force_plus: bool = False) -> str:
         """Retrieves a sequence from the provider.
-
-        Args:
-          ac: Accession to fetch.
-          start: 0-based interbase start.
-          end: 0-based interbase end (-1 for end of sequence).
-          kind: "g", "c", or "p".
-          force_plus: If True, always returns the plus-strand genomic sequence.
-
-        Returns:
-          The requested sequence string.
+        ...
         """
-        if kind == "p":
+        kind = str(kind)
+        if kind in {"p", "protein_accession"}:
             res = self.accession_map.get(ac)
             if not res:
                 return ""
             tx_ac, chrom = res
             return self._get_tx_seq(tx_ac, chrom, start, end, force_plus=force_plus).upper()
 
-        if kind == "c":
+        if "transcript" in kind.lower() or kind == "c":
             # Need to decide which reference to use if multiple exist
             refs = self.tx_to_refs.get(ac)
             if not refs:
                 return ""
-            # Prioritize standard NC chromosomes
-            ref_ac = next((r for r in refs if r.startswith("NC_0000")), refs[0])
+            # Prioritize standard NC chromosomes that exist in the current FASTA
+            ref_ac = next((r for r in refs if r.startswith("NC_0000") and r in self.fasta.references), None)
+            if not ref_ac:
+                ref_ac = next((r for r in refs if r in self.fasta.references), refs[0])
+
             return self._get_tx_seq(ac, ref_ac, start, end, force_plus=force_plus).upper()
+
+        if "genomic" in kind.lower() or kind == "g":
+            pass  # Fall through to fasta.fetch
 
         try:
             if end == -1 or end is None:
                 return str(self.fasta.fetch(ac, start).upper())
             return str(self.fasta.fetch(ac, start, end).upper())
         except Exception as e:
+            # Try fuzzy lookup for genomic fetch too?
+            # pysam.fetch usually needs exact match.
             logger.error("Error fetching genomic seq for %s: %s", ac, e)
             return ""
 
@@ -289,10 +391,15 @@ class RefSeqDataProvider:
                 return tx
 
         refs = self.tx_to_refs.get(transcript_ac)
+
         if not refs:
             raise ValueError(f"Transcript {transcript_ac} not found")
 
-        ref_ac = next((r for r in refs if r.startswith("NC_0000")), refs[0])
+        # Prioritize standard NC chromosomes that exist in the current FASTA
+        ref_ac = next((r for r in refs if r.startswith("NC_0000") and r in self.fasta.references), None)
+        if not ref_ac:
+            ref_ac = next((r for r in refs if r in self.fasta.references), refs[0])
+
         return self.transcripts[(transcript_ac, ref_ac)]
 
     def get_transcripts_for_region(self, chrom: str, start: int, end: int) -> list[str]:
@@ -305,7 +412,7 @@ class RefSeqDataProvider:
                 results.append(tx["ac"])
         return list(set(results))
 
-    def get_symbol_accessions(self, symbol: str, source_kind: str, target_kind: str) -> list[str]:
+    def get_symbol_accessions(self, symbol: str, source_kind: str, target_kind: str) -> list[tuple[str, str]]:
         """Maps gene symbols to transcript accessions."""
         if source_kind == IdentifierKind.Transcript and target_kind == IdentifierKind.Protein:
             # Ambiguous if multiple refs, but usually protein is same
@@ -313,15 +420,86 @@ class RefSeqDataProvider:
             if refs:
                 tx = self.transcripts.get((symbol, refs[0]))
                 if tx and tx.get("protein_id"):
-                    return [tx["protein_id"]]
+                    return [("protein_accession", tx["protein_id"])]
         if symbol in self.gene_to_transcripts:
-            return self.gene_to_transcripts[symbol]
-        return [symbol]
+            return [("transcript_accession", tx_ac) for tx_ac in self.gene_to_transcripts[symbol]]
+        return [("gene_symbol", symbol)]
+
+    def get_identifier_type(self, identifier: str) -> str:
+        """Determines the type of the identifier."""
+        if identifier.startswith(("NC_", "NW_", "NT_")):
+            return "genomic_accession"
+        if identifier.startswith(("NM_", "NR_", "XM_", "XR_")):
+            return "transcript_accession"
+        if identifier.startswith(("NP_", "XP_")):
+            return "protein_accession"
+        # If it's a known gene symbol
+        if identifier in self.gene_to_transcripts:
+            return "gene_symbol"
+        # Fallback heuristic: simplistic assumption that anything else might be a gene symbol
+        # if it doesn't contain a colon (which would imply pre-parsed variant)
+        if ":" not in identifier:
+            return "gene_symbol"
+        return "unknown"
 
     def reverse_complement(self, seq: str) -> str:
         """Returns the reverse complement of a sequence."""
         complement = str.maketrans("ATCGNautcgn", "TAGCNtagcgn")
         return seq.translate(complement)[::-1]
+
+    def c_to_g(self, transcript_ac: str, pos: int, offset: int) -> tuple[str, int]:
+        """Resolves a transcript position and offset to a genomic accession and position.
+
+        Args:
+          transcript_ac: The transcript accession.
+          pos: 0-based transcript index.
+          offset: intronic offset.
+
+        Returns:
+          A tuple of (genomic_accession, 0-based_genomic_position).
+        """
+        tx = self.get_transcript(transcript_ac, None)
+        chrom = tx["reference_accession"]
+        strand = tx["strand"]
+        exons = tx["exons"]
+
+        # This logic should match _genomic_to_tx but in reverse.
+        # Transcript position 'pos' is relative to the start of the transcript sequence.
+        # We need to find the exon containing this position.
+        for exon in exons:
+            exon["reference_end"] - exon["reference_start"] + 1
+            if exon["transcript_start"] <= pos < exon["transcript_end"]:
+                # Found the exon
+                offset_in_exon = pos - exon["transcript_start"]
+                if strand == 1:
+                    g_base = exon["reference_start"] + offset_in_exon
+                    g_pos = g_base + offset
+                else:
+                    g_base = exon["reference_end"] - offset_in_exon
+                    g_pos = g_base - offset
+                return chrom, g_pos
+
+        # If not in exons (should not happen for valid cDNA variants without offset,
+        # but for offset calculation we might be at exon boundary)
+        # Handle cases where pos might be exactly at boundary for intronic mapping
+        if pos < 0:
+            # Before first exon
+            exon = exons[0]
+            if strand == 1:
+                return chrom, exon["reference_start"] + pos + offset
+            return chrom, exon["reference_end"] - pos - offset
+
+        # After last exon or in intron
+        # Just use the last exon for default projection if not found
+        exon = exons[-1]
+        if pos >= exon["transcript_end"]:
+            delta = pos - (exon["transcript_end"] - 1)
+            if strand == 1:
+                return chrom, exon["reference_end"] + delta + offset
+            return chrom, exon["reference_start"] - delta - offset
+
+        # If it's a valid transcript position but 'exons' loop failed?
+        return chrom, 0  # Fallback
 
     def to_json(self) -> None:
         return None

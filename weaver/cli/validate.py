@@ -51,39 +51,20 @@ def init_worker(gff: str, fasta: str) -> None:
     _ref_hp = hgvs.parser.Parser()
 
 
-def hgvs_to_spdi(v: typing.Any, data_provider: typing.Any) -> str | None:
-    """Converts a Variant object to SPDI string format."""
+def hgvs_lib_to_spdi(v: typing.Any, data_provider: typing.Any) -> str | None:
+    """Converts a standard hgvs library Variant object to SPDI string format."""
     try:
-        if hasattr(v, "to_dict"):
-            d = v.to_dict()
-            ac = d["ac"]
-            pos = d["posedit"]["pos"]
-            edit = d["posedit"]["edit"]
-            start_1 = pos["start"]["base"]
-            end_1 = pos["end"]["base"] if pos["end"] else start_1
-            if edit["type"] == "RefAlt":
-                ref = edit["ref_"]
-                alt = edit.get("alt") or ""
-                if ref is None or ref.isdigit():
-                    ref = data_provider.get_seq(ac, start_1 - 1, end_1, "g")
-                if not ref and start_1 < end_1:
-                    return f"{ac}:{start_1}:{ref}:{alt}"
-                return f"{ac}:{start_1 - 1}:{ref}:{alt}"
-            if edit["type"] == "Dup":
+        ac = v.ac
+        start_1 = v.posedit.pos.start.base
+        end_1 = v.posedit.pos.end.base if v.posedit.pos.end else start_1
+        if hasattr(v.posedit.edit, "ref"):
+            ref = v.posedit.edit.ref or ""
+            alt = v.posedit.edit.alt or ""
+            if not ref or ref.isdigit():
                 ref = data_provider.get_seq(ac, start_1 - 1, end_1, "g")
-                return f"{ac}:{end_1}:{ref}:{ref}"
-        else:
-            ac = v.ac
-            start_1 = v.posedit.pos.start.base
-            end_1 = v.posedit.pos.end.base if v.posedit.pos.end else start_1
-            if hasattr(v.posedit.edit, "ref"):
-                ref = v.posedit.edit.ref or ""
-                alt = v.posedit.edit.alt or ""
-                if not ref or ref.isdigit():
-                    ref = data_provider.get_seq(ac, start_1 - 1, end_1, "g")
-                if v.posedit.edit.type == "ins":
-                    return f"{ac}:{start_1}:{ref}:{alt}"
-                return f"{ac}:{start_1 - 1}:{ref}:{alt}"
+            if v.posedit.edit.type == "ins":
+                return f"{ac}:{start_1}:{ref}:{alt}"
+            return f"{ac}:{start_1 - 1}:{ref}:{alt}"
         return "UnsupportedType"
     except Exception:
         return "ERR:SPDI"
@@ -111,16 +92,15 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
             if v_rs.coordinate_type == "c":
                 v_p = _rs_mapper.c_to_p(v_rs)
                 rs_p = v_p.format().split(":")[-1]
+        except weaver.TranscriptMismatchError as e:
+            rs_p = f"ERR:TranscriptMismatch:{e!s}"
         except Exception as e:
             rs_p = f"ERR:{e!s}"
 
         try:
-            if v_rs.coordinate_type != "g":
-                vg_rs = _rs_mapper.c_to_g(v_rs, spdi_ac)
-                vg_rs = _rs_mapper.normalize_variant(vg_rs)  # Normalize in genomic space for SPDI
-            else:
-                vg_rs = v_rs
-            rs_spdi = hgvs_to_spdi(vg_rs, _rp)
+            rs_spdi = _rs_mapper.to_spdi(v_rs_raw, unambiguous=True)
+        except weaver.TranscriptMismatchError as e:
+            rs_spdi = f"ERR:TranscriptMismatch:{e!s}"
         except Exception as e:
             rs_spdi = f"ERR:{e!s}"
     except Exception as e:
@@ -144,14 +124,7 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
 
         try:
             vg_ref = _ref_vm.c_to_g(v_ref, spdi_ac) if v_ref.type != "g" else v_ref
-            # Normalize in genomic space for SPDI using weaver normalizer
-            try:
-                vg_ref_rs = weaver.parse(str(vg_ref))
-                vg_ref_rs = _rs_mapper.normalize_variant(vg_ref_rs)
-                ref_spdi = hgvs_to_spdi(vg_ref_rs, _rp)
-            except Exception:
-                # Fallback to unnormalized if weaver parsing fails
-                ref_spdi = hgvs_to_spdi(vg_ref, _rp)
+            ref_spdi = hgvs_lib_to_spdi(vg_ref, _rp)
         except Exception as e:
             ref_spdi = f"ERR:{e!s}"
     except Exception:
@@ -159,10 +132,10 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
     except BaseException:
         ref_p = ref_spdi = "PANIC"
 
-    row["rs_p"] = rs_p
-    row["rs_spdi"] = rs_spdi
-    row["ref_p"] = ref_p
-    row["ref_spdi"] = ref_spdi
+    row["rs_p"] = rs_p or ""
+    row["rs_spdi"] = rs_spdi or ""
+    row["ref_p"] = ref_p or ""
+    row["ref_spdi"] = ref_spdi or ""
     return row
 
 

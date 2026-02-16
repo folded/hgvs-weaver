@@ -1,8 +1,80 @@
+use ::hgvs_weaver::{
+    DataProvider, HgvsError, IdentifierKind, SequenceVariant, Transcript, TranscriptSearch,
+    Variant as VariantTrait, VariantMapper,
+};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use pyo3::{Bound, PyErr};
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::*};
-use ::hgvs_weaver::{SequenceVariant, Variant as VariantTrait, VariantMapper, DataProvider, TranscriptSearch, Transcript, IdentifierKind, HgvsError};
 use serde_json;
+
+pyo3::create_exception!(
+    _weaver,
+    TranscriptMismatchError,
+    pyo3::exceptions::PyValueError
+);
+
+fn map_hgvs_error(e: HgvsError) -> PyErr {
+    match e {
+        HgvsError::TranscriptMismatch {
+            expected,
+            found,
+            start,
+            end,
+        } => TranscriptMismatchError::new_err(format!(
+            "expected {}, found {} at transcript indices {}..{}",
+            expected, found, start, end
+        )),
+        e => pyo3::exceptions::PyValueError::new_err(e.to_string()),
+    }
+}
+
+#[gen_stub_pyclass_enum]
+#[pyclass(name = "IdentifierType")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PyIdentifierType {
+    GenomicAccession,
+    TranscriptAccession,
+    ProteinAccession,
+    GeneSymbol,
+    Unknown,
+}
+
+impl From<PyIdentifierType> for ::hgvs_weaver::data::IdentifierType {
+    fn from(it: PyIdentifierType) -> Self {
+        match it {
+            PyIdentifierType::GenomicAccession => {
+                ::hgvs_weaver::data::IdentifierType::GenomicAccession
+            }
+            PyIdentifierType::TranscriptAccession => {
+                ::hgvs_weaver::data::IdentifierType::TranscriptAccession
+            }
+            PyIdentifierType::ProteinAccession => {
+                ::hgvs_weaver::data::IdentifierType::ProteinAccession
+            }
+            PyIdentifierType::GeneSymbol => ::hgvs_weaver::data::IdentifierType::GeneSymbol,
+            PyIdentifierType::Unknown => ::hgvs_weaver::data::IdentifierType::Unknown,
+        }
+    }
+}
+
+impl From<::hgvs_weaver::data::IdentifierType> for PyIdentifierType {
+    fn from(it: ::hgvs_weaver::data::IdentifierType) -> Self {
+        match it {
+            ::hgvs_weaver::data::IdentifierType::GenomicAccession => {
+                PyIdentifierType::GenomicAccession
+            }
+            ::hgvs_weaver::data::IdentifierType::TranscriptAccession => {
+                PyIdentifierType::TranscriptAccession
+            }
+            ::hgvs_weaver::data::IdentifierType::ProteinAccession => {
+                PyIdentifierType::ProteinAccession
+            }
+            ::hgvs_weaver::data::IdentifierType::GeneSymbol => PyIdentifierType::GeneSymbol,
+            ::hgvs_weaver::data::IdentifierType::Unknown => PyIdentifierType::Unknown,
+        }
+    }
+}
 
 #[gen_stub_pyclass]
 #[pyclass(name = "Variant")]
@@ -12,6 +84,7 @@ pub struct PyVariant {
     pub inner: SequenceVariant,
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyVariant {
     #[getter]
@@ -65,39 +138,77 @@ impl PyVariant {
         let result = match &self.inner {
             SequenceVariant::Genomic(v) => self.validate_genomic(v, &bridge),
             SequenceVariant::Coding(v) => self.validate_coding(v, &bridge),
-            _ => Err(HgvsError::UnsupportedOperation("Validation not implemented for this variant type".into())),
+            _ => Err(HgvsError::UnsupportedOperation(
+                "Validation not implemented for this variant type".into(),
+            )),
         };
-
         match result {
             Ok(is_valid) => Ok(is_valid),
-            Err(e) => Err(pyo3::exceptions::PyValueError::new_err(e.to_string())),
+            Err(e) => Err(map_hgvs_error(e)),
         }
+    }
+
+    #[doc = "Converts the variant to an SPDI string representation."]
+    fn to_spdi(&self, _py: Python, provider: Py<PyAny>) -> PyResult<String> {
+        let bridge = PyDataProviderBridge { provider };
+        self.inner.to_spdi(&bridge).map_err(map_hgvs_error)
     }
 }
 
 impl PyVariant {
-    fn validate_genomic(&self, v: &::hgvs_weaver::GVariant, bridge: &PyDataProviderBridge) -> Result<bool, HgvsError> {
-        let pos = v.posedit.pos.as_ref().ok_or_else(|| HgvsError::ValidationError("Missing position".into()))?;
+    fn validate_genomic(
+        &self,
+        v: &::hgvs_weaver::GVariant,
+        bridge: &PyDataProviderBridge,
+    ) -> Result<bool, HgvsError> {
+        let pos = v
+            .posedit
+            .pos
+            .as_ref()
+            .ok_or_else(|| HgvsError::ValidationError("Missing position".into()))?;
         let start_0 = pos.start.base.to_index();
-        let end_0 = pos.end.as_ref().map_or(start_0 + 1, |e| e.base.to_index() + 1);
+        let end_0 = pos
+            .end
+            .as_ref()
+            .map_or(start_0 + 1, |e| e.base.to_index() + 1);
 
-        let ref_seq = bridge.get_seq(&v.ac, start_0.0, end_0.0, IdentifierKind::Genomic)?;
+        let ref_seq = bridge.get_seq(
+            &v.ac,
+            start_0.0,
+            end_0.0,
+            IdentifierKind::Genomic.into_identifier_type(),
+        )?;
 
         match &v.posedit.edit {
             ::hgvs_weaver::edits::NaEdit::RefAlt { ref_: Some(r), .. } => {
-                if r.is_empty() || r.chars().all(|c| c.is_ascii_digit()) { return Ok(true); }
+                if r.is_empty() || r.chars().all(|c| c.is_ascii_digit()) {
+                    return Ok(true);
+                }
                 Ok(r == &ref_seq)
             }
             _ => Ok(true),
         }
     }
 
-    fn validate_coding(&self, v: &::hgvs_weaver::CVariant, bridge: &PyDataProviderBridge) -> Result<bool, HgvsError> {
+    fn validate_coding(
+        &self,
+        v: &::hgvs_weaver::CVariant,
+        bridge: &PyDataProviderBridge,
+    ) -> Result<bool, HgvsError> {
         let transcript = bridge.get_transcript(&v.ac, None)?;
 
-        let pos = v.posedit.pos.as_ref().ok_or_else(|| HgvsError::ValidationError("Missing position".into()))?;
+        let pos = v
+            .posedit
+            .pos
+            .as_ref()
+            .ok_or_else(|| HgvsError::ValidationError("Missing position".into()))?;
 
-        let ref_seq = bridge.get_seq(&v.ac, 0, -1, IdentifierKind::Transcript)?;
+        let ref_seq = bridge.get_seq(
+            &v.ac,
+            0,
+            -1,
+            IdentifierKind::Transcript.into_identifier_type(),
+        )?;
 
         if pos.start.offset.is_some() || pos.end.as_ref().and_then(|e| e.offset).is_some() {
             return Ok(true);
@@ -114,13 +225,17 @@ impl PyVariant {
         let start_idx = n_start.0 as usize;
         let end_idx = (n_end.0 + 1) as usize;
         if start_idx >= ref_seq.len() || end_idx > ref_seq.len() {
-            return Err(HgvsError::ValidationError("Transcript sequence too short".into()));
+            return Err(HgvsError::ValidationError(
+                "Transcript sequence too short".into(),
+            ));
         }
-        let sub_seq = &ref_seq[start_idx .. end_idx];
+        let sub_seq = &ref_seq[start_idx..end_idx];
 
         match &v.posedit.edit {
             ::hgvs_weaver::edits::NaEdit::RefAlt { ref_: Some(r), .. } => {
-                if r.is_empty() || r.chars().all(|c| c.is_ascii_digit()) { return Ok(true); }
+                if r.is_empty() || r.chars().all(|c| c.is_ascii_digit()) {
+                    return Ok(true);
+                }
                 Ok(r == sub_seq)
             }
             _ => Ok(true),
@@ -145,41 +260,59 @@ pub struct PyDataProviderBridge {
 }
 
 impl DataProvider for PyDataProviderBridge {
-    fn get_seq(&self, ac: &str, start: i32, end: i32, kind: IdentifierKind) -> Result<String, HgvsError> {
+    fn get_transcript(
+        &self,
+        transcript_ac: &str,
+        reference_ac: Option<&str>,
+    ) -> Result<Box<dyn Transcript>, HgvsError> {
         Python::attach(|py| {
-            let kind_str = match kind {
-                IdentifierKind::Genomic => "g",
-                IdentifierKind::Transcript => "c",
-                IdentifierKind::Protein => "p",
-            };
-            let res = self.provider.bind(py).call_method1("get_seq", (ac, start, end, kind_str))
+            let res = self
+                .provider
+                .bind(py)
+                .call_method1("get_transcript", (transcript_ac, reference_ac))
                 .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
-            res.extract::<String>().map_err(|e| HgvsError::DataProviderError(e.to_string()))
+            let dict = res.cast_into::<PyDict>().map_err(|e| {
+                HgvsError::DataProviderError(format!("Failed to cast to PyDict: {}", e))
+            })?;
+            let json_mod = py
+                .import("json")
+                .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
+            let json_str: String = json_mod
+                .call_method1("dumps", (dict,))
+                .map_err(|e| HgvsError::DataProviderError(e.to_string()))?
+                .extract::<String>()
+                .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
+            let data: ::hgvs_weaver::data::TranscriptData = serde_json::from_str(&json_str)
+                .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
+            Ok(Box::new(data) as Box<dyn Transcript>)
         })
     }
 
-    fn get_transcript(&self, transcript_ac: &str, reference_ac: Option<&str>) -> Result<Box<dyn Transcript>, HgvsError> {
+    fn get_seq(
+        &self,
+        ac: &str,
+        start: i32,
+        end: i32,
+        kind: ::hgvs_weaver::data::IdentifierType,
+    ) -> Result<String, HgvsError> {
         Python::attach(|py| {
-            let res = self.provider.bind(py).call_method1("get_transcript", (transcript_ac, reference_ac))
-                .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
-
-            let json_str: String = match res.call_method0("to_json") {
-                Ok(val) => val.extract::<String>().map_err(|e| HgvsError::DataProviderError(e.to_string()))?,
-                Err(_) => {
-                    let dict = res.cast::<PyDict>().map_err(|e| HgvsError::DataProviderError(format!("Failed to extract transcript: {}", e)))?;
-                    let json_mod = py.import("json").map_err(|e| HgvsError::Other(e.to_string()))?;
-                    let s = json_mod.call_method1("dumps", (dict,)).map_err(|e| HgvsError::Other(e.to_string()))?;
-                    s.extract::<String>().map_err(|e| HgvsError::Other(e.to_string()))?
-                }
-            };
-
-            let td: ::hgvs_weaver::data::TranscriptData = serde_json::from_str(&json_str).map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
-            let boxed: Box<dyn Transcript> = Box::new(td);
-            Ok(boxed)
+            let py_kind: PyIdentifierType = kind.into();
+            let res = self
+                .provider
+                .bind(py)
+                .call_method1("get_seq", (ac, start, end, py_kind))
+                .map_err(|e: PyErr| HgvsError::DataProviderError(e.to_string()))?;
+            res.extract::<String>()
+                .map_err(|e: PyErr| HgvsError::DataProviderError(e.to_string()))
         })
     }
 
-    fn get_symbol_accessions(&self, symbol: &str, source_kind: IdentifierKind, target_kind: IdentifierKind) -> Result<Vec<String>, HgvsError> {
+    fn get_symbol_accessions(
+        &self,
+        symbol: &str,
+        source_kind: IdentifierKind,
+        target_kind: IdentifierKind,
+    ) -> Result<Vec<(::hgvs_weaver::data::IdentifierType, String)>, HgvsError> {
         Python::attach(|py| {
             let sk = match source_kind {
                 IdentifierKind::Genomic => "g",
@@ -191,9 +324,95 @@ impl DataProvider for PyDataProviderBridge {
                 IdentifierKind::Transcript => "c",
                 IdentifierKind::Protein => "p",
             };
-            let res = self.provider.bind(py).call_method1("get_symbol_accessions", (symbol, sk, tk))
+            let res = self
+                .provider
+                .bind(py)
+                .call_method1("get_symbol_accessions", (symbol, sk, tk))
+                .map_err(|e: PyErr| HgvsError::DataProviderError(e.to_string()))?;
+            let raw_list: Vec<(Bound<'_, PyAny>, String)> = res
+                .extract::<Vec<(Bound<'_, PyAny>, String)>>()
+                .map_err(|e: PyErr| {
+                    HgvsError::DataProviderError(format!(
+                        "Failed to extract symbol accessions: {}",
+                        e
+                    ))
+                })?;
+
+            let mut result = Vec::new();
+            for (type_any, ac) in raw_list {
+                let it = if let Ok(s) = type_any.extract::<String>() {
+                    match s.as_str() {
+                        "genomic_accession" => {
+                            ::hgvs_weaver::data::IdentifierType::GenomicAccession
+                        }
+                        "transcript_accession" => {
+                            ::hgvs_weaver::data::IdentifierType::TranscriptAccession
+                        }
+                        "protein_accession" => {
+                            ::hgvs_weaver::data::IdentifierType::ProteinAccession
+                        }
+                        "gene_symbol" => ::hgvs_weaver::data::IdentifierType::GeneSymbol,
+                        _ => ::hgvs_weaver::data::IdentifierType::Unknown,
+                    }
+                } else if let Ok(py_it) = type_any.extract::<PyIdentifierType>() {
+                    py_it.into()
+                } else {
+                    ::hgvs_weaver::data::IdentifierType::Unknown
+                };
+                result.push((it, ac));
+            }
+            Ok(result)
+        })
+    }
+
+    fn get_identifier_type(
+        &self,
+        identifier: &str,
+    ) -> Result<::hgvs_weaver::data::IdentifierType, HgvsError> {
+        Python::attach(|py| {
+            let res = self
+                .provider
+                .bind(py)
+                .call_method1("get_identifier_type", (identifier,))
                 .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
-            res.extract::<Vec<String>>().map_err(|e| HgvsError::DataProviderError(e.to_string()))
+
+            // Try to extract as String first (for backward compatibility or simpler mocks)
+            if let Ok(s) = res.extract::<String>() {
+                return Ok(match s.as_str() {
+                    "genomic_accession" => ::hgvs_weaver::data::IdentifierType::GenomicAccession,
+                    "transcript_accession" => {
+                        ::hgvs_weaver::data::IdentifierType::TranscriptAccession
+                    }
+                    "protein_accession" => ::hgvs_weaver::data::IdentifierType::ProteinAccession,
+                    "gene_symbol" => ::hgvs_weaver::data::IdentifierType::GeneSymbol,
+                    _ => ::hgvs_weaver::data::IdentifierType::Unknown,
+                });
+            }
+
+            // Otherwise try to extract as the enum type
+            let py_it: PyIdentifierType = res.extract::<PyIdentifierType>().map_err(|e| {
+                HgvsError::DataProviderError(format!("Failed to extract IdentifierType: {}", e))
+            })?;
+            Ok(py_it.into())
+        })
+    }
+
+    fn c_to_g(
+        &self,
+        transcript_ac: &str,
+        pos: ::hgvs_weaver::structs::TranscriptPos,
+        offset: ::hgvs_weaver::structs::IntronicOffset,
+    ) -> Result<(String, ::hgvs_weaver::structs::GenomicPos), HgvsError> {
+        Python::attach(|py| {
+            let res = self
+                .provider
+                .bind(py)
+                .call_method1("c_to_g", (transcript_ac, pos.0, offset.0))
+                .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
+            let (ac, g_pos): (String, i32) = res
+                .extract::<(String, i32)>()
+                .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
+            Ok((ac, ::hgvs_weaver::structs::GenomicPos(g_pos)))
         })
     }
 }
@@ -203,11 +422,20 @@ pub struct PyTranscriptSearchBridge {
 }
 
 impl TranscriptSearch for PyTranscriptSearchBridge {
-    fn get_transcripts_for_region(&self, chrom: &str, start: i32, end: i32) -> Result<Vec<String>, HgvsError> {
+    fn get_transcripts_for_region(
+        &self,
+        chrom: &str,
+        start: i32,
+        end: i32,
+    ) -> Result<Vec<String>, HgvsError> {
         Python::attach(|py| {
-            let res = self.searcher.bind(py).call_method1("get_transcripts_for_region", (chrom, start, end))
+            let res = self
+                .searcher
+                .bind(py)
+                .call_method1("get_transcripts_for_region", (chrom, start, end))
                 .map_err(|e| HgvsError::DataProviderError(e.to_string()))?;
-            res.extract::<Vec<String>>().map_err(|e| HgvsError::DataProviderError(e.to_string()))
+            res.extract::<Vec<String>>()
+                .map_err(|e| HgvsError::DataProviderError(e.to_string()))
         })
     }
 }
@@ -219,6 +447,7 @@ pub struct PyVariantMapper {
     pub bridge: std::sync::Arc<PyDataProviderBridge>,
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyVariantMapper {
     #[new]
@@ -228,53 +457,115 @@ impl PyVariantMapper {
             bridge: std::sync::Arc::new(PyDataProviderBridge { provider }),
         }
     }
-
     #[pyo3(signature = (var_g, transcript_ac))]
     #[doc = "Maps a genomic variant (g.) to a coding cDNA variant (c.) for a specific transcript.\n\nArgs:\n    var_g: The genomic Variant to map.\n    transcript_ac: The accession of the target transcript.\n\nReturns:\n    A new Variant object in 'c.' coordinates."]
-    fn g_to_c(&self, _py: Python, var_g: &PyVariant, transcript_ac: &str) -> PyResult<PyVariant> {
+    fn g_to_c(&self, _py: Python, var_g: &PyVariant, transcript_ac: String) -> PyResult<PyVariant> {
         if let SequenceVariant::Genomic(v) = &var_g.inner {
             let mapper = VariantMapper::new(self.bridge.as_ref());
-            let res = mapper.g_to_c(v, transcript_ac).map_err(|e: HgvsError| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            Ok(PyVariant { inner: SequenceVariant::Coding(res) })
+            let res = mapper.g_to_c(v, &transcript_ac).map_err(map_hgvs_error)?;
+            Ok(PyVariant {
+                inner: SequenceVariant::Coding(res),
+            })
         } else {
-            Err(pyo3::exceptions::PyValueError::new_err("Expected a genomic variant (g.)"))
+            Err(pyo3::exceptions::PyValueError::new_err(
+                "Expected a genomic variant (g.)",
+            ))
         }
     }
 
     #[pyo3(signature = (var_g, searcher))]
     #[doc = "Maps a genomic variant (g.) to all overlapping transcripts discovered via the searcher.\n\nArgs:\n    var_g: The genomic Variant to map.\n    searcher: An object implementing the TranscriptSearch protocol.\n\nReturns:\n    A list of Variant objects in 'c.' coordinates."]
-    fn g_to_c_all(&self, _py: Python, var_g: &PyVariant, searcher: Py<PyAny>) -> PyResult<Vec<PyVariant>> {
+    fn g_to_c_all(
+        &self,
+        _py: Python,
+        var_g: &PyVariant,
+        searcher: Py<PyAny>,
+    ) -> PyResult<Vec<PyVariant>> {
         if let SequenceVariant::Genomic(v) = &var_g.inner {
             let mapper = VariantMapper::new(self.bridge.as_ref());
-            let bridge = PyTranscriptSearchBridge { searcher };
-            let res = mapper.g_to_c_all(v, &bridge).map_err(|e: HgvsError| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            Ok(res.into_iter().map(|inner| PyVariant { inner: SequenceVariant::Coding(inner) }).collect())
+            let bridge_searcher = PyTranscriptSearchBridge { searcher };
+            let res = mapper
+                .g_to_c_all(v, &bridge_searcher)
+                .map_err(map_hgvs_error)?;
+            Ok(res
+                .into_iter()
+                .map(|v| PyVariant {
+                    inner: SequenceVariant::Coding(v),
+                })
+                .collect())
         } else {
-            Err(pyo3::exceptions::PyValueError::new_err("Expected a genomic variant (g.)"))
+            Err(pyo3::exceptions::PyValueError::new_err(
+                "Expected a genomic variant (g.)",
+            ))
         }
     }
 
-    #[pyo3(signature = (var_c, reference_ac))]
-    #[doc = "Maps a coding cDNA variant (c.) to a genomic variant (g.) on a specific reference.\n\nArgs:\n    var_c: The coding Variant to map.\n    reference_ac: The accession of the target genomic reference.\n\nReturns:\n    A new Variant object in 'g.' coordinates."]
-    fn c_to_g(&self, _py: Python, var_c: &PyVariant, reference_ac: &str) -> PyResult<PyVariant> {
+    #[pyo3(signature = (var_c, reference_ac = None))]
+    #[doc = "Maps a coding cDNA variant (c.) to a genomic variant (g.).\n\nArgs:\n    var_c: The coding Variant to map.\n    reference_ac: Optional chromosomal accession. If not provided, the primary chromosome for the transcript will be used.\n\nReturns:\n    A new Variant object in 'g.' coordinates."]
+    fn c_to_g(
+        &self,
+        _py: Python,
+        var_c: &PyVariant,
+        reference_ac: Option<String>,
+    ) -> PyResult<PyVariant> {
         if let SequenceVariant::Coding(v) = &var_c.inner {
             let mapper = VariantMapper::new(self.bridge.as_ref());
-            let res = mapper.c_to_g(v, reference_ac).map_err(|e: HgvsError| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            Ok(PyVariant { inner: SequenceVariant::Genomic(res) })
+            let res = mapper
+                .c_to_g(v, reference_ac.as_deref())
+                .map_err(map_hgvs_error)?;
+            Ok(PyVariant {
+                inner: SequenceVariant::Genomic(res),
+            })
         } else {
-            Err(pyo3::exceptions::PyValueError::new_err("Expected a coding variant (c.)"))
+            Err(pyo3::exceptions::PyValueError::new_err(
+                "Expected a coding variant (c.)",
+            ))
+        }
+    }
+
+    #[pyo3(signature = (var_n, reference_ac = None))]
+    #[doc = "Maps a non-coding cDNA variant (n.) to a genomic variant (g.).\n\nArgs:\n    var_n: The non-coding Variant to map.\n    reference_ac: Optional chromosomal accession.\n\nReturns:\n    A new Variant object in 'g.' coordinates."]
+    fn n_to_g(
+        &self,
+        _py: Python,
+        var_n: &PyVariant,
+        reference_ac: Option<String>,
+    ) -> PyResult<PyVariant> {
+        if let SequenceVariant::NonCoding(v) = &var_n.inner {
+            let mapper = VariantMapper::new(self.bridge.as_ref());
+            let res = mapper
+                .n_to_g(v, reference_ac.as_deref())
+                .map_err(map_hgvs_error)?;
+            Ok(PyVariant {
+                inner: SequenceVariant::Genomic(res),
+            })
+        } else {
+            Err(pyo3::exceptions::PyValueError::new_err(
+                "Expected a non-coding variant (n.)",
+            ))
         }
     }
 
     #[pyo3(signature = (var_c, protein_ac=None))]
     #[doc = "Projects a coding cDNA variant (c.) to its protein consequence (p.).\n\nArgs:\n    var_c: The coding Variant to project.\n    protein_ac: Optional protein accession. If not provided, it will be retrieved from the DataProvider.\n\nReturns:\n    A new Variant object in 'p.' coordinates."]
-    fn c_to_p(&self, _py: Python, var_c: &PyVariant, protein_ac: Option<&str>) -> PyResult<PyVariant> {
+    fn c_to_p(
+        &self,
+        _py: Python,
+        var_c: &PyVariant,
+        protein_ac: Option<String>,
+    ) -> PyResult<PyVariant> {
         if let SequenceVariant::Coding(v) = &var_c.inner {
             let mapper = VariantMapper::new(self.bridge.as_ref());
-            let res = mapper.c_to_p(v, protein_ac).map_err(|e: HgvsError| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            Ok(PyVariant { inner: SequenceVariant::Protein(res) })
+            let res = mapper
+                .c_to_p(v, protein_ac.as_deref())
+                .map_err(map_hgvs_error)?;
+            Ok(PyVariant {
+                inner: SequenceVariant::Protein(res),
+            })
         } else {
-            Err(pyo3::exceptions::PyValueError::new_err("Expected a coding variant (c.)"))
+            Err(pyo3::exceptions::PyValueError::new_err(
+                "Expected a coding variant (c.)",
+            ))
         }
     }
 
@@ -282,9 +573,45 @@ impl PyVariantMapper {
     #[doc = "Normalizes a variant by shifting it to its 3'-most position.\n\nNormalization is performed in the coordinate space of the input variant.\n\nArgs:\n    var: The Variant object to normalize.\n\nReturns:\n    A new normalized Variant object."]
     fn normalize_variant(&self, _py: Python, var: &PyVariant) -> PyResult<PyVariant> {
         let mapper = VariantMapper::new(self.bridge.as_ref());
-        let res = mapper.normalize_variant(var.inner.clone())
-            .map_err(|e: HgvsError| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        let res = mapper
+            .normalize_variant(var.inner.clone())
+            .map_err(map_hgvs_error)?;
         Ok(PyVariant { inner: res })
+    }
+
+    #[pyo3(signature = (var1, var2, searcher))]
+    #[doc = "Determines if two variants are biologically equivalent.\n\nHandles normalization, cross-coordinate mapping (g. vs c.), and gene symbol expansion.\n\nArgs:\n    var1: The first Variant object.\n    var2: The second Variant object.\n    searcher: An object implementing the TranscriptSearch protocol.\n\nReturns:\n    True if the variants are equivalent, False otherwise."]
+    fn equivalent(
+        &self,
+        _py: Python,
+        var1: &PyVariant,
+        var2: &PyVariant,
+        searcher: Py<PyAny>,
+    ) -> PyResult<bool> {
+        let bridge_searcher = PyTranscriptSearchBridge { searcher };
+        let equiv = ::hgvs_weaver::equivalence::VariantEquivalence::new(
+            self.bridge.as_ref(),
+            &bridge_searcher,
+        );
+        equiv
+            .equivalent(&var1.inner, &var2.inner)
+            .map_err(map_hgvs_error)
+    }
+
+    #[pyo3(signature = (var, unambiguous = false))]
+    #[doc = "Converts a variant to a SPDI string format.\n\nArgs:\n    var: The Variant object to convert.\n    unambiguous: If True, expands the variant range to cover the entire ambiguous region of a repeat or homopolymer. Default is False."]
+    fn to_spdi(&self, _py: Python, var: &PyVariant, unambiguous: bool) -> PyResult<String> {
+        let mapper = VariantMapper::new(self.bridge.as_ref());
+        mapper
+            .to_spdi(&var.inner, unambiguous)
+            .map_err(map_hgvs_error)
+    }
+
+    #[pyo3(signature = (var))]
+    #[doc = "Converts a variant to an unambiguous SPDI string format.\n\nThis format is independent of specific shifting conventions (like 3' or 5' shifting)\nby expanding the variant range to cover the entire ambiguous region of a repeat or homopolymer."]
+    fn to_spdi_unambiguous(&self, _py: Python, var: &PyVariant) -> PyResult<String> {
+        let mapper = VariantMapper::new(self.bridge.as_ref());
+        mapper.to_spdi(&var.inner, true).map_err(map_hgvs_error)
     }
 }
 
@@ -293,6 +620,11 @@ fn _weaver(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse, m)?)?;
     m.add_class::<PyVariant>()?;
     m.add_class::<PyVariantMapper>()?;
+    m.add_class::<PyIdentifierType>()?;
+    m.add(
+        "TranscriptMismatchError",
+        m.py().get_type::<TranscriptMismatchError>(),
+    )?;
     Ok(())
 }
 
