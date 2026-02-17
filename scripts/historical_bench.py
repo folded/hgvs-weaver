@@ -1,3 +1,4 @@
+import argparse
 import csv
 import json
 import os
@@ -7,8 +8,6 @@ import sys
 from pathlib import Path
 from typing import TypedDict
 
-# Commits to benchmark (approx 12 selected from 42)
-
 
 class Stats(TypedDict, total=False):
     total: int
@@ -17,24 +16,36 @@ class Stats(TypedDict, total=False):
     p_perc: float
     spdi_perc: float
     commit: str
+    date: str
+    message: str
 
 
-COMMITS = [
-    "08f9ef2",
-    "8ed0107",
-    "59292bd",
-    "b9f618f",
-    "1d04b5c",
-    "8e92cf2",
-    "4b164cc",
-    "028489c",
-    "b6888ea",
-    "070cb95",
-    "a551cff",
-    "01372cc",
-    "204362e",
-    "e225ee6",
-]
+def get_relevant_commits(
+    count: int = 10,
+    since: str | None = None,
+    branch: str = "HEAD",
+    paths: list[str] | None = None,
+) -> list[dict[str, str]]:
+    """Fetches relevant commits using git log."""
+    cmd = ["git", "log", "--oneline", "--format=%h|%as|%s", f"-n{count}"]
+    if since:
+        cmd.append(f"{since}..{branch}")
+    else:
+        cmd.append(branch)
+
+    if paths:
+        cmd.append("--")
+        cmd.extend(paths)
+
+    res = run(cmd, capture_output=True)
+    commits = []
+    for line in res.stdout.strip().split("\n"):
+        if not line:
+            continue
+        h, d, m = line.split("|", 2)
+        commits.append({"hash": h, "date": d, "message": m})
+    return commits
+
 
 REPO_ROOT = Path(__file__).parent.parent.resolve()
 WORKTREE_DIR = REPO_ROOT.parent / "hgvs-rs-bench-tmp"
@@ -52,12 +63,20 @@ DATA_FILES = [
 
 def run(
     cmd: list[str],
-    cwd: Path = REPO_ROOT,
+    cwd: Path | None = None,
     check: bool = True,
     env: dict[str, str] | None = None,
+    capture_output: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     print(f"Running: {' '.join(cmd)}")
-    res = subprocess.run(cmd, check=False, capture_output=True, text=True, cwd=cwd, env=env)  # noqa: S603
+    res = subprocess.run(
+        cmd,
+        check=False,
+        capture_output=capture_output,
+        text=True,
+        cwd=cwd or REPO_ROOT,
+        env=env,
+    )  # noqa: S603
     if check and res.returncode != 0:
         print(f"ERROR: Command failed with code {res.returncode}")
         print(f"STDOUT: {res.stdout}")
@@ -184,13 +203,53 @@ def analyze(results_file: Path | None) -> Stats | None:
 
 
 def main() -> None:
-    history: list[Stats] = []
+    parser = argparse.ArgumentParser(description="Benchmark historical commits.")
+    parser.add_argument("--count", type=int, default=10, help="Number of commits to benchmark")
+    parser.add_argument("--since", help="Commit hash to start from (exclusive)")
+    parser.add_argument("--branch", default="HEAD", help="Branch to benchmark")
+    parser.add_argument("--max-variants", type=int, default=100000, help="Max variants to benchmark")
+    parser.add_argument(
+        "--paths",
+        nargs="+",
+        default=["weaver/", "hgvs-weaver/", "Cargo.toml", "pyproject.toml"],
+        help="Paths to filter commits by",
+    )
+    args = parser.parse_args()
+
+    commits = get_relevant_commits(
+        count=args.count,
+        since=args.since,
+        branch=args.branch,
+        paths=args.paths,
+    )
+
+    history_file = RESULTS_DIR / "history.json"
+    history: dict[str, Stats] = {}
+    if history_file.exists():
+        with open(history_file, encoding="utf-8") as f:
+            try:
+                raw_history = json.load(f)
+                # Convert list to dict if needed (backward compatibility)
+                if isinstance(raw_history, list):
+                    history = {s["commit"]: s for s in raw_history if "commit" in s}
+                else:
+                    history = raw_history
+            except json.JSONDecodeError:
+                print("Warning: history.json is corrupted, starting fresh.")
+
     try:
         setup_worktree()
         link_data(WORKTREE_DIR)
 
-        for i, commit in enumerate(COMMITS):
-            print(f"\n=== Benchmark {i + 1}/{len(COMMITS)}: {commit} ===")
+        for i, commit_info in enumerate(commits):
+            commit = commit_info["hash"]
+            print(f"\n=== Benchmark {i + 1}/{len(commits)}: {commit} ({commit_info['date']}) ===")
+            print(f"Message: {commit_info['message']}")
+
+            if commit in history and history[commit].get("total", 0) >= args.max_variants:
+                print(f"Skipping {commit}, already benchmarked.")
+                continue
+
             run(["git", "checkout", commit], cwd=WORKTREE_DIR)
 
             try:
@@ -199,17 +258,20 @@ def main() -> None:
                 print(f"Skipping {commit} due to build failure.")
                 continue
 
-            # Always use 100k set
-            count = 100000
-            res_file = validate(WORKTREE_DIR, commit, max_variants=count)
+            res_file = validate(WORKTREE_DIR, commit, max_variants=args.max_variants)
             stats = analyze(res_file)
             if stats:
                 stats["commit"] = commit
-                history.append(stats)
-                print(f"Result: P={stats['p_perc']:.2f}%, SPDI={stats['spdi_perc']:.2f}%")
+                stats["date"] = commit_info["date"]
+                stats["message"] = commit_info["message"]
+                history[commit] = stats
+                print(f"Result: P={stats['p_perc']:.2f}%, SPDI={stats['spdi_match'] / stats['total'] * 100:.2f}%")
 
-            with open(RESULTS_DIR / "history.json", "w") as f:
-                json.dump(history, f, indent=2)
+            # Save after each commit
+            with open(history_file, "w", encoding="utf-8") as f:
+                # Save as sorted list by date
+                sorted_history = sorted(history.values(), key=lambda x: x.get("date", ""), reverse=True)
+                json.dump(sorted_history, f, indent=2)
 
     finally:
         if WORKTREE_DIR.exists():
