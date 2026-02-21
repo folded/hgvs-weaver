@@ -53,7 +53,7 @@ fn test_spec_summary_variants() {
 #[test]
 fn test_spec_summary_variants_normalized() {
     let variants = vec![
-        ("NP_003997.1:p.W24*", "NP_003997.1:p.W24Ter"),
+        ("NP_003997.1:p.W24*", "NP_003997.1:p.Trp24Ter"),
         ("NP_003997.1:p.(Trp24Cys)", "NP_003997.1:p.(Trp24Cys)"),
         (
             "NP_0123456.1:p.Arg97ProfsTer23",

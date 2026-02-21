@@ -85,9 +85,11 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
         v_rs_raw = weaver.parse(nuc_hgvs)
         if not _rs_mapper:
             row["rs_p"] = row["rs_spdi"] = "ERR:MapperNotInit"
+            row["equivalence_level"] = "ERR:MapperNotInit"
             return row
 
         v_rs = _rs_mapper.normalize_variant(v_rs_raw)
+        v_p = None
         try:
             if v_rs.coordinate_type == "c":
                 v_p = _rs_mapper.c_to_p(v_rs)
@@ -103,10 +105,29 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
             rs_spdi = f"ERR:TranscriptMismatch:{e!s}"
         except Exception as e:
             rs_spdi = f"ERR:{e!s}"
+
+        # Equivalence Check
+        equiv_level = "Unknown"
+        gt_p_str = row.get("variant_prot", "")
+        if v_p and gt_p_str and gt_p_str != "ERR" and not gt_p_str.startswith("ERR"):
+            try:
+                # normalize ground truth string if needed (e.g. remove parens if parse fails?
+                # actually weaver.parse handles standard HGVS well)
+                # Ensure accession is present if missing from string but known?
+                # ClinVar string usually has accession.
+                v_gt = weaver.parse(gt_p_str)
+                lvl = _rs_mapper.equivalent_level(v_p, v_gt, _rp)
+                equiv_level = str(lvl).split(".")[-1]
+            except Exception as e:
+                equiv_level = f"ERR:{e!s}"
+        row["equivalence_level"] = equiv_level
+
     except Exception as e:
         rs_p = rs_spdi = f"ERR:{e!s}"
+        row["equivalence_level"] = f"ERR:{e!s}"
     except BaseException:  # Catch absolutely everything including panics
         rs_p = rs_spdi = "PANIC"
+        row["equivalence_level"] = "PANIC"
 
     # ref-hgvs block
     try:
@@ -152,7 +173,7 @@ def main() -> None:
 
     with open(args.input_file) as f_in:
         reader = csv.DictReader(f_in, delimiter="\t")
-        fieldnames = [*(reader.fieldnames or []), "rs_p", "rs_spdi", "ref_p", "ref_spdi"]
+        fieldnames = [*(reader.fieldnames or []), "rs_p", "rs_spdi", "ref_p", "ref_spdi", "equivalence_level"]
         rows: list[dict[str, str]] = (
             [next(reader) for _ in range(args.max_variants)] if args.max_variants else list(reader)
         )

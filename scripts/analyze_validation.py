@@ -1,5 +1,14 @@
 import csv
+import json
 import sys
+from pathlib import Path
+
+# Add repo root to sys.path to find weaver
+REPO_ROOT = Path(__file__).parent.parent.resolve()
+sys.path.append(str(REPO_ROOT))
+
+import weaver
+from weaver.cli import provider
 
 
 def normalize_p(p_str: str | None) -> str:
@@ -14,62 +23,97 @@ def normalize_p(p_str: str | None) -> str:
     return p_str.replace("Ter", "*")
 
 
-def analyze(filepath: str) -> None:
+def analyze(filepath: str, gff: str = "GRCh38_latest_genomic.gff.gz", fasta: str = "GRCh38_latest_genomic.fna") -> None:
+    print(f"Loading provider from {gff} and {fasta}...")
+    rp = provider.RefSeqDataProvider(gff, fasta)
+    mapper = weaver.VariantMapper(rp)
+
     total = 0
-    weaver_p_matches = 0
-    weaver_spdi_matches = 0
-    ref_p_matches = 0
-    ref_spdi_matches = 0
-    weaver_mismatch_ref_match = 0
-    ref_mismatch_weaver_match = 0
+    # Weaver counters
+    w_identity = 0
+    w_analogous = 0
+
+    # Ref counters
+    ref_identity = 0
+    ref_analogous = 0
 
     with open(filepath, newline="") as f:
         reader = csv.DictReader(f, delimiter="\t")
         for row in reader:
             total += 1
-            gt_p = normalize_p(row["variant_prot"])
-            rs_p = normalize_p(row["rs_p"])
-            ref_p = normalize_p(row["ref_p"])
+            gt_p_str = row["variant_prot"]
+            rs_p_str = row["rs_p"]
+            ref_p_str = row["ref_p"]
 
-            rs_match = rs_p == gt_p
-            ref_match = ref_p == gt_p
+            gt_p_norm = normalize_p(gt_p_str)
+            rs_p_norm = normalize_p(rs_p_str)
+            ref_p_norm = normalize_p(ref_p_str)
 
-            if rs_match:
-                weaver_p_matches += 1
-            if ref_match:
-                ref_p_matches += 1
+            # Weaver Check
+            if rs_p_norm == gt_p_norm:
+                w_identity += 1
+            elif rs_p_str and not rs_p_str.startswith("ERR") and gt_p_str and not gt_p_str.startswith("ERR"):
+                try:
+                    ac_p = gt_p_str.split(":")[0] if ":" in gt_p_str else row["variant_nuc"].split(":")[0]
+                    v_rs_str = rs_p_str if ":" in rs_p_str else f"{ac_p}:{rs_p_str}"
+                    v_rs = weaver.parse(v_rs_str)
+                    v_gt = weaver.parse(gt_p_str)
+                    if mapper.equivalent(v_rs, v_gt, rp):
+                        w_analogous += 1
+                except Exception:
+                    pass
 
-            if ref_match and not rs_match:
-                weaver_mismatch_ref_match += 1
-            if rs_match and not ref_match:
-                ref_mismatch_weaver_match += 1
-
-            # SPDI match
-            gt_spdi = row["spdi"]
-            rs_spdi = row["rs_spdi"]
-            ref_spdi = row["ref_spdi"]
-
-            if rs_spdi == gt_spdi:
-                weaver_spdi_matches += 1
-            if ref_spdi == gt_spdi:
-                ref_spdi_matches += 1
+            # Ref Check
+            if ref_p_norm == gt_p_norm:
+                ref_identity += 1
+            elif ref_p_str and not ref_p_str.startswith("ERR") and gt_p_str and not gt_p_str.startswith("ERR"):
+                try:
+                    ac_p = gt_p_str.split(":")[0] if ":" in gt_p_str else row["variant_nuc"].split(":")[0]
+                    v_ref_str = ref_p_str if ":" in ref_p_str else f"{ac_p}:{ref_p_str}"
+                    v_ref = weaver.parse(v_ref_str)
+                    v_gt = weaver.parse(gt_p_str)
+                    if mapper.equivalent(v_ref, v_gt, rp):
+                        ref_analogous += 1
+                except Exception:
+                    pass
 
     if total == 0:
         print("No variants processed.")
         return
 
     print(f"Total variants: {total}")
-    print(f"weaver Protein Match: {weaver_p_matches / total:.2%}")
-    print(f"weaver SPDI Match: {weaver_spdi_matches / total:.2%}")
-    print(f"ref-hgvs Protein Match: {ref_p_matches / total:.2%}")
-    print(f"ref-hgvs SPDI Match: {ref_spdi_matches / total:.2%}")
-    print(f"Weaver Mismatch but Ref Match Count: {weaver_mismatch_ref_match}")
-    print(f"Ref Mismatch but Weaver Match Count: {ref_mismatch_weaver_match}")
+    print("-" * 30)
+    print("Weaver Performance:")
+    print(f"  Identity:  {w_identity} ({w_identity / total:.2%})")
+    print(f"  Analogous: {w_analogous} ({w_analogous / total:.2%})")
+    print(f"  Total:     {w_identity + w_analogous} ({(w_identity + w_analogous) / total:.2%})")
+
+    print("-" * 30)
+    print("Ref-HGVS Performance:")
+    print(f"  Identity:  {ref_identity} ({ref_identity / total:.2%})")
+    print(f"  Analogous: {ref_analogous} ({ref_analogous / total:.2%})")
+    print(f"  Total:     {ref_identity + ref_analogous} ({(ref_identity + ref_analogous) / total:.2%})")
+
+    # Output JSON for history update
+    stats = {
+        "total": total,
+        "w_identity": w_identity,
+        "w_analogous": w_analogous,
+        "ref_identity": ref_identity,
+        "ref_analogous": ref_analogous,
+    }
+
+    with open("current_stats.json", "w", encoding="utf-8") as f:
+        json.dump(stats, f, indent=2)
 
 
 if __name__ == "__main__":
-    min_args = 2
-    if len(sys.argv) < min_args:
-        print("Usage: python analyze_validation.py <results_file>")
+    if len(sys.argv) < 2:
+        print("Usage: python analyze_validation.py <results_file> [gff] [fasta]")
         sys.exit(1)
-    analyze(sys.argv[1])
+
+    results_file = sys.argv[1]
+    gff = sys.argv[2] if len(sys.argv) > 2 else "GRCh38_latest_genomic.gff.gz"
+    fasta = sys.argv[3] if len(sys.argv) > 3 else "GRCh38_latest_genomic.fna"
+
+    analyze(results_file, gff, fasta)

@@ -1,6 +1,7 @@
 from typing import Protocol, TypedDict
 
 from ._weaver import (
+    EquivalenceLevel,
     IdentifierType,
     TranscriptMismatchError,
     Variant,
@@ -10,6 +11,7 @@ from ._weaver import (
 
 __all__ = [
     "DataProvider",
+    "EquivalenceLevel",
     "ExonData",
     "IdentifierType",
     "TranscriptData",

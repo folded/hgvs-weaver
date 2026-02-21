@@ -51,27 +51,69 @@ def get_current_version() -> str:
 def generate_svg(data_points: list[dict]):
     # Prepare data for plotting
     df = pd.DataFrame(data_points)
-    df_melted = df.melt(id_vars=["version"], value_vars=["p", "spdi"], var_name="Metric", value_name="Match %")
-
-    # Rename metrics for better legend
-    df_melted["Metric"] = df_melted["Metric"].map({"p": "Protein Match %", "spdi": "SPDI Match %"})
 
     # Set style
     sns.set_theme(style="whitegrid", context="talk")
-    plt.figure(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(12, 6))
 
-    # Create plot
-    palette = {"Protein Match %": "#3498db", "SPDI Match %": "#2ecc71"}
-    ax = sns.lineplot(data=df_melted, x="version", y="Match %", hue="Metric", marker="o", palette=palette, linewidth=3)
+    # Standardize data: Identity and Analogous as percentages
+    df["Identity %"] = (df["identity"] / df["total"]) * 100
+    df["Analogous %"] = (df["analogous"] / df["total"]) * 100
+
+    versions = df["version"].unique()
+    tools = ["Weaver", "Ref-HGVS"]
+
+    x = range(len(versions))
+    width = 0.35  # width of bars
+
+    # Colors
+    # Blue for Weaver, Green for Ref
+    colors = {
+        ("Weaver", "Identity"): "#3498db",
+        ("Weaver", "Analogous"): "#85c1e9",
+        ("Ref-HGVS", "Identity"): "#27ae60",
+        ("Ref-HGVS", "Analogous"): "#7dcea0",
+    }
+
+    for i, tool in enumerate(tools):
+        tool_key = "w" if tool == "Weaver" else "ref"
+        tool_df = df[df["tool"] == tool]
+
+        # Calculate offsets for grouped bars
+        offset = (i - 0.5) * width
+
+        # Identity bar
+        rects1 = ax.bar(
+            [pos + offset for pos in x],
+            tool_df["Identity %"],
+            width,
+            label=f"{tool} Identity",
+            color=colors[(tool, "Identity")],
+            edgecolor="white",
+        )
+
+        # Analogous bar (stacked)
+        bottom = tool_df["Identity %"].values
+        rects2 = ax.bar(
+            [pos + offset for pos in x],
+            tool_df["Analogous %"],
+            width,
+            bottom=bottom,
+            label=f"{tool} Analogous",
+            color=colors[(tool, "Analogous")],
+            edgecolor="white",
+        )
 
     # Customize labels and title
-    plt.title("Performance Trend (100k Variants)", fontsize=16, pad=20)
-    plt.xlabel("Version", fontsize=14)
+    plt.title("Protein Projection Performance (100k ClinVar Variants)", fontsize=18, pad=20)
+    plt.xlabel("Release", fontsize=14)
     plt.ylabel("Match %", fontsize=14)
-    plt.ylim(80, 100)
+    plt.ylim(85, 100)  # Zoom in on the high performance range
+    plt.xticks(x, versions)
 
-    # Adjust legend
-    plt.legend(title=None, bbox_to_anchor=(1.05, 1), loc="upper left")
+    # Legend cleanup (avoid repeats if needed, but here labels are unique)
+    plt.legend(title=None, bbox_to_anchor=(1.02, 1), loc="upper left", borderaxespad=0.0)
+
     plt.tight_layout()
 
     # Save to SVG string
@@ -109,8 +151,27 @@ def update_readme():
 
         if version and version not in seen_versions:
             seen_versions.add(version)
+
+            # Add Weaver data point
             data_points.append(
-                {"version": version, "p": round(entry["p_perc"], 2), "spdi": round(entry["spdi_perc"], 2)}
+                {
+                    "version": version,
+                    "tool": "Weaver",
+                    "identity": entry.get("w_identity", entry.get("p_match", 0)),
+                    "analogous": entry.get("w_analogous", 0),
+                    "total": entry["total"],
+                }
+            )
+
+            # Add Ref data point
+            data_points.append(
+                {
+                    "version": version,
+                    "tool": "Ref-HGVS",
+                    "identity": entry.get("ref_identity", 0),
+                    "analogous": entry.get("ref_analogous", 0),
+                    "total": entry["total"],
+                }
             )
 
     data_points.reverse()

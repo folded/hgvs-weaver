@@ -1,14 +1,18 @@
 [package]
 name = "hgvs-weaver-py"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 
 [lib]
 name = "_weaver" # This will be the name of the python module
 crate-type = ["cdylib", "rlib"]
 
+[features]
+extension-module = ["pyo3/extension-module"]
+default = ["extension-module"]
+
 [dependencies]
-pyo3 = { version = "0.27.1", features = ["extension-module", "generate-import-lib"] }
+pyo3 = { version = "0.27.1", features = ["generate-import-lib"] }
 pyo3-stub-gen = "0.17.1"
 hgvs-weaver = { path = "./hgvs-weaver" }
 serde_json = "1.0"

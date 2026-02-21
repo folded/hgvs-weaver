@@ -1,42 +1,52 @@
 [
   {
     "total": 100000,
-    "p_match": 93826,
-    "spdi_match": 97968,
-    "p_perc": 93.826,
-    "spdi_perc": 97.968,
+    "w_identity": 93849,
+    "w_analogous": 4923,
+    "ref_identity": 93337,
+    "ref_analogous": 4875,
+    "commit": "f0a94a7",
+    "date": "2026-02-21",
+    "message": "Bump version to 0.3.0"
+  },
+  {
+    "total": 100000,
     "commit": "b9b5c8b",
     "date": "2026-02-17",
-    "message": "feat: implement are_equivalent functionality (#1)"
+    "message": "feat: implement are_equivalent functionality (#1)",
+    "w_identity": 93826,
+    "w_analogous": 4882,
+    "ref_identity": 93337,
+    "ref_analogous": 4875
   },
   {
     "total": 100000,
-    "p_match": 86724,
-    "spdi_match": 92522,
-    "p_perc": 86.724,
-    "spdi_perc": 92.522,
     "commit": "7e801fc",
     "date": "2026-02-01",
-    "message": "Bump version to 0.1.1 and add crates.io metadata."
+    "message": "Bump version to 0.1.1 and add crates.io metadata.",
+    "w_identity": 86724,
+    "w_analogous": 8212,
+    "ref_identity": 84557,
+    "ref_analogous": 4694
   },
   {
     "total": 100000,
-    "p_match": 86724,
-    "spdi_match": 92522,
-    "p_perc": 86.724,
-    "spdi_perc": 92.522,
     "commit": "126697a",
     "date": "2026-02-01",
-    "message": "replace logo svg"
+    "message": "replace logo svg",
+    "w_identity": 86724,
+    "w_analogous": 8212,
+    "ref_identity": 84557,
+    "ref_analogous": 4694
   },
   {
     "total": 100000,
-    "p_match": 86724,
-    "spdi_match": 92522,
-    "p_perc": 86.724,
-    "spdi_perc": 92.522,
     "commit": "bfc8291",
     "date": "2026-02-01",
-    "message": "Initial release of weaver v0.1.0"
+    "message": "Initial release of weaver v0.1.0",
+    "w_identity": 86724,
+    "w_analogous": 8212,
+    "ref_identity": 84557,
+    "ref_analogous": 4694
   }
 ]

@@ -30,8 +30,8 @@ fn map_hgvs_error(e: HgvsError) -> PyErr {
 }
 
 #[gen_stub_pyclass_enum]
-#[pyclass(name = "IdentifierType")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[pyclass(name = "IdentifierType", module = "weaver._weaver")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PyIdentifierType {
     GenomicAccession,
     TranscriptAccession,
@@ -76,8 +76,61 @@ impl From<::hgvs_weaver::data::IdentifierType> for PyIdentifierType {
     }
 }
 
+#[gen_stub_pymethods]
+#[pymethods]
+impl PyIdentifierType {
+    fn __repr__(&self) -> String {
+        format!("IdentifierType.{:?}", self)
+    }
+    fn __eq__(&self, other: &Self) -> bool {
+        self == other
+    }
+    fn __hash__(&self) -> u64 {
+        let mut s = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(self, &mut s);
+        std::hash::Hasher::finish(&s)
+    }
+}
+
+#[gen_stub_pyclass_enum]
+#[pyclass(name = "EquivalenceLevel", module = "weaver._weaver")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PyEquivalenceLevel {
+    Identity,
+    Analogous,
+    Different,
+    Unknown,
+}
+
+impl From<::hgvs_weaver::equivalence::EquivalenceLevel> for PyEquivalenceLevel {
+    fn from(el: ::hgvs_weaver::equivalence::EquivalenceLevel) -> Self {
+        match el {
+            ::hgvs_weaver::equivalence::EquivalenceLevel::Identity => Self::Identity,
+            ::hgvs_weaver::equivalence::EquivalenceLevel::Analogous => Self::Analogous,
+            ::hgvs_weaver::equivalence::EquivalenceLevel::Different => Self::Different,
+            ::hgvs_weaver::equivalence::EquivalenceLevel::Unknown => Self::Unknown,
+        }
+    }
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl PyEquivalenceLevel {
+    fn __repr__(&self) -> String {
+        format!("EquivalenceLevel.{:?}", self)
+    }
+    fn __eq__(&self, other: &Self) -> bool {
+        self == other
+    }
+    fn __hash__(&self) -> u64 {
+        let mut s = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(self, &mut s);
+        std::hash::Hasher::finish(&s)
+    }
+}
+
 #[gen_stub_pyclass]
-#[pyclass(name = "Variant")]
+#[pyclass(name = "Variant", module = "weaver._weaver")]
 #[doc = "Represents a parsed HGVS variant.\n\nProvides access to the variant's accession, gene symbol, and coordinate type.\nVariants can be formatted back to HGVS strings or converted to JSON/dict representations."]
 #[derive(Clone)]
 pub struct PyVariant {
@@ -441,7 +494,7 @@ impl TranscriptSearch for PyTranscriptSearchBridge {
 }
 
 #[gen_stub_pyclass]
-#[pyclass(name = "VariantMapper")]
+#[pyclass(name = "VariantMapper", module = "weaver._weaver")]
 #[doc = "High-level variant mapping engine.\n\nCoordinates mapping between different reference sequences (e.g., g. to c.)\nand projects cDNA variants onto protein sequences (c. to p.).\nRequires a DataProvider to retrieve transcript and sequence information."]
 pub struct PyVariantMapper {
     pub bridge: std::sync::Arc<PyDataProviderBridge>,
@@ -598,6 +651,26 @@ impl PyVariantMapper {
             .map_err(map_hgvs_error)
     }
 
+    #[pyo3(signature = (var1, var2, searcher))]
+    #[doc = "Determines the granular equivalence level of two variants.\n\nArgs:\n    var1: The first Variant object.\n    var2: The second Variant object.\n    searcher: An object implementing the TranscriptSearch protocol.\n\nReturns:\n    An EquivalenceLevel enum value."]
+    fn equivalent_level(
+        &self,
+        _py: Python,
+        var1: &PyVariant,
+        var2: &PyVariant,
+        searcher: Py<PyAny>,
+    ) -> PyResult<PyEquivalenceLevel> {
+        let bridge_searcher = PyTranscriptSearchBridge { searcher };
+        let equiv = ::hgvs_weaver::equivalence::VariantEquivalence::new(
+            self.bridge.as_ref(),
+            &bridge_searcher,
+        );
+        let res = equiv
+            .equivalent_level(&var1.inner, &var2.inner)
+            .map_err(map_hgvs_error)?;
+        Ok(res.into())
+    }
+
     #[pyo3(signature = (var, unambiguous = false))]
     #[doc = "Converts a variant to a SPDI string format.\n\nArgs:\n    var: The Variant object to convert.\n    unambiguous: If True, expands the variant range to cover the entire ambiguous region of a repeat or homopolymer. Default is False."]
     fn to_spdi(&self, _py: Python, var: &PyVariant, unambiguous: bool) -> PyResult<String> {
@@ -621,6 +694,7 @@ fn _weaver(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyVariant>()?;
     m.add_class::<PyVariantMapper>()?;
     m.add_class::<PyIdentifierType>()?;
+    m.add_class::<PyEquivalenceLevel>()?;
     m.add(
         "TranscriptMismatchError",
         m.py().get_type::<TranscriptMismatchError>(),

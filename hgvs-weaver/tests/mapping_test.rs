@@ -142,7 +142,7 @@ fn test_mapper_c_to_g_3utr() {
 
     let var_c = parse_hgvs_variant("NM_0001.3:c.*1A>T").unwrap();
     if let SequenceVariant::Coding(v) = var_c {
-        let var_g = mapper.c_to_g(&v, "NC_0001.10").unwrap();
+        let var_g = mapper.c_to_g(&v, Some("NC_0001.10")).unwrap();
         assert_eq!(var_g.to_string(), "NC_0001.10:g.1052A>T");
     }
 }
