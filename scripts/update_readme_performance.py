@@ -7,14 +7,15 @@
 # ]
 # ///
 
+import io
 import json
 import re
 import subprocess
-import io
 from pathlib import Path
+
+import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-import matplotlib.pyplot as plt
 
 REPO_ROOT = Path(__file__).parent.parent.resolve()
 HISTORY_FILE = REPO_ROOT / "benchmark_results" / "history.json"
@@ -48,7 +49,7 @@ def get_current_version() -> str:
     return match.group(1) if match else "unknown"
 
 
-def generate_svg(data_points: list[dict], mode="light"):
+def generate_svg(data_points: list[dict], mode: str = "light") -> str:
     # Prepare data for plotting
     df = pd.DataFrame(data_points)
 
@@ -72,7 +73,7 @@ def generate_svg(data_points: list[dict], mode="light"):
     else:
         sns.set_theme(style="whitegrid", context="talk")
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    _fig, ax = plt.subplots(figsize=(12, 6))
 
     # Standardize data: Identity and Analogous as percentages
     df["Identity %"] = (df["identity"] / df["total"]) * 100
@@ -108,7 +109,7 @@ def generate_svg(data_points: list[dict], mode="light"):
         offset = (i - 0.5) * width
 
         # Identity bar
-        rects1 = ax.bar(
+        _rects1 = ax.bar(
             [pos + offset for pos in x],
             tool_df["Identity %"],
             width,
@@ -119,7 +120,7 @@ def generate_svg(data_points: list[dict], mode="light"):
 
         # Analogous bar (stacked)
         bottom = tool_df["Identity %"].values
-        rects2 = ax.bar(
+        _rects2 = ax.bar(
             [pos + offset for pos in x],
             tool_df["Analogous %"],
             width,
@@ -148,13 +149,11 @@ def generate_svg(data_points: list[dict], mode="light"):
     plt.savefig(img_data, format="svg", bbox_inches="tight", transparent=True)
     plt.close()
 
-    svg_str = img_data.getvalue()
-    # Strip everything before <svg
-    svg_str = svg_str[svg_str.find("<svg") :]
-    return svg_str
+    svg_val = img_data.getvalue()
+    return svg_val[svg_val.find("<svg") :]
 
 
-def update_readme():
+def update_readme() -> None:
     if not HISTORY_FILE.exists():
         print(f"Error: {HISTORY_FILE} not found.")
         return
@@ -172,9 +171,8 @@ def update_readme():
         commit = entry["commit"][:7]
         version = tags.get(commit)
 
-        if not version and entry == history[0]:
-            if current_version not in tags.values():
-                version = f"{current_version} (dev)"
+        if not version and entry == history[0] and current_version not in tags.values():
+            version = f"{current_version} (dev)"
 
         if version and version not in seen_versions:
             seen_versions.add(version)
@@ -187,7 +185,7 @@ def update_readme():
                     "identity": entry.get("w_identity", entry.get("p_match", 0)),
                     "analogous": entry.get("w_analogous", 0),
                     "total": entry["total"],
-                }
+                },
             )
 
             # Add Ref data point
@@ -198,7 +196,7 @@ def update_readme():
                     "identity": entry.get("ref_identity", 0),
                     "analogous": entry.get("ref_analogous", 0),
                     "total": entry["total"],
-                }
+                },
             )
 
     data_points.reverse()
@@ -220,7 +218,7 @@ def update_readme():
     start_marker = "<!-- PERFORMANCE_GRAPH_START -->"
     end_marker = "<!-- PERFORMANCE_GRAPH_END -->"
 
-    svg_tag = f"""
+    svg_tag = """
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="benchmark_results/performance_dark.svg">

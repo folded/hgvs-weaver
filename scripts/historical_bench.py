@@ -69,14 +69,14 @@ def run(
     capture_output: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     print(f"Running: {' '.join(cmd)}")
-    res = subprocess.run(
+    res = subprocess.run(  # noqa: S603
         cmd,
         check=False,
         capture_output=capture_output,
         text=True,
         cwd=cwd or REPO_ROOT,
         env=env,
-    )  # noqa: S603
+    )
     if check and res.returncode != 0:
         print(f"ERROR: Command failed with code {res.returncode}")
         print(f"STDOUT: {res.stdout}")
@@ -202,7 +202,7 @@ def analyze(results_file: Path | None) -> Stats | None:
     return stats
 
 
-def main() -> None:
+def main() -> None:  # noqa: PLR0915
     parser = argparse.ArgumentParser(description="Benchmark historical commits.")
     parser.add_argument("--count", type=int, default=10, help="Number of commits to benchmark")
     parser.add_argument("--since", help="Commit hash to start from (exclusive)")
