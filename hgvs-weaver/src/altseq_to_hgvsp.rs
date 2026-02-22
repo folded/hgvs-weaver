@@ -40,8 +40,44 @@ impl<'a> AltSeqToHgvsp<'a> {
         }
 
         if self.alt_data.is_frameshift {
-            let ref_curr = aa1_to_aa3(ref_chars.get(start_idx).cloned().unwrap_or('*')).to_string();
-            let alt_curr = aa1_to_aa3(alt_chars.get(start_idx).cloned().unwrap_or('*')).to_string();
+            let ref_curr_char = ref_chars.get(start_idx).cloned().unwrap_or('*');
+            let alt_curr_char = alt_chars.get(start_idx).cloned().unwrap_or('*');
+
+            // --- NORMALIZATION FIX: Immediate stop after frameshift ---
+            // If the first affected position in the alt sequence is a stop codon,
+            // HGVS recommends reporting as a simple substitution (nonsense or synonymous)
+            // instead of a redundant frameshift (e.g., p.Ter1= instead of p.Ter1fsTer1).
+            if alt_curr_char == '*' {
+                let ref_curr = aa1_to_aa3(ref_curr_char).to_string();
+                if ref_curr_char == '*' {
+                    // Synonymous at stop
+                    return self.create_variant(
+                        ProteinPos(start_idx as i32),
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        false,
+                        true,
+                    );
+                } else {
+                    // Nonsense
+                    return self.create_variant(
+                        ProteinPos(start_idx as i32),
+                        None,
+                        Some(ref_curr),
+                        Some("Ter".to_string()),
+                        None,
+                        None,
+                        false,
+                        false,
+                    );
+                }
+            }
+
+            let ref_curr = aa1_to_aa3(ref_curr_char).to_string();
+            let alt_curr = aa1_to_aa3(alt_curr_char).to_string();
 
             // Find first stop in alt_aa starting from start_idx
             let mut stop_idx = None;

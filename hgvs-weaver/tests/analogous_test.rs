@@ -728,3 +728,99 @@ fn test_multi_unit_repeat_equivalence() -> Result<(), hgvs_weaver::error::HgvsEr
 
     Ok(())
 }
+
+#[test]
+fn test_immediate_stop_normalization() -> Result<(), hgvs_weaver::error::HgvsError> {
+    use hgvs_weaver::data::{DataProvider, IdentifierKind, IdentifierType, Transcript};
+    use hgvs_weaver::mapper::VariantMapper;
+    use hgvs_weaver::structs::{CVariant, TranscriptPos};
+
+    struct MockFsProvider;
+    impl DataProvider for MockFsProvider {
+        fn get_transcript(
+            &self,
+            _ac: &str,
+            _ref: Option<&str>,
+        ) -> Result<Box<dyn Transcript>, hgvs_weaver::error::HgvsError> {
+            use hgvs_weaver::data::ExonData;
+            #[derive(Clone)]
+            struct MockTranscript;
+            impl Transcript for MockTranscript {
+                fn ac(&self) -> &str {
+                    "NM_1.1"
+                }
+                fn gene(&self) -> &str {
+                    "TEST"
+                }
+                fn cds_start_index(&self) -> Option<TranscriptPos> {
+                    Some(TranscriptPos(0))
+                }
+                fn cds_end_index(&self) -> Option<TranscriptPos> {
+                    Some(TranscriptPos(6))
+                }
+                fn strand(&self) -> i32 {
+                    1
+                }
+                fn reference_accession(&self) -> &str {
+                    "NC_1.1"
+                }
+                fn exons(&self) -> &[ExonData] {
+                    &[]
+                }
+            }
+            Ok(Box::new(MockTranscript))
+        }
+        fn get_seq(
+            &self,
+            _ac: &str,
+            _start: i32,
+            _end: i32,
+            _kind: IdentifierType,
+        ) -> Result<String, hgvs_weaver::error::HgvsError> {
+            // AAA (Lys) GGG (Gly)
+            Ok("AAAGGG".to_string())
+        }
+        fn get_symbol_accessions(
+            &self,
+            _symbol: &str,
+            _source: IdentifierKind,
+            _target: IdentifierKind,
+        ) -> Result<Vec<(IdentifierType, String)>, hgvs_weaver::error::HgvsError> {
+            Ok(vec![(
+                IdentifierType::ProteinAccession,
+                "NP_1.1".to_string(),
+            )])
+        }
+        fn get_identifier_type(
+            &self,
+            _ac: &str,
+        ) -> Result<IdentifierType, hgvs_weaver::error::HgvsError> {
+            Ok(IdentifierType::TranscriptAccession)
+        }
+        fn c_to_g(
+            &self,
+            _: &str,
+            _: TranscriptPos,
+            _: hgvs_weaver::structs::IntronicOffset,
+        ) -> Result<(String, hgvs_weaver::structs::GenomicPos), hgvs_weaver::error::HgvsError>
+        {
+            Ok(("NC_1.1".into(), hgvs_weaver::structs::GenomicPos(0)))
+        }
+    }
+
+    let hdp = MockFsProvider;
+    let mapper = VariantMapper::new(&hdp);
+
+    // c.1_2delinsTA -> TAG (Stop) instead of ATG (Met)
+    let var_c = hgvs_weaver::parse_hgvs_variant("NM_1.1:c.1_2delinsTA")?;
+    if let hgvs_weaver::coords::SequenceVariant::Coding(c) = var_c {
+        let var_p = mapper.c_to_p(&c, None)?;
+        let p_str = format!("{}", var_p);
+        // Should be p.Lys1Ter (nonsense) not p.Lys1fsTer1
+        assert_eq!(p_str, "NP_1.1:p.(Lys1Ter)");
+    } else {
+        panic!("Not a coding variant");
+    }
+
+    Ok(())
+}
