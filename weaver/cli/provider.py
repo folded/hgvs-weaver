@@ -156,6 +156,8 @@ class RefSeqDataProvider:
         self._load_gff()
         self.fasta = SequenceProxy(fasta_path)
 
+        self._transcript_cache: dict[tuple[str, str], str] = {}
+
     def _load_gff(self) -> None:
         """Parses the GFF file into internal transcript models."""
         logger.info("Loading RefSeq GFF from %s into memory...", self.gff_path)
@@ -377,23 +379,39 @@ class RefSeqDataProvider:
             logger.error("Error fetching genomic seq for %s: %s", ac, e)
             return ""
 
-    def _get_tx_seq(self, tx_ac: str, ref_ac: str, start: int, end: int, force_plus: bool = False) -> str:
-        """Builds a transcript sequence from genomic exons."""
+    def _get_full_tx_seq(self, tx_ac: str, ref_ac: str) -> str:
+        """Builds and caches the full transcript sequence (respecting strand)."""
         tx = self.transcripts.get((tx_ac, ref_ac))
         if not tx:
             return ""
         seq_parts = []
-        exons = tx["exons"]
-        if force_plus:
-            # Sort by genomic coordinate ascending
-            exons = sorted(exons, key=lambda x: x["reference_start"])
-
-        for exon in exons:
+        # Exons are already ordered 5' -> 3' in tx["exons"]
+        for exon in tx["exons"]:
             s = self.fasta.fetch(tx["reference_accession"], exon["reference_start"], exon["reference_end"] + 1)
-            if not force_plus and tx["strand"] == -1:
+            if tx["strand"] == -1:
                 s = self.reverse_complement(s)
             seq_parts.append(s)
-        full_seq = "".join(seq_parts)
+        return "".join(seq_parts)
+
+    def _get_full_tx_seq_cached(self, tx_ac: str, ref_ac: str) -> str:
+        try:
+            return self._transcript_cache[(tx_ac, ref_ac)]
+        except KeyError:
+            self._transcript_cache[(tx_ac, ref_ac)] = self._get_full_tx_seq(tx_ac, ref_ac)
+            return self._transcript_cache[(tx_ac, ref_ac)]
+
+    def _get_tx_seq(self, tx_ac: str, ref_ac: str, start: int, end: int, force_plus: bool = False) -> str:
+        """Builds a transcript sequence from genomic exons with optional transformations."""
+        tx = self.transcripts.get((tx_ac, ref_ac))
+        if not tx:
+            return ""
+
+        full_seq = self._get_full_tx_seq_cached(tx_ac, ref_ac)
+
+        if force_plus and tx["strand"] == -1:
+            # reverse_complement(natural_seq) gives genomic-plus orientation
+            full_seq = self.reverse_complement(full_seq)
+
         if end == -1 or end is None:
             return full_seq[start:]
         return full_seq[start:end]
