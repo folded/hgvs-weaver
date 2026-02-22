@@ -75,47 +75,45 @@ Before comparison, each variant is checked to see if it uses a gene symbol (e.g.
 
 Code: [hgvs-weaver/src/equivalence.rs](../../hgvs-weaver/src/equivalence.rs)
 
-#### Genomic vs. Genomic (`n_vs_n_equivalent`)
+The system now supports granular equivalence levels:
 
-1. **3'-Most Normalization**: Both variants are shifted to their most 3' position using `VariantMapper::normalize_variant`.
-    - *Note*: As of version 0.1.1, the shifter correctly handles insertion coordinates by treating them as 0-length intervals, ensuring consistent behavior with duplications.
-2. **Implicit Sequence Filling**: If a variant specifies a deletion or duplication by length (e.g., `c.10del`), the reference sequence at that position is retrieved and filled in (e.g., `c.10delT`) via `fill_implicit_sequence`.
-3. **Insertion to Duplication Conversion**: If an insertion (`ins`) matches the reference sequence immediately preceding it, it is converted to a duplication (`dup`) via `normalize_ins_to_dup`. This logic is implemented for Genomic (`g.`), Coding (`c.`), and NonCoding (`n.`) variants, ensuring that `c.35_36insT` and `c.35dup` (where 35 is T) are recognized as equivalent.
-4. **Formatting Normalization**: The final variant strings are processed by `normalize_format` to remove artifacts like parentheses for uncertain variants before direct string comparison.
+### HGVS Variant Equivalence Examples
 
-#### Coding vs. Coding (`n_vs_n_equivalent_c`)
+| Equivalence Level | Comparison Type | Scenario Description      | Example Variant A | Example Variant B       | Notes                                                                                                       |
+| :---------------- | :-------------- | :------------------------ | :---------------- | :---------------------- | :---------------------------------------------------------------------------------------------------------- |
+| **`Identity`**    | `c.` vs `c.`    | **Exact Match**           | `c.123A>G`        | `c.123A>G`              | Strings match after basic normalization.                                                                    |
+|                   | `g.` vs `c.`    | **Transcript Location**   | `g.5000A>G`       | `c.123A>G`              | `g.` variant projects exactly to the `c.` variant on the transcript.                                        |
+|                   | `c.` vs `p.`    | **Predicted Consequence** | `c.123A>G`        | `p.(Glu41Gly)`          | The *predicted* protein consequence of `c.` matches `p.` exactly (including parentheses).                   |
+| **`Analogous`**   | `c.` vs `c.`    | **Repeat Shifting**       | `c.4_6del`        | `c.10_12del`            | Deleting first vs third repeat unit results in identical transcript sequence.                               |
+|                   | `p.` vs `p.`    | **Insertion Offset**      | `p.Tyr165Ter`     | `p.Ala164_Tyr165insTer` | Different descriptions of the same truncation event.                                                        |
+|                   | `c.` vs `p.`    | **Observed vs Predicted** | `c.123A>G`        | `p.Glu41Gly`            | `c.` predicts `p.(Glu41Gly)`; matches observed `p.Glu41Gly` biologically (ignoring prediction brackets).    |
+|                   | `g.` vs `g.`    | **Indel Redundancy**      | `g.10_11insA`     | `g.10dup`               | Insertion of `A` after `A` is biologically identical to duplicating `A`.                                    |
+| **`Different`**   | `c.` vs `c.`    | **Distinct Edits**        | `c.123A>G`        | `c.123A>T`              | Different nucleotide substitutions.                                                                         |
+|                   | `c.` vs `p.`    | **Effect Mismatch**       | `c.123A>G`        | `p.Glu41Val`            | `c.` predicts `p.Glu41Gly`, but `p.` is `Val`.                                                              |
+|                   | `c.` vs `p.`    | **Normalization Clash**   | `c.4_6del`        | `p.Gln4del`             | *Known Issue:* Weaver generates `p.Gln4Ter` (Substitution) instead of `p.Gln4del` (Deletion) for this case. |
+| **`Unknown`**     | `c.` vs `?`     | **Missing Data**          | `c.123A>G`        | `p.?`                   | Transcript or protein sequence unavailable for projection.                                                  |
 
-1. Both `c.` variants are mapped to genomic coordinates (`c_to_g`) using their respective transcript references.
-2. The resulting `g.` variants are compared using the **Genomic vs. Genomic** strategy.
+#### Genomic vs. Genomic / Coding vs. Coding / NonCoding vs. NonCoding
 
-#### Genomic vs. Coding (`g_vs_c_equivalent`)
+1. **3'-Most Normalization**: Variants are shifted to their most 3' position.
+2. **Strand-Aware Projection**:
+   - Variants are projected onto a local sequence window (`±2` bases).
+   - **Crucial**: If the variant is on the minus strand, edits (like `insA` or `T>C`) are reverse-complemented before projection onto the genomic reference. This ensures that `c.35_36insT` (minus strand) defines an insertion of `T` on the *transcript*, which corresponds to an insertion of `A` on the *genome*, correctly matching `g.dupA` if the reference is `A`.
+3. **Implicit Sequence Filling**: Deletions/Duplications by length are filled with reference sequence.
+4. **Unification**: The projected sequences are compared using `analogous_edit::reconcile_projections`.
 
-1. The `c.` variant is mapped to `g.` coordinates *on the reference sequence of the genomic variant*.
-2. The resulting `g.` variants are compared.
+#### Protein vs. Protein (`p_vs_p_equivalent`)
 
-#### NonCoding vs. NonCoding (`n_vs_n_equivalent_n`)
+1. **Residue Unification**:
+   - Amino acids are parsed into `ResidueToken`s (e.g., `Known(Ala)`, `Unknown(Xaa, 1)`).
+   - Variants are projected onto a window around the edit.
+   - Using `UnificationEnv`, ambiguous tokens (`?`, `Xaa`) are unified with specific residues if a consistent mapping exists (e.g., `Xaa` can become `Ala`).
+2. **Sequence Identity Check**:
+   - Checks if the final protein sequences are identical.
+   - Handles localized redundancy (e.g., `Ala2_Ala3dup` vs `Ala3_Ala4dup` in a poly-Ala tract).
 
-1. Both `n.` variants are mapped to genomic coordinates (`n_to_g`) using their respective transcript references.
-2. The resulting `g.` variants are compared using the **Genomic vs. Genomic** strategy.
+#### Cross-Coordinate Comparisons (g. vs c., c. vs p., etc.)
 
-#### Genomic vs. NonCoding (`g_vs_n_equivalent`)
-
-1. The `n.` variant is mapped to `g.` coordinates on the genomic variant's reference.
-2. The resulting `g.` variants are compared.
-
-#### Coding vs. NonCoding (`c_vs_n_equivalent`)
-
-1. Both variants are mapped to genomic coordinates (`c_to_g` and `n_to_g`) using their common reference sequence.
-2. The resulting `g.` variants are compared.
-
-#### Genomic vs. Protein (`g_vs_p_equivalent`)
-
-1. The `g.` variant is mapped to **all** overlapping transcripts (`g_to_c_all` via `TranscriptSearch`).
-2. For each discovered `c.` variant, it is projected to protein (`c_to_p`).
-3. The projected `p.` variant is compared to the target `p.` variant.
-4. If *any* path results in a match, the variants are equivalent.
-
-#### Coding vs. Protein (`c_vs_p_equivalent`)
-
-1. The `c.` variant is projected to protein (`c_to_p`) using the accession of the target `p.` variant.
-2. The projected `p.` string is compared to the target `p.` string.
+1. **Mapping**: Variants are mapped to a common coordinate system (usually Genomic for NA, Protein for AA).
+2. **Projection**: Once mapped, the standard comparison logic (Projection + Unification) is applied.
+3. **Transcript Mismatch**: If a `c.` variant implies a transcript sequence that differs from the reference (e.g., `insA` where Ref is `G`), it is flagged as `Different` unless the user explicitly allows mismatches (though `weaver` defaults to strict checks).

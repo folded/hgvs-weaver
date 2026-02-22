@@ -173,7 +173,7 @@ impl IntervalSpdi for BaseOffsetInterval {
         let g_end = if let Some(e) = &self.end {
             data_provider.c_to_g(ac, e.base.to_index(), e.offset.unwrap_or(IntronicOffset(0)))?
         } else {
-            (g_start.0.clone(), GenomicPos(g_start.1 .0 + 1))
+            g_start.clone()
         };
 
         if g_start.0 != g_end.0 {
@@ -181,8 +181,10 @@ impl IntervalSpdi for BaseOffsetInterval {
                 "Interval spans multiple genomic accessions".into(),
             ));
         }
+        let s = g_start.1 .0.min(g_end.1 .0);
+        let e = g_start.1 .0.max(g_end.1 .0) + 1;
 
-        Ok((g_start.1 .0, g_end.1 .0, g_start.0))
+        Ok((s, e, g_start.0))
     }
 }
 

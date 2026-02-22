@@ -7,14 +7,15 @@
 # ]
 # ///
 
+import io
 import json
 import re
 import subprocess
-import io
 from pathlib import Path
+
+import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-import matplotlib.pyplot as plt
 
 REPO_ROOT = Path(__file__).parent.parent.resolve()
 HISTORY_FILE = REPO_ROOT / "benchmark_results" / "history.json"
@@ -23,7 +24,7 @@ PYPROJECT_FILE = REPO_ROOT / "pyproject.toml"
 
 
 def run(cmd: list[str]) -> str:
-    return subprocess.check_output(cmd, text=True, cwd=REPO_ROOT).strip()
+    return subprocess.check_output(cmd, text=True, cwd=REPO_ROOT, shell=False).strip()  # noqa: S603
 
 
 def get_tags() -> dict[str, str]:
@@ -48,44 +49,111 @@ def get_current_version() -> str:
     return match.group(1) if match else "unknown"
 
 
-def generate_svg(data_points: list[dict]):
+def generate_svg(data_points: list[dict], mode: str = "light") -> str:
     # Prepare data for plotting
-    df = pd.DataFrame(data_points)
-    df_melted = df.melt(id_vars=["version"], value_vars=["p", "spdi"], var_name="Metric", value_name="Match %")
+    results_df = pd.DataFrame(data_points)
 
-    # Rename metrics for better legend
-    df_melted["Metric"] = df_melted["Metric"].map({"p": "Protein Match %", "spdi": "SPDI Match %"})
+    # Set style based on mode
+    if mode == "dark":
+        # GitHub dark mode colors: bg=#0d1117, grid=#30363d
+        sns.set_theme(
+            style="darkgrid",
+            context="talk",
+            rc={
+                "axes.facecolor": "#0d1117",
+                "figure.facecolor": "#0d1117",
+                "text.color": "#e6edf3",
+                "axes.labelcolor": "#e6edf3",
+                "xtick.color": "#e6edf3",
+                "ytick.color": "#e6edf3",
+                "grid.color": "#30363d",
+                "patch.edgecolor": "#30363d",
+            },
+        )
+    else:
+        sns.set_theme(style="whitegrid", context="talk")
 
-    # Set style
-    sns.set_theme(style="whitegrid", context="talk")
-    plt.figure(figsize=(10, 5))
+    _fig, ax = plt.subplots(figsize=(12, 6))
 
-    # Create plot
-    palette = {"Protein Match %": "#3498db", "SPDI Match %": "#2ecc71"}
-    ax = sns.lineplot(data=df_melted, x="version", y="Match %", hue="Metric", marker="o", palette=palette, linewidth=3)
+    # Standardize data: Identity and Analogous as percentages
+    results_df["Identity %"] = (results_df["identity"] / results_df["total"]) * 100
+    results_df["Analogous %"] = (results_df["analogous"] / results_df["total"]) * 100
+
+    versions = results_df["version"].unique()
+    tools = ["Weaver", "Ref-HGVS"]
+
+    x = range(len(versions))
+    width = 0.35  # width of bars
+
+    # Colors
+    # Blue for Weaver, Green for Ref
+    if mode == "dark":
+        colors = {
+            ("Weaver", "Identity"): "#2980b9",
+            ("Weaver", "Analogous"): "#5dade2",
+            ("Ref-HGVS", "Identity"): "#27ae60",
+            ("Ref-HGVS", "Analogous"): "#52be80",
+        }
+    else:
+        colors = {
+            ("Weaver", "Identity"): "#3498db",
+            ("Weaver", "Analogous"): "#85c1e9",
+            ("Ref-HGVS", "Identity"): "#27ae60",
+            ("Ref-HGVS", "Analogous"): "#7dcea0",
+        }
+
+    for i, tool in enumerate(tools):
+        tool_df = results_df[results_df["tool"] == tool]
+
+        # Calculate offsets for grouped bars
+        offset = (i - 0.5) * width
+
+        # Identity bar
+        _rects1 = ax.bar(
+            [pos + offset for pos in x],
+            tool_df["Identity %"],
+            width,
+            label=f"{tool} Identity",
+            color=colors[(tool, "Identity")],
+            edgecolor="#ffffff" if mode == "light" else "#0d1117",
+        )
+
+        # Analogous bar (stacked)
+        bottom = tool_df["Identity %"].values
+        _rects2 = ax.bar(
+            [pos + offset for pos in x],
+            tool_df["Analogous %"],
+            width,
+            bottom=bottom,
+            label=f"{tool} Analogous",
+            color=colors[(tool, "Analogous")],
+            edgecolor="#ffffff" if mode == "light" else "#0d1117",
+        )
 
     # Customize labels and title
-    plt.title("Performance Trend (100k Variants)", fontsize=16, pad=20)
-    plt.xlabel("Version", fontsize=14)
+    plt.title("Protein Projection Performance (100k ClinVar Variants)", fontsize=18, pad=20)
+    plt.xlabel("Release", fontsize=14)
     plt.ylabel("Match %", fontsize=14)
-    plt.ylim(80, 100)
+    plt.ylim(85, 100)  # Zoom in on the high performance range
+    plt.xticks(x, versions)
 
-    # Adjust legend
-    plt.legend(title=None, bbox_to_anchor=(1.05, 1), loc="upper left")
+    # Legend cleanup
+    legend = plt.legend(title=None, bbox_to_anchor=(1.02, 1), loc="upper left", borderaxespad=0.0)
+    if mode == "dark":
+        plt.setp(legend.get_texts(), color="#e6edf3")
+
     plt.tight_layout()
 
     # Save to SVG string
     img_data = io.StringIO()
-    plt.savefig(img_data, format="svg", bbox_inches="tight")
+    plt.savefig(img_data, format="svg", bbox_inches="tight", transparent=True)
     plt.close()
 
-    svg_str = img_data.getvalue()
-    # Strip everything before <svg
-    svg_str = svg_str[svg_str.find("<svg") :]
-    return svg_str
+    svg_val = img_data.getvalue()
+    return svg_val[svg_val.find("<svg") :]
 
 
-def update_readme():
+def update_readme() -> None:
     if not HISTORY_FILE.exists():
         print(f"Error: {HISTORY_FILE} not found.")
         return
@@ -103,14 +171,32 @@ def update_readme():
         commit = entry["commit"][:7]
         version = tags.get(commit)
 
-        if not version and entry == history[0]:
-            if current_version not in tags.values():
-                version = f"{current_version} (dev)"
+        if not version and entry == history[0] and current_version not in tags.values():
+            version = f"{current_version} (dev)"
 
         if version and version not in seen_versions:
             seen_versions.add(version)
+
+            # Add Weaver data point
             data_points.append(
-                {"version": version, "p": round(entry["p_perc"], 2), "spdi": round(entry["spdi_perc"], 2)}
+                {
+                    "version": version,
+                    "tool": "Weaver",
+                    "identity": entry.get("w_identity", entry.get("p_match", 0)),
+                    "analogous": entry.get("w_analogous", 0),
+                    "total": entry["total"],
+                },
+            )
+
+            # Add Ref data point
+            data_points.append(
+                {
+                    "version": version,
+                    "tool": "Ref-HGVS",
+                    "identity": entry.get("ref_identity", 0),
+                    "analogous": entry.get("ref_analogous", 0),
+                    "total": entry["total"],
+                },
             )
 
     data_points.reverse()
@@ -119,20 +205,36 @@ def update_readme():
         print("No valid data points found for graph.")
         return
 
-    svg_content = generate_svg(data_points)
+    # Generate light and dark versions
+    svg_light = generate_svg(data_points, mode="light")
+    svg_dark = generate_svg(data_points, mode="dark")
 
-    # Inject into README
+    # Save to files
+    (REPO_ROOT / "benchmark_results" / "performance_light.svg").write_text(svg_light)
+    (REPO_ROOT / "benchmark_results" / "performance_dark.svg").write_text(svg_dark)
+
+    # Inject into README using <picture> for theme awareness
     content = README_FILE.read_text()
     start_marker = "<!-- PERFORMANCE_GRAPH_START -->"
     end_marker = "<!-- PERFORMANCE_GRAPH_END -->"
 
+    svg_tag = """
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="benchmark_results/performance_dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="benchmark_results/performance_light.svg">
+    <img alt="Performance Graph" src="benchmark_results/performance_light.svg" width="800">
+  </picture>
+</p>
+"""
+
     pattern = re.compile(f"{start_marker}.*?{end_marker}", re.DOTALL)
-    replacement = f'{start_marker}\n\n<p align="center">\n{svg_content}\n</p>\n\n{end_marker}'
+    replacement = f"{start_marker}\n{svg_tag}\n{end_marker}"
 
     if start_marker in content and end_marker in content:
         new_content = pattern.sub(replacement, content)
         README_FILE.write_text(new_content)
-        print("README.md updated with SVG performance graph.")
+        print("README.md updated with theme-aware performance graph.")
     else:
         print("Error: Performance markers not found in README.md")
 

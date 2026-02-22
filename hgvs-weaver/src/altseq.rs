@@ -14,6 +14,8 @@ pub struct AltTranscriptData {
     pub variant_start_aa: Option<ProteinPos>,
     pub frameshift_start: Option<ProteinPos>,
     pub is_substitution: bool,
+    pub variant_start_idx: usize,
+    pub variant_end_idx: usize,
     pub is_ambiguous: bool,
     /// The original cDNA variant.
     pub c_variant: CVariant,
@@ -57,14 +59,12 @@ impl<'a> AltSeqBuilder<'a> {
         }
         // --- End validation ---
 
-        let pos = self
-            .var_c
-            .posedit
-            .pos
-            .as_ref()
-            .ok_or_else(|| HgvsError::ValidationError("Missing position".into()))?;
-        let pos_start_c_0 = pos.start.base.to_index();
-        let variant_start_aa = Some(ProteinPos(pos_start_c_0.0.max(0) / 3));
+        let cds_start_idx = self.cds_start_index.0 as usize;
+        let variant_start_aa = if start_idx >= cds_start_idx {
+            Some(ProteinPos(((start_idx - cds_start_idx) / 3) as i32))
+        } else {
+            Some(ProteinPos(0)) // 5' UTR variant
+        };
 
         let (is_substitution, is_frameshift, alt_transcript) = match &self.var_c.posedit.edit {
             NaEdit::RefAlt { ref_, alt, .. } => {
@@ -355,16 +355,7 @@ impl<'a> AltSeqBuilder<'a> {
         let net_change = alt_transcript_seq.len() as i32 - self.transcript_sequence.len() as i32;
         let cds_end_i = self.cds_end_index.0 + net_change;
 
-        let mut is_fs = is_frameshift;
-        if is_fs {
-            if let Some(v_start_aa) = variant_start_aa {
-                if let Some(c) = aa_sequence.chars().nth(v_start_aa.0 as usize) {
-                    if c == '*' {
-                        is_fs = false;
-                    }
-                }
-            }
-        }
+        let is_fs = is_frameshift;
 
         Ok(AltTranscriptData {
             transcript_sequence: alt_transcript_seq.0,
@@ -377,6 +368,8 @@ impl<'a> AltSeqBuilder<'a> {
             frameshift_start: if is_fs { variant_start_aa } else { None },
             is_substitution,
             is_ambiguous: false,
+            variant_start_idx: start_idx,
+            variant_end_idx: end_idx,
             c_variant: self.var_c.clone(),
         })
     }
@@ -429,7 +422,10 @@ impl<'a> AltSeqBuilder<'a> {
                 i as usize
             }
             Anchor::CdsEnd => {
-                let i = (self.cds_end_index.0 + base_idx_0.0) as i32;
+                let mut i = (self.cds_end_index.0 + base_idx_0.0) as i32;
+                if base_idx_0.0 >= 0 {
+                    i += 1;
+                }
                 if i < 0 {
                     return Err(HgvsError::ValidationError(format!(
                         "Position {} before transcript start",
@@ -439,6 +435,13 @@ impl<'a> AltSeqBuilder<'a> {
                 i as usize
             }
         };
+        if idx >= self.transcript_sequence.len() {
+            return Err(HgvsError::ValidationError(format!(
+                "Coordinate out of bounds: index {} is beyond transcript length {}",
+                idx,
+                self.transcript_sequence.len()
+            )));
+        }
         Ok(idx)
     }
 }

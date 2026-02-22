@@ -112,6 +112,16 @@ pub enum AaEdit {
     None,
 }
 
+impl AaEdit {
+    pub fn is_identity(&self) -> bool {
+        match self {
+            AaEdit::Identity { .. } => true,
+            AaEdit::Special { value, .. } if value == "=" => true,
+            _ => false,
+        }
+    }
+}
+
 impl NaEdit {
     /// Calculates deletion and insertion lengths for the edit.
     pub fn del_ins_lengths(&self, ilen: i32) -> Result<(i32, i32), HgvsError> {

@@ -265,7 +265,12 @@ impl fmt::Display for AAPosition {
         if self.uncertain {
             write!(f, "(")?;
         }
-        write!(f, "{}{}", self.aa, self.base.0)?;
+        let aa_normalized = if self.aa.len() == 1 {
+            aa1_to_aa3(self.aa.chars().next().unwrap())
+        } else {
+            &self.aa
+        };
+        write!(f, "{}{}", aa_normalized, self.base.0)?;
         if self.uncertain {
             write!(f, ")")?;
         }
@@ -367,8 +372,14 @@ impl fmt::Display for AaEdit {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             AaEdit::Subst { alt, .. } => {
-                let a3 = if alt == "*" { "Ter" } else { alt };
-                write!(f, "{}", a3)
+                let alt_normalized = if alt.len() == 1 {
+                    aa1_to_aa3(alt.chars().next().unwrap())
+                } else if alt == "*" {
+                    "Ter"
+                } else {
+                    alt
+                };
+                write!(f, "{}", alt_normalized)
             }
             AaEdit::Del { ref_, .. } => {
                 write!(f, "del")?;
@@ -410,22 +421,65 @@ impl fmt::Display for AaEdit {
             AaEdit::Fs {
                 alt, term, length, ..
             } => {
-                let a3 = if alt == "*" { "Ter" } else { alt };
-                if a3.is_empty() {
+                let alt_normalized = if alt.len() == 1 {
+                    aa1_to_aa3(alt.chars().next().unwrap())
+                } else if alt == "*" {
+                    "Ter"
+                } else {
+                    alt
+                };
+                if alt_normalized.is_empty() {
                     write!(f, "fs")?;
                 } else {
-                    write!(f, "{}fs{}", a3, term.as_deref().unwrap_or(""))?;
+                    let term_normalized = term.as_deref().map(|t| {
+                        if t.len() == 1 {
+                            aa1_to_aa3(t.chars().next().unwrap())
+                        } else if t == "*" {
+                            "Ter"
+                        } else {
+                            t
+                        }
+                    });
+                    write!(f, "{}fs{}", alt_normalized, term_normalized.unwrap_or(""))?;
                 }
                 if let Some(l) = length {
                     write!(f, "{}", l)?;
                 }
                 Ok(())
             }
-            AaEdit::Ext { alt, length, .. } => {
-                let a3 = if alt == "*" { "Ter" } else { alt };
-                write!(f, "ext*{}", a3)?;
+            AaEdit::Ext {
+                alt,
+                length,
+                aaterm,
+                ..
+            } => {
+                let alt_normalized = if alt.len() == 1 {
+                    aa1_to_aa3(alt.chars().next().unwrap())
+                } else {
+                    alt
+                };
+                write!(f, "{}ext", alt_normalized)?;
+                if let Some(t) = aaterm {
+                    let t_normalized = if t.len() == 1 {
+                        aa1_to_aa3(t.chars().next().unwrap())
+                    } else {
+                        t
+                    };
+                    write!(f, "{}", t_normalized)?;
+                }
                 if let Some(l) = length {
                     write!(f, "{}", l)?;
+                }
+                Ok(())
+            }
+            AaEdit::Repeat { ref_, min, max, .. } => {
+                if let Some(r) = ref_ {
+                    write!(f, "{}", r)?;
+                }
+                if min == max {
+                    write!(f, "[{}]", min)?;
+                } else {
+                    write!(f, "[{}_{}]", min, max)?;
                 }
                 Ok(())
             }

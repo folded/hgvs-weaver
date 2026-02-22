@@ -145,6 +145,7 @@ fn parse_gene_expr(pair: pest::iterators::Pair<Rule>) -> Option<String> {
 
 pub mod altseq;
 pub mod altseq_to_hgvsp;
+pub mod analogous_edit;
 pub mod cigar;
 pub mod coords;
 pub mod data;

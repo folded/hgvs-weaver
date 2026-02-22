@@ -138,7 +138,7 @@ fn test_toy_minus_strand_mapping() {
     // Test c. to g. on minus strand
     let var_c = parse_hgvs_variant("NM_MINUS.1:c.32A>C").unwrap();
     if let SequenceVariant::Coding(v) = var_c {
-        let var_g = mapper.c_to_g(&v, "NC_TOY.1").unwrap();
+        let var_g = mapper.c_to_g(&v, Some("NC_TOY.1")).unwrap();
         assert_eq!(var_g.to_string(), "NC_TOY.1:g.236T>G");
     }
 }

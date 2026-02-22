@@ -12,7 +12,7 @@ impl DataProvider for NormMockDataProvider {
         end: i32,
         _kind: hgvs_weaver::data::IdentifierType,
     ) -> Result<String, HgvsError> {
-        let mut base_seq = if ac == "NM_SHIFT_BUG" {
+        let base_seq = if ac == "NM_SHIFT_BUG" {
             "CCATTTTTTT".to_string()
         } else if ac == "NM_PREMATURE_STOP" {
             "ATGCAACAAGATGATTAA".to_string()
@@ -150,8 +150,8 @@ fn test_extension_normalization() {
     let var_c = parse_hgvs_variant("NM_0001.1:c.7T>G").unwrap();
     if let SequenceVariant::Coding(v) = var_c {
         let var_p = mapper.c_to_p(&v, Some("NP_0001.1")).unwrap();
-        // Should be ext*X
-        assert!(var_p.to_string().contains("ext*"));
+        // Should be {alt}extTer{length}
+        assert!(var_p.to_string().contains("extTer"));
     }
 }
 

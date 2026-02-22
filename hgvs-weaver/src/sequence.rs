@@ -308,9 +308,6 @@ impl<'a> Iterator for TranslateIterator<'a> {
             _ => 'X',
         };
 
-        if aa == '*' {
-            self.done = true;
-        }
         Some(aa)
     }
 }

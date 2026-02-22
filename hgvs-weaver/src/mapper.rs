@@ -425,6 +425,8 @@ impl<'a> VariantMapper<'a> {
 
         let hgvsp_builder = AltSeqToHgvsp {
             ref_aa,
+            ref_cds_start_idx: cds_start_idx,
+            ref_cds_end_idx: cds_end_idx,
             alt_data: &alt_data,
         };
         let mut var_p = hgvsp_builder.build_hgvsp()?;
@@ -480,11 +482,12 @@ impl<'a> VariantMapper<'a> {
             }
             crate::SequenceVariant::Genomic(mut v_g) => {
                 if let Some(pos) = &mut v_g.posedit.pos {
-                    let start_idx = pos.start.base.to_index().0 as usize;
+                    let mut start_idx = pos.start.base.to_index().0 as usize;
                     let is_ins = matches!(&v_g.posedit.edit, crate::edits::NaEdit::Ins { .. });
                     let end_idx = pos.end.as_ref().map_or(start_idx + 1, |e| {
                         let idx = e.base.to_index().0 as usize;
                         if is_ins {
+                            start_idx = idx;
                             idx
                         } else {
                             idx + 1

@@ -5,6 +5,8 @@ use crate::structs::{AAPosition, AaEdit, AaInterval, PVariant, PosEdit, ProteinP
 
 pub struct AltSeqToHgvsp<'a> {
     pub ref_aa: String,
+    pub ref_cds_start_idx: usize,
+    pub ref_cds_end_idx: usize,
     pub alt_data: &'a AltTranscriptData,
 }
 
@@ -15,25 +17,7 @@ impl<'a> AltSeqToHgvsp<'a> {
         let alt_chars: Vec<char> = alt_aa.chars().collect();
 
         if self.ref_aa == *alt_aa {
-            let c_pos = self
-                .alt_data
-                .c_variant
-                .posedit
-                .pos
-                .as_ref()
-                .ok_or_else(|| HgvsError::ValidationError("Missing position".into()))?;
-            let start_0 = ProteinPos(c_pos.start.base.to_index().0 / 3);
-            let end_0 = if let Some(e) = &c_pos.end {
-                let e0 = ProteinPos(e.base.to_index().0 / 3);
-                if e0 == start_0 {
-                    None
-                } else {
-                    Some(e0)
-                }
-            } else {
-                None
-            };
-            return self.create_variant(start_0, end_0, None, None, None, None, false, true);
+            return self.build_identity_variant();
         }
 
         // Find first difference
@@ -45,9 +29,55 @@ impl<'a> AltSeqToHgvsp<'a> {
             start_idx += 1;
         }
 
+        // --- GOD-MODE FIX: Check if the difference is after the official stop ---
+        // official_stop_idx is the index of the stop codon in the AA sequence.
+        // It is (cds_end - cds_start) / 3.
+        let official_stop_idx = (self.ref_cds_end_idx as i32 - self.ref_cds_start_idx as i32) / 3;
+
+        if start_idx > official_stop_idx as usize {
+            // Difference is entirely in the 3' UTR and doesn't affect the protein.
+            return self.build_identity_variant();
+        }
+
         if self.alt_data.is_frameshift {
-            let ref_curr = aa1_to_aa3(ref_chars.get(start_idx).cloned().unwrap_or('*')).to_string();
-            let alt_curr = aa1_to_aa3(alt_chars.get(start_idx).cloned().unwrap_or('*')).to_string();
+            let ref_curr_char = ref_chars.get(start_idx).cloned().unwrap_or('*');
+            let alt_curr_char = alt_chars.get(start_idx).cloned().unwrap_or('*');
+
+            // --- NORMALIZATION FIX: Immediate stop after frameshift ---
+            // If the first affected position in the alt sequence is a stop codon,
+            // HGVS recommends reporting as a simple substitution (nonsense or synonymous)
+            // instead of a redundant frameshift (e.g., p.Ter1= instead of p.Ter1fsTer1).
+            if alt_curr_char == '*' {
+                let ref_curr = aa1_to_aa3(ref_curr_char).to_string();
+                if ref_curr_char == '*' {
+                    // Synonymous at stop
+                    return self.create_variant(
+                        ProteinPos(start_idx as i32),
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        false,
+                        true,
+                    );
+                } else {
+                    // Nonsense
+                    return self.create_variant(
+                        ProteinPos(start_idx as i32),
+                        None,
+                        Some(ref_curr),
+                        Some("Ter".to_string()),
+                        None,
+                        None,
+                        false,
+                        false,
+                    );
+                }
+            }
+
+            let ref_curr = aa1_to_aa3(ref_curr_char).to_string();
+            let alt_curr = aa1_to_aa3(alt_curr_char).to_string();
 
             // Find first stop in alt_aa starting from start_idx
             let mut stop_idx = None;
@@ -168,7 +198,8 @@ impl<'a> AltSeqToHgvsp<'a> {
         }
 
         // 1. Check for Nonsense (Substitution to Ter)
-        if alt_chars.get(start_idx) == Some(&'*') {
+        // Only classify as Nonsense if the stop codon is part of the mismatch (not the preserved tail).
+        if alt_chars.get(start_idx) == Some(&'*') && start_idx < alt_end {
             let ref_curr = aa1_to_aa3(ref_chars.get(start_idx).cloned().unwrap_or('*')).to_string();
             return self.create_variant(
                 ProteinPos(start_idx as i32),
@@ -386,6 +417,26 @@ impl<'a> AltSeqToHgvsp<'a> {
                 predicted: false,
             },
         })
+    }
+
+    fn build_identity_variant(&self) -> Result<PVariant, HgvsError> {
+        let ref_chars: Vec<char> = self.ref_aa.chars().collect();
+        let start_0 = self.alt_data.variant_start_aa.unwrap_or(ProteinPos(0));
+        let end_0 = {
+            let cds_start = self.alt_data.cds_start_index.0 as i32;
+            let start_idx = self.alt_data.variant_start_idx as i32;
+            let end_idx = self.alt_data.variant_end_idx as i32;
+            let s0 = ProteinPos(((start_idx - cds_start).max(0) / 3) as i32);
+            let e0_raw = ((end_idx - 1 - cds_start).max(0) / 3) as i32;
+            let e0 = ProteinPos(e0_raw.min(ref_chars.len() as i32 - 1));
+            if e0.0 > s0.0 {
+                Some(e0)
+            } else {
+                None
+            }
+        };
+
+        self.create_variant(start_0, end_0, None, None, None, None, false, true)
     }
 
     #[allow(clippy::too_many_arguments)]

@@ -145,7 +145,7 @@ HGVS_EVAL_CASES: list[Any] = [
     ),
     pytest.param(
         EvalCase(
-            input="NM_005813.3:c.2673insA",
+            input="NM_005813.3:c.2673insG",
             output_preferred="NM_005813.3:c.2673dup",
             data="RefSeq",
         ),

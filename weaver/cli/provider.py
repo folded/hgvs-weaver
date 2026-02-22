@@ -156,6 +156,8 @@ class RefSeqDataProvider:
         self._load_gff()
         self.fasta = SequenceProxy(fasta_path)
 
+        self._transcript_cache: dict[tuple[str, str], str] = {}
+
     def _load_gff(self) -> None:
         """Parses the GFF file into internal transcript models."""
         logger.info("Loading RefSeq GFF from %s into memory...", self.gff_path)
@@ -329,15 +331,30 @@ class RefSeqDataProvider:
         """Retrieves a sequence from the provider.
         ...
         """
-        kind = str(kind)
-        if kind in {"p", "protein_accession"}:
+        kind = str(kind).lower()
+        if "proteinaccession" in kind or kind in {"p", "protein_accession"}:
             res = self.accession_map.get(ac)
             if not res:
                 return ""
             tx_ac, chrom = res
-            return self._get_tx_seq(tx_ac, chrom, start, end, force_plus=force_plus).upper()
+            tx_seq = self._get_tx_seq(tx_ac, chrom, 0, -1, force_plus=force_plus).upper()
 
-        if "transcript" in kind.lower() or kind == "c":
+            tx_info = self.transcripts.get((tx_ac, chrom))
+            if not tx_info or tx_info.get("cds_start_index") is None:
+                return ""
+
+            cds_start = tx_info["cds_start_index"]
+            cds_end = tx_info["cds_end_index"]
+
+            if cds_start is not None and cds_end is not None:
+                cds_seq = tx_seq[cds_start : cds_end + 1]
+                translated = self._translate_cds(cds_seq)
+                if end == -1 or end is None:
+                    return translated[start:]
+                return translated[start:end]
+            return ""
+
+        if "transcript" in kind.lower() or kind.lower() == "c":
             # Need to decide which reference to use if multiple exist
             refs = self.tx_to_refs.get(ac)
             if not refs:
@@ -362,23 +379,39 @@ class RefSeqDataProvider:
             logger.error("Error fetching genomic seq for %s: %s", ac, e)
             return ""
 
-    def _get_tx_seq(self, tx_ac: str, ref_ac: str, start: int, end: int, force_plus: bool = False) -> str:
-        """Builds a transcript sequence from genomic exons."""
+    def _get_full_tx_seq(self, tx_ac: str, ref_ac: str) -> str:
+        """Builds and caches the full transcript sequence (respecting strand)."""
         tx = self.transcripts.get((tx_ac, ref_ac))
         if not tx:
             return ""
         seq_parts = []
-        exons = tx["exons"]
-        if force_plus:
-            # Sort by genomic coordinate ascending
-            exons = sorted(exons, key=lambda x: x["reference_start"])
-
-        for exon in exons:
+        # Exons are already ordered 5' -> 3' in tx["exons"]
+        for exon in tx["exons"]:
             s = self.fasta.fetch(tx["reference_accession"], exon["reference_start"], exon["reference_end"] + 1)
-            if not force_plus and tx["strand"] == -1:
+            if tx["strand"] == -1:
                 s = self.reverse_complement(s)
             seq_parts.append(s)
-        full_seq = "".join(seq_parts)
+        return "".join(seq_parts)
+
+    def _get_full_tx_seq_cached(self, tx_ac: str, ref_ac: str) -> str:
+        try:
+            return self._transcript_cache[(tx_ac, ref_ac)]
+        except KeyError:
+            self._transcript_cache[(tx_ac, ref_ac)] = self._get_full_tx_seq(tx_ac, ref_ac)
+            return self._transcript_cache[(tx_ac, ref_ac)]
+
+    def _get_tx_seq(self, tx_ac: str, ref_ac: str, start: int, end: int, force_plus: bool = False) -> str:
+        """Builds a transcript sequence from genomic exons with optional transformations."""
+        tx = self.transcripts.get((tx_ac, ref_ac))
+        if not tx:
+            return ""
+
+        full_seq = self._get_full_tx_seq_cached(tx_ac, ref_ac)
+
+        if force_plus and tx["strand"] == -1:
+            # reverse_complement(natural_seq) gives genomic-plus orientation
+            full_seq = self.reverse_complement(full_seq)
+
         if end == -1 or end is None:
             return full_seq[start:]
         return full_seq[start:end]
@@ -446,6 +479,81 @@ class RefSeqDataProvider:
         """Returns the reverse complement of a sequence."""
         complement = str.maketrans("ATCGNautcgn", "TAGCNtagcgn")
         return seq.translate(complement)[::-1]
+
+    def _translate_cds(self, seq: str) -> str:
+        """Translates a CDS nucleotide sequence into an amino acid sequence (1-letter codes)."""
+        codon_table = {
+            "ATA": "I",
+            "ATC": "I",
+            "ATT": "I",
+            "ATG": "M",
+            "ACA": "T",
+            "ACC": "T",
+            "ACG": "T",
+            "ACT": "T",
+            "AAC": "N",
+            "AAT": "N",
+            "AAA": "K",
+            "AAG": "K",
+            "AGC": "S",
+            "AGT": "S",
+            "AGA": "R",
+            "AGG": "R",
+            "CTA": "L",
+            "CTC": "L",
+            "CTG": "L",
+            "CTT": "L",
+            "CCA": "P",
+            "CCC": "P",
+            "CCG": "P",
+            "CCT": "P",
+            "CAC": "H",
+            "CAT": "H",
+            "CAA": "Q",
+            "CAG": "Q",
+            "CGA": "R",
+            "CGC": "R",
+            "CGG": "R",
+            "CGT": "R",
+            "GTA": "V",
+            "GTC": "V",
+            "GTG": "V",
+            "GTT": "V",
+            "GCA": "A",
+            "GCC": "A",
+            "GCG": "A",
+            "GCT": "A",
+            "GAC": "D",
+            "GAT": "D",
+            "GAA": "E",
+            "GAG": "E",
+            "GGA": "G",
+            "GGC": "G",
+            "GGG": "G",
+            "GGT": "G",
+            "TCA": "S",
+            "TCC": "S",
+            "TCG": "S",
+            "TCT": "S",
+            "TTC": "F",
+            "TTT": "F",
+            "TTA": "L",
+            "TTG": "L",
+            "TAC": "Y",
+            "TAT": "Y",
+            "TAA": "*",
+            "TAG": "*",
+            "TGC": "C",
+            "TGT": "C",
+            "TGA": "*",
+            "TGG": "W",
+        }
+        protein = []
+        seq = seq.upper()
+        for i in range(0, len(seq) - len(seq) % 3, 3):
+            codon = seq[i : i + 3]
+            protein.append(codon_table.get(codon, "X"))
+        return "".join(protein)
 
     def c_to_g(self, transcript_ac: str, pos: int, offset: int) -> tuple[str, int]:
         """Resolves a transcript position and offset to a genomic accession and position.
