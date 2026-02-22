@@ -166,6 +166,7 @@ To rerun the validation, you need the RefSeq annotation and genomic sequence fil
    uv run weaver/cli/validate.py data/clinvar_variants_100k.tsv ...
    ```
 
+<!-- markdownlint-disable MD033 -->
 <!-- PERFORMANCE_GRAPH_START -->
 
 <p align="center">
@@ -177,6 +178,7 @@ To rerun the validation, you need the RefSeq annotation and genomic sequence fil
 </p>
 
 <!-- PERFORMANCE_GRAPH_END -->
+<!-- markdownlint-enable MD033 -->
 
 ### Validation Results (100,000 variants)
 
@@ -191,6 +193,7 @@ RefSeq Data Mismatches: 0 (0.0%)
 
 
 #### Comparison with Reference Tool
+
 As shown in the visualization above, `weaver` now consistently outperforms existing implementations in protein projection accuracy and biological equivalence.
 
 - **Variant Equivalence**: Check if two variants are biologically equivalent using advanced cross-coordinate mapping and normalization. [See Algorithm](docs/source/equivalence_logic.md).

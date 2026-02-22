@@ -1,28 +1,31 @@
 import collections
 import csv
+import gzip
+import logging
 import os
 import re
 import sys
 import typing
 
 import weaver
+from weaver.cli.provider import RefSeqDataProvider
+
+GFF_PATH = "GRCh38_latest_genomic.gff.gz"
+FASTA_PATH = "GRCh38_latest_genomic.fna"
+PROTEIN_GPFF_PATH = "GRCh38_latest_protein.gpff.gz"
+MIN_ARGS_COUNT = 2
+MAX_SAMPLES_COUNT = 100
+
+logger = logging.getLogger(__name__)
 
 # Try to initialize real provider if files exist
-gff_path = "GRCh38_latest_genomic.gff.gz"
-fasta_path = "GRCh38_latest_genomic.fna"
-
 provider: typing.Any = None
 searcher: typing.Any = None
 mapper: weaver.VariantMapper = typing.cast("weaver.VariantMapper", None)
 
-protein_gpff_path = "GRCh38_latest_protein.gpff.gz"
-import gzip
-
 
 class CombinedProvider:
     def __init__(self, gff_path: str, fasta_path: str, protein_gpff_path: str) -> None:
-        from weaver.cli.provider import RefSeqDataProvider
-
         print(f"Loading RefSeq provider from {gff_path}...", file=sys.stderr)
         self.refseq = RefSeqDataProvider(gff_path, fasta_path)
         self.protein_seqs: dict[str, str] = {}
@@ -71,8 +74,9 @@ class CombinedProvider:
             return mapping.get(res, weaver.IdentifierType.Unknown)
         return typing.cast("weaver.IdentifierType", res)
 
-    def get_transcript(self, transcript_ac: str, reference_ac: str | None) -> typing.Any:
-        return self.refseq.get_transcript(transcript_ac, reference_ac)
+    def get_transcript(self, transcript_ac: str, reference_ac: str | None) -> dict[str, typing.Any]:
+        tx = self.refseq.get_transcript(transcript_ac, reference_ac)
+        return typing.cast("dict[str, typing.Any]", tx)
 
     def get_transcripts_for_region(self, chrom: str, start: int, end: int) -> list[str]:
         return self.refseq.get_transcripts_for_region(chrom, start, end)
@@ -104,9 +108,9 @@ class CombinedProvider:
         return self.refseq.get_symbol_accessions(symbol, source_kind, target_kind)
 
 
-if os.path.exists(gff_path) and os.path.exists(fasta_path):
+if os.path.exists(GFF_PATH) and os.path.exists(FASTA_PATH):
     print("Initializing CombinedProvider...", file=sys.stderr)
-    provider = CombinedProvider(gff_path, fasta_path, protein_gpff_path)
+    provider = CombinedProvider(GFF_PATH, FASTA_PATH, PROTEIN_GPFF_PATH)
     searcher = provider
     mapper = weaver.VariantMapper(provider=provider)
     print("Provider loaded.", file=sys.stderr)
@@ -128,7 +132,7 @@ else:
                     return weaver.IdentifierType.GenomicAccession
             return weaver.IdentifierType.ProteinAccession
 
-        def get_transcript(self, _transcript_ac: str, _reference_ac: str | None) -> typing.Any:
+        def get_transcript(self, _transcript_ac: str, _reference_ac: str | None) -> dict[str, typing.Any]:
             return {}
 
         def get_seq(self, _ac: str, _start: int, _end: int, _kind: "weaver.IdentifierType") -> str | None:
@@ -159,8 +163,7 @@ def clean_hgvs(s_raw: str) -> str:
     # Standardize Ter/*
     s = s.replace("Ter", "*")
     # Standardize silent variants: p.Ala465= -> p.=
-    s = re.sub(r"p\.[A-Z][a-z][a-z]\d+=", "p.=", s)
-    return s
+    return re.sub(r"p\.[A-Z][a-z][a-z]\d+=", "p.=", s)
 
 
 def get_equivalence_level(v1_str: str, v2_str: str) -> typing.Optional["weaver.EquivalenceLevel"]:
@@ -168,8 +171,6 @@ def get_equivalence_level(v1_str: str, v2_str: str) -> typing.Optional["weaver.E
     if not weaver or not v1_str or not v2_str or v1_str.startswith("ERR") or v2_str.startswith("ERR"):
         return None
     try:
-        # Seed heuristic provider removed
-
         # Robust parsing: ensure both have prefixes if one does
         if ":" in v1_str and ":" not in v2_str:
             ac = v1_str.split(":")[0]
@@ -185,12 +186,10 @@ def get_equivalence_level(v1_str: str, v2_str: str) -> typing.Optional["weaver.E
         v1 = weaver.parse(v1_str)
         v2 = weaver.parse(v2_str)
 
-        if el := mapper.equivalent_level(v1, v2, searcher):
-            return el
+        return mapper.equivalent_level(v1, v2, searcher)
 
-    except Exception:
+    except (ValueError, RuntimeError, AttributeError):
         return None
-    return None
 
 
 def check_consistency(v_nuc_str: str, v_prot_str: str, ref_prot_str: str) -> bool:
@@ -209,10 +208,9 @@ def check_consistency(v_nuc_str: str, v_prot_str: str, ref_prot_str: str) -> boo
         v_nuc = weaver.parse(v_nuc_str)
 
         # 1. Try recalculating p from c
-        p_calc = None
         try:
             p_calc = mapper.c_to_p(v_nuc, prot_ac)
-        except Exception:
+        except (ValueError, RuntimeError, AttributeError):
             # Failed to calculate
             return False
 
@@ -230,8 +228,8 @@ def check_consistency(v_nuc_str: str, v_prot_str: str, ref_prot_str: str) -> boo
 
         # Fallback to loose string comparison
         if mapper is not None:
-            p_calc = mapper.c_to_p(v_nuc)
-            return clean_hgvs(str(p_calc)) == clean_hgvs(v_prot_str)
+            p_calc_loose = mapper.c_to_p(v_nuc)
+            return clean_hgvs(str(p_calc_loose)) == clean_hgvs(v_prot_str)
         return False
 
     except (ValueError, RuntimeError, AttributeError):
@@ -262,13 +260,9 @@ def classify(row: dict[str, str]) -> str:  # noqa: C901, PLR0912
         category = f"Biological Equivalence ({el_name}) ({'Consistent' if is_consistent else 'Inconsistent'}) - ClinVar"
     elif c_rs != "" and c_rs == c_ref:
         # It matches reference string, so it's a Parity Match "on paper"
-        # Check if it's biologically Analogous to the GT (ClinVar)
         is_analogous_gt = False
         try:
             if mapper is not None:
-                # Need to parse rs_p and gt_p to pass to equivalent_level
-                # This block seems to be a copy-paste error from check_consistency
-                # Reverting to original logic but ensuring mapper is not None if get_equivalence_level is called
                 el = get_equivalence_level(rs_p, gt_p)
                 if el == weaver.EquivalenceLevel.Analogous:
                     is_analogous_gt = True
@@ -310,8 +304,7 @@ def classify(row: dict[str, str]) -> str:  # noqa: C901, PLR0912
 
 
 def main() -> None:  # noqa: C901
-    min_args = 2
-    if len(sys.argv) < min_args:
+    if len(sys.argv) < MIN_ARGS_COUNT:
         print("Usage: classify_failures.py <results_tsv>")
         sys.exit(1)
 
@@ -320,9 +313,7 @@ def main() -> None:  # noqa: C901
     mismatches: dict[str, list[dict[str, str]]] = collections.defaultdict(list)
     success_count = 0
 
-    max_samples = 100
-
-    with open(sys.argv[1]) as f:
+    with open(sys.argv[1], encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter="\t")
         for row in reader:
             total += 1
@@ -330,7 +321,7 @@ def main() -> None:  # noqa: C901
             stats[cat] = stats.get(cat, 0) + 1
             if ("Match" in cat and "ClinVar" in cat) or ("Biological Equivalence" in cat and "ClinVar" in cat):
                 success_count += 1
-            elif len(mismatches[cat]) < max_samples:
+            elif len(mismatches[cat]) < MAX_SAMPLES_COUNT:
                 mismatches[cat].append(row)
 
     print(f"Total variants: {total}")

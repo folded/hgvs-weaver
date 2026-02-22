@@ -24,7 +24,7 @@ PYPROJECT_FILE = REPO_ROOT / "pyproject.toml"
 
 
 def run(cmd: list[str]) -> str:
-    return subprocess.check_output(cmd, text=True, cwd=REPO_ROOT).strip()
+    return subprocess.check_output(cmd, text=True, cwd=REPO_ROOT, shell=False).strip()  # noqa: S603
 
 
 def get_tags() -> dict[str, str]:
@@ -51,7 +51,7 @@ def get_current_version() -> str:
 
 def generate_svg(data_points: list[dict], mode: str = "light") -> str:
     # Prepare data for plotting
-    df = pd.DataFrame(data_points)
+    results_df = pd.DataFrame(data_points)
 
     # Set style based on mode
     if mode == "dark":
@@ -76,10 +76,10 @@ def generate_svg(data_points: list[dict], mode: str = "light") -> str:
     _fig, ax = plt.subplots(figsize=(12, 6))
 
     # Standardize data: Identity and Analogous as percentages
-    df["Identity %"] = (df["identity"] / df["total"]) * 100
-    df["Analogous %"] = (df["analogous"] / df["total"]) * 100
+    results_df["Identity %"] = (results_df["identity"] / results_df["total"]) * 100
+    results_df["Analogous %"] = (results_df["analogous"] / results_df["total"]) * 100
 
-    versions = df["version"].unique()
+    versions = results_df["version"].unique()
     tools = ["Weaver", "Ref-HGVS"]
 
     x = range(len(versions))
@@ -103,7 +103,7 @@ def generate_svg(data_points: list[dict], mode: str = "light") -> str:
         }
 
     for i, tool in enumerate(tools):
-        tool_df = df[df["tool"] == tool]
+        tool_df = results_df[results_df["tool"] == tool]
 
         # Calculate offsets for grouped bars
         offset = (i - 0.5) * width
