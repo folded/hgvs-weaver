@@ -152,6 +152,8 @@ class RefSeqDataProvider:
         self.gene_to_transcripts: dict[str, list[str]] = collections.defaultdict(list)
         self.chrom_to_transcripts: dict[str, list[typing.Any]] = collections.defaultdict(list)
         self.accession_map: dict[str, tuple[str, str]] = {}  # protein_id -> tx_id
+        self.versionless_tx_to_refs: dict[str, list[str]] = collections.defaultdict(list)
+        self.mane_select: dict[str, str] = {}  # gene_name -> tx_ac (MANE Select)
 
         self._load_gff()
         self.fasta = SequenceProxy(fasta_path)
@@ -223,6 +225,11 @@ class RefSeqDataProvider:
                                 "parent": parent,
                                 "gene_name": attrs.get("gene", ""),
                             }
+                        tag = attrs.get("tag", "")
+                        if "MANE Select" in tag or "MANE_Select" in tag:
+                            gene_name = attrs.get("gene", "")
+                            if gene_name:
+                                self.mane_select[gene_name] = tx_ac
 
                 elif feature_type == "exon":
                     if tx_ac:
@@ -299,6 +306,7 @@ class RefSeqDataProvider:
             }
             self.transcripts[(tx_id, chrom)] = record
             self.tx_to_refs[tx_id].append(chrom)
+            self.versionless_tx_to_refs[tx_id.split(".")[0]].append(chrom)
             self.chrom_to_transcripts[chrom].append(record)
 
             if protein_id:
@@ -358,7 +366,18 @@ class RefSeqDataProvider:
             # Need to decide which reference to use if multiple exist
             refs = self.tx_to_refs.get(ac)
             if not refs:
-                return ""
+                # Fallback to versionless match
+                base_ac = ac.split(".")[0]
+                refs = self.versionless_tx_to_refs.get(base_ac)
+                if refs:
+                    # Resolve to actual accession in transcripts
+                    for t_id, _ in self.transcripts.keys():
+                        if t_id.startswith(base_ac + "."):
+                            ac = t_id
+                            break
+                else:
+                    return ""
+
             # Prioritize standard NC chromosomes that exist in the current FASTA
             ref_ac = next((r for r in refs if r.startswith("NC_0000") and r in self.fasta.references), None)
             if not ref_ac:
@@ -426,6 +445,19 @@ class RefSeqDataProvider:
         refs = self.tx_to_refs.get(transcript_ac)
 
         if not refs:
+            # Fallback to versionless match
+            base_ac = transcript_ac.split(".")[0]
+            refs = self.versionless_tx_to_refs.get(base_ac)
+            if refs:
+                # Find the actual accession in transcripts that matches this base and first ref
+                # (Assuming version increments are mostly sequence/annotation stable for mapping if no choice)
+                # We need to pick one exact tx_id.
+                for (t_id, _), _ in self.transcripts.items():
+                    if t_id.startswith(base_ac + "."):
+                        transcript_ac = t_id
+                        break
+
+        if not refs:
             raise ValueError(f"Transcript {transcript_ac} not found")
 
         # Prioritize standard NC chromosomes that exist in the current FASTA
@@ -449,11 +481,16 @@ class RefSeqDataProvider:
         """Maps gene symbols to transcript accessions."""
         if source_kind == IdentifierKind.Transcript and target_kind == IdentifierKind.Protein:
             # Ambiguous if multiple refs, but usually protein is same
-            refs = self.tx_to_refs.get(symbol)
-            if refs:
-                tx = self.transcripts.get((symbol, refs[0]))
+            try:
+                tx = self.get_transcript(symbol, None)
                 if tx and tx.get("protein_id"):
                     return [("protein_accession", tx["protein_id"])]
+            except Exception:
+                pass
+        if source_kind == IdentifierKind.Protein and target_kind == IdentifierKind.Transcript:
+            if symbol in self.accession_map:
+                tx_id, _chrom = self.accession_map[symbol]
+                return [("transcript_accession", tx_id)]
         if symbol in self.gene_to_transcripts:
             return [("transcript_accession", tx_ac) for tx_ac in self.gene_to_transcripts[symbol]]
         return [("gene_symbol", symbol)]

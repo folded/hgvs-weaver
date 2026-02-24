@@ -111,7 +111,10 @@ pub trait DataProvider {
         target_kind: IdentifierKind,
     ) -> Result<Vec<(IdentifierType, String)>, HgvsError>;
     fn get_identifier_type(&self, identifier: &str) -> Result<IdentifierType, HgvsError>;
-    /// Resolves a transcript position and offset to a genomic accession and position.
+    /// Resolves a CDS-relative position and offset to a genomic accession and position.
+    ///
+    /// For c. variants, the position is 0-based relative to the start codon.
+    /// For n. variants, it is 0-based relative to the transcript start.
     fn c_to_g(
         &self,
         transcript_ac: &str,

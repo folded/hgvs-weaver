@@ -3,9 +3,11 @@ from typing import Protocol, TypedDict
 from ._weaver import (
     EquivalenceLevel,
     IdentifierType,
+    StartCodonConvention,
     TranscriptMismatchError,
     Variant,
     VariantMapper,
+    VariantTransformSettings,
     parse,
 )
 
@@ -14,11 +16,13 @@ __all__ = [
     "EquivalenceLevel",
     "ExonData",
     "IdentifierType",
+    "StartCodonConvention",
     "TranscriptData",
     "TranscriptMismatchError",
     "TranscriptSearch",
     "Variant",
     "VariantMapper",
+    "VariantTransformSettings",
     "parse",
 ]
 

@@ -87,10 +87,10 @@ impl CigarMapper {
             ref_pos.push(ref_cur);
             tgt_pos.push(tgt_cur);
 
-            if "=MXIN".contains(op.op) {
+            if "=MXDN".contains(op.op) {
                 ref_cur += op.len;
             }
-            if "=MXD".contains(op.op) {
+            if "=MXI".contains(op.op) {
                 tgt_cur += op.len;
             }
         }
@@ -214,16 +214,16 @@ mod tests {
         assert_eq!(cm.map_ref_to_tgt(4, "start", true).unwrap(), (3, -1, 'N'));
         assert_eq!(cm.map_ref_to_tgt(5, "start", true).unwrap(), (3, 0, '='));
         assert_eq!(cm.map_ref_to_tgt(6, "start", true).unwrap(), (4, 0, 'X'));
-        assert_eq!(cm.map_ref_to_tgt(12, "start", true).unwrap(), (6, 0, 'I'));
-        assert_eq!(cm.map_ref_to_tgt(12, "end", true).unwrap(), (7, 0, 'I'));
+        // ref 12 lands in op 8 (=) because op 7 (I) doesn't consume ref
+        assert_eq!(cm.map_ref_to_tgt(12, "start", true).unwrap(), (8, 0, '='));
         assert_eq!(cm.map_ref_to_tgt(14, "start", true).unwrap(), (9, 0, '='));
 
         // tgt to ref
         assert_eq!(cm.map_tgt_to_ref(0, "start", true).unwrap(), (0, 0, '='));
         assert_eq!(cm.map_tgt_to_ref(3, "start", true).unwrap(), (5, 0, '='));
         assert_eq!(cm.map_tgt_to_ref(4, "start", true).unwrap(), (6, 0, 'X'));
-        assert_eq!(cm.map_tgt_to_ref(8, "start", true).unwrap(), (13, 0, 'D'));
-        assert_eq!(cm.map_tgt_to_ref(8, "end", true).unwrap(), (14, 0, 'D'));
+        // tgt 8 lands in op 8 (=)
+        assert_eq!(cm.map_tgt_to_ref(8, "start", true).unwrap(), (12, 0, '='));
     }
 
     #[test]

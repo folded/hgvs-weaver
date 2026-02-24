@@ -158,6 +158,7 @@ pub mod parser;
 pub mod sequence;
 pub mod structs;
 pub mod transcript_mapper;
+pub mod transform;
 pub mod utils;
 
 // Re-exports for public usage
@@ -167,3 +168,4 @@ pub use equivalence::VariantEquivalence;
 pub use error::HgvsError;
 pub use mapper::VariantMapper;
 pub use structs::{CVariant, GVariant, MVariant, NVariant, PVariant, RVariant, Variant};
+pub use transform::{StartCodonConvention, VariantTransformSettings, transform_variant};

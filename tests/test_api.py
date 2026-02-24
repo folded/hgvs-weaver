@@ -65,14 +65,26 @@ def test_normalization() -> None:
 
 
 def test_c_to_p() -> None:
-    """Tests c. to p. projection."""
+    """Tests c. to p. projection for a start-codon substitution."""
     provider = MockProvider()
     mapper = weaver.VariantMapper(provider)
 
-    # c.1A>G -> p.Met1Val
+    # c.1A>G changes ATG(Met) → GTG(Val): predicts p.(Met1Val)
     v_c = weaver.parse("NM_TEST:c.1A>G")
     v_p = mapper.c_to_p(v_c)
     assert "p.(Met1Val)" in v_p.format()
+
+
+def test_c_to_p_missense() -> None:
+    """Tests that a missense substitution at a non-start codon produces a amino-acid change."""
+    provider = MockProvider()
+    mapper = weaver.VariantMapper(provider)
+
+    # Mock CDS: ATG(Met1) GGG(Gly2) CCC(Pro3)...
+    # c.4G>C changes codon 2 GGG(Gly) → CGG(Arg): p.(Gly2Arg)
+    v_c = weaver.parse("NM_TEST:c.4G>C")
+    v_p = mapper.c_to_p(v_c)
+    assert "p.(Gly2Arg)" in v_p.format()
 
 
 def test_c_to_g() -> None:

@@ -125,39 +125,72 @@ pub fn translate_cds(cds: &str) -> String {
             break;
         }
         let codon = &cds[i..i + 3];
-        let res = match codon.to_uppercase().as_str() {
-            "TTT" | "TTC" => 'F',
-            "TTA" | "TTG" => 'L',
-            "CTT" | "CTC" | "CTA" | "CTG" => 'L',
-            "ATT" | "ATC" | "ATA" => 'I',
-            "ATG" => 'M',
-            "GTT" | "GTC" | "GTA" | "GTG" => 'V',
-            "TCT" | "TCC" | "TCA" | "TCG" => 'S',
-            "CCT" | "CCC" | "CCA" | "CCG" => 'P',
-            "ACT" | "ACC" | "ACA" | "ACG" => 'T',
-            "GCT" | "GCC" | "GCA" | "GCG" => 'A',
-            "TAT" | "TAC" => 'Y',
-            "TAA" | "TAG" | "TGA" => '*',
-            "CAT" | "CAC" => 'H',
-            "CAA" | "CAG" => 'Q',
-            "AAT" | "AAC" => 'N',
-            "AAA" | "AAG" => 'K',
-            "GAT" | "GAC" => 'D',
-            "GAA" | "GAG" => 'E',
-            "TGT" | "TGC" => 'C',
-            "TGG" => 'W',
-            "CGT" | "CGC" | "CGA" | "CGG" => 'R',
-            "AGT" | "AGC" => 'S',
-            "AGA" | "AGG" => 'R',
-            "GGT" | "GGC" | "GGA" | "GGG" => 'G',
-            _ => 'X',
-        };
+        let res = translate_codon(codon).unwrap_or('X');
         aa.push(res);
         if res == '*' {
             break;
         }
     }
     aa
+}
+
+/// Translates a single 3-base codon to a 1-letter amino acid.
+pub fn translate_codon(codon: &str) -> Option<char> {
+    match codon.to_uppercase().as_str() {
+        "TTT" | "TTC" => Some('F'),
+        "TTA" | "TTG" => Some('L'),
+        "CTT" | "CTC" | "CTA" | "CTG" => Some('L'),
+        "ATT" | "ATC" | "ATA" => Some('I'),
+        "ATG" => Some('M'),
+        "GTT" | "GTC" | "GTA" | "GTG" => Some('V'),
+        "TCT" | "TCC" | "TCA" | "TCG" => Some('S'),
+        "CCT" | "CCC" | "CCA" | "CCG" => Some('P'),
+        "ACT" | "ACC" | "ACA" | "ACG" => Some('T'),
+        "GCT" | "GCC" | "GCA" | "GCG" => Some('A'),
+        "TAT" | "TAC" => Some('Y'),
+        "TAA" | "TAG" | "TGA" => Some('*'),
+        "CAT" | "CAC" => Some('H'),
+        "CAA" | "CAG" => Some('Q'),
+        "AAT" | "AAC" => Some('N'),
+        "AAA" | "AAG" => Some('K'),
+        "GAT" | "GAC" => Some('D'),
+        "GAA" | "GAG" => Some('E'),
+        "TGT" | "TGC" => Some('C'),
+        "TGG" => Some('W'),
+        "CGT" | "CGC" | "CGA" | "CGG" => Some('R'),
+        "AGT" | "AGC" => Some('S'),
+        "AGA" | "AGG" => Some('R'),
+        "GGT" | "GGC" | "GGA" | "GGG" => Some('G'),
+        _ => None,
+    }
+}
+
+/// Returns all DNA codons that encode the given 1-letter amino acid.
+pub fn codons_for_aa(aa: char) -> Vec<&'static str> {
+    match aa {
+        'F' => vec!["TTT", "TTC"],
+        'L' => vec!["TTA", "TTG", "CTT", "CTC", "CTA", "CTG"],
+        'I' => vec!["ATT", "ATC", "ATA"],
+        'M' => vec!["ATG"],
+        'V' => vec!["GTT", "GTC", "GTA", "GTG"],
+        'S' => vec!["TCT", "TCC", "TCA", "TCG", "AGT", "AGC"],
+        'P' => vec!["CCT", "CCC", "CCA", "CCG"],
+        'T' => vec!["ACT", "ACC", "ACA", "ACG"],
+        'A' => vec!["GCT", "GCC", "GCA", "GCG"],
+        'Y' => vec!["TAT", "TAC"],
+        '*' => vec!["TAA", "TAG", "TGA"],
+        'H' => vec!["CAT", "CAC"],
+        'Q' => vec!["CAA", "CAG"],
+        'N' => vec!["AAT", "AAC"],
+        'K' => vec!["AAA", "AAG"],
+        'D' => vec!["GAT", "GAC"],
+        'E' => vec!["GAA", "GAG"],
+        'C' => vec!["TGT", "TGC"],
+        'W' => vec!["TGG"],
+        'R' => vec!["CGT", "CGC", "CGA", "CGG", "AGA", "AGG"],
+        'G' => vec!["GGT", "GGC", "GGA", "GGG"],
+        _ => vec![],
+    }
 }
 
 pub fn aa3_to_aa1(aa3: &str) -> String {
@@ -196,6 +229,37 @@ pub fn normalize_aa(s: &str) -> String {
     aa3_to_aa1(s)
 }
 
+fn aa3_chunk_to_residue(s: &str) -> Option<Residue> {
+    match s.to_lowercase().as_str() {
+        "ala" => Some(Residue::Ala),
+        "arg" => Some(Residue::Arg),
+        "asn" => Some(Residue::Asn),
+        "asp" => Some(Residue::Asp),
+        "cys" => Some(Residue::Cys),
+        "gln" => Some(Residue::Gln),
+        "glu" => Some(Residue::Glu),
+        "gly" => Some(Residue::Gly),
+        "his" => Some(Residue::His),
+        "ile" => Some(Residue::Ile),
+        "leu" => Some(Residue::Leu),
+        "lys" => Some(Residue::Lys),
+        "met" => Some(Residue::Met),
+        "phe" => Some(Residue::Phe),
+        "pro" => Some(Residue::Pro),
+        "ser" => Some(Residue::Ser),
+        "thr" => Some(Residue::Thr),
+        "trp" => Some(Residue::Trp),
+        "tyr" => Some(Residue::Tyr),
+        "val" => Some(Residue::Val),
+        "asx" => Some(Residue::Asx),
+        "glx" => Some(Residue::Glx),
+        "xaa" => Some(Residue::Xaa),
+        "ter" | "stop" => Some(Residue::Ter),
+        "sec" => Some(Residue::Sec),
+        _ => None,
+    }
+}
+
 pub fn decompose_aa(s: &str) -> Result<Vec<Residue>, HgvsError> {
     if s.is_empty() {
         return Ok(Vec::new());
@@ -210,34 +274,7 @@ pub fn decompose_aa(s: &str) -> Result<Vec<Residue>, HgvsError> {
     while i < chars.len() {
         if i + 3 <= chars.len() {
             let chunk: String = chars[i..i + 3].iter().collect();
-            let res = match chunk.to_lowercase().as_str() {
-                "ala" => Some(Residue::Ala),
-                "arg" => Some(Residue::Arg),
-                "asn" => Some(Residue::Asn),
-                "asp" => Some(Residue::Asp),
-                "cys" => Some(Residue::Cys),
-                "gln" => Some(Residue::Gln),
-                "glu" => Some(Residue::Glu),
-                "gly" => Some(Residue::Gly),
-                "his" => Some(Residue::His),
-                "ile" => Some(Residue::Ile),
-                "leu" => Some(Residue::Leu),
-                "lys" => Some(Residue::Lys),
-                "met" => Some(Residue::Met),
-                "phe" => Some(Residue::Phe),
-                "pro" => Some(Residue::Pro),
-                "ser" => Some(Residue::Ser),
-                "thr" => Some(Residue::Thr),
-                "trp" => Some(Residue::Trp),
-                "tyr" => Some(Residue::Tyr),
-                "val" => Some(Residue::Val),
-                "asx" => Some(Residue::Asx),
-                "glx" => Some(Residue::Glx),
-                "xaa" => Some(Residue::Xaa),
-                "ter" | "stop" => Some(Residue::Ter),
-                "sec" => Some(Residue::Sec),
-                _ => None,
-            };
+            let res = aa3_chunk_to_residue(&chunk);
 
             if let Some(r) = res {
                 res_3.push(r);

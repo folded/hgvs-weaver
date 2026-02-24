@@ -1,5 +1,5 @@
 use crate::analogous_edit::{project_aa_variant, project_na_variant, SparseReference};
-use crate::data::{DataProvider, IdentifierKind, TranscriptSearch};
+use crate::data::{DataProvider, IdentifierKind, Transcript, TranscriptSearch};
 use crate::error::HgvsError;
 use crate::mapper::VariantMapper;
 use crate::structs::{
@@ -27,6 +27,14 @@ impl EquivalenceLevel {
 }
 
 // Migrated to analogous_edit.rs
+
+fn strand_aware_edit(edit: &NaEdit, strand: i32) -> NaEdit {
+    if strand == -1 {
+        edit.reverse_complement()
+    } else {
+        edit.clone()
+    }
+}
 
 pub struct VariantEquivalence<'a> {
     pub hdp: &'a dyn DataProvider,
@@ -145,18 +153,10 @@ impl<'a> VariantEquivalence<'a> {
                     let mut i2 = pos2.spdi_interval(&c2.ac, self.hdp)?;
 
                     let t1 = self.hdp.get_transcript(&c1.ac, None)?;
-                    let edit1 = if t1.strand() == -1 {
-                        c1.posedit.edit.reverse_complement()
-                    } else {
-                        c1.posedit.edit.clone()
-                    };
+                    let edit1 = strand_aware_edit(&c1.posedit.edit, t1.strand());
 
                     let t2 = self.hdp.get_transcript(&c2.ac, None)?;
-                    let edit2 = if t2.strand() == -1 {
-                        c2.posedit.edit.reverse_complement()
-                    } else {
-                        c2.posedit.edit.clone()
-                    };
+                    let edit2 = strand_aware_edit(&c2.posedit.edit, t2.strand());
 
                     if matches!(c1.posedit.edit, NaEdit::Ins { .. }) {
                         if let Some(e) = &pos1.end {
@@ -213,18 +213,10 @@ impl<'a> VariantEquivalence<'a> {
                     let mut i2 = pos2.spdi_interval(&n2.ac, self.hdp)?;
 
                     let t1 = self.hdp.get_transcript(&n1.ac, None)?;
-                    let edit1 = if t1.strand() == -1 {
-                        n1.posedit.edit.reverse_complement()
-                    } else {
-                        n1.posedit.edit.clone()
-                    };
+                    let edit1 = strand_aware_edit(&n1.posedit.edit, t1.strand());
 
                     let t2 = self.hdp.get_transcript(&n2.ac, None)?;
-                    let edit2 = if t2.strand() == -1 {
-                        n2.posedit.edit.reverse_complement()
-                    } else {
-                        n2.posedit.edit.clone()
-                    };
+                    let edit2 = strand_aware_edit(&n2.posedit.edit, t2.strand());
 
                     if matches!(n1.posedit.edit, NaEdit::Ins { .. }) {
                         if let Some(e) = &pos1.end {
@@ -440,7 +432,7 @@ impl<'a> VariantEquivalence<'a> {
             SequenceVariant::NonCoding(v) => {
                 let transcript = self.hdp.get_transcript(&v.ac, None)?;
                 if let Some(pos) = &v.posedit.pos {
-                    let (start, end) = self.mapper.get_n_indices(pos, &transcript)?;
+                    let (start, end) = self.mapper.get_c_indices(pos, &transcript)?;
                     let mut new_v = v.clone();
                     new_v.posedit.edit = self.fill_na_edit(
                         &v.ac,
@@ -457,7 +449,7 @@ impl<'a> VariantEquivalence<'a> {
             SequenceVariant::Rna(v) => {
                 let transcript = self.hdp.get_transcript(&v.ac, None)?;
                 if let Some(pos) = &v.posedit.pos {
-                    let (start, end) = self.mapper.get_n_indices(pos, &transcript)?;
+                    let (start, end) = self.mapper.get_c_indices(pos, &transcript)?;
                     let mut new_v = v.clone();
                     new_v.posedit.edit = self.fill_na_edit(
                         &v.ac,
@@ -681,7 +673,8 @@ impl<'a> VariantEquivalence<'a> {
     }
 
     fn normalize_format(&self, s: &str) -> String {
-        let mut s = s.replace(['(', ')', '?'], "");
+        // Strip parentheses and replace '?' with 'X' (unknown amino acid, analogous to Xaa)
+        let mut s = s.replace(['(', ')'], "").replace('?', "X");
         // Normalize 3-letter AA codes to 1-letter
         let replacements = [
             ("Ala", "A"),
@@ -786,47 +779,13 @@ impl<'a> VariantEquivalence<'a> {
                         uncertain,
                     } = &v.posedit.edit
                     {
-                        if pos.start.offset.is_some()
-                            || pos.end.as_ref().map_or(false, |e| e.offset.is_some())
-                        {
-                            return Ok(var.clone());
-                        }
                         let transcript = self.hdp.get_transcript(&v.ac, None)?;
-                        let (start_idx_usize, _) = self.mapper.get_c_indices(pos, &transcript)?;
-                        let start_idx = start_idx_usize as i32;
-
-                        if let Some((check_start, last_idx, edit)) = self.try_normalize_to_dup(
-                            &v.ac,
-                            IdentifierKind::Transcript,
-                            start_idx,
-                            seq,
-                            *uncertain,
+                        if let Some((new_pos, new_edit)) = self.normalize_ins_to_dup_boi(
+                            &v.ac, pos, seq, *uncertain, transcript,
                         )? {
                             let mut new_v = v.clone();
-                            let am = crate::transcript_mapper::TranscriptMapper::new(transcript)?;
-                            let (c_pos_index, _, anchor) = am.n_to_c(TranscriptPos(check_start))?;
-                            new_v.posedit.pos = Some(BaseOffsetInterval {
-                                start: BaseOffsetPosition {
-                                    base: c_pos_index.to_hgvs(),
-                                    offset: None,
-                                    anchor,
-                                    uncertain: false,
-                                },
-                                end: if check_start != last_idx {
-                                    let (c_pos_e_index, _, anchor_e) =
-                                        am.n_to_c(TranscriptPos(last_idx))?;
-                                    Some(BaseOffsetPosition {
-                                        base: c_pos_e_index.to_hgvs(),
-                                        offset: None,
-                                        anchor: anchor_e,
-                                        uncertain: false,
-                                    })
-                                } else {
-                                    None
-                                },
-                                uncertain: false,
-                            });
-                            new_v.posedit.edit = edit;
+                            new_v.posedit.pos = Some(new_pos);
+                            new_v.posedit.edit = new_edit;
                             return Ok(SequenceVariant::Coding(new_v));
                         }
                     }
@@ -840,47 +799,13 @@ impl<'a> VariantEquivalence<'a> {
                         uncertain,
                     } = &v.posedit.edit
                     {
-                        if pos.start.offset.is_some()
-                            || pos.end.as_ref().map_or(false, |e| e.offset.is_some())
-                        {
-                            return Ok(var.clone());
-                        }
                         let transcript = self.hdp.get_transcript(&v.ac, None)?;
-                        let (start_idx_usize, _) = self.mapper.get_n_indices(pos, &transcript)?;
-                        let start_idx = start_idx_usize as i32;
-
-                        if let Some((check_start, last_idx, edit)) = self.try_normalize_to_dup(
-                            &v.ac,
-                            IdentifierKind::Transcript,
-                            start_idx,
-                            seq,
-                            *uncertain,
+                        if let Some((new_pos, new_edit)) = self.normalize_ins_to_dup_boi(
+                            &v.ac, pos, seq, *uncertain, transcript,
                         )? {
                             let mut new_v = v.clone();
-                            let am = crate::transcript_mapper::TranscriptMapper::new(transcript)?;
-                            let (c_pos_index, _, anchor) = am.n_to_c(TranscriptPos(check_start))?;
-                            new_v.posedit.pos = Some(BaseOffsetInterval {
-                                start: BaseOffsetPosition {
-                                    base: c_pos_index.to_hgvs(),
-                                    offset: None,
-                                    anchor,
-                                    uncertain: false,
-                                },
-                                end: if check_start != last_idx {
-                                    let (c_pos_e_index, _, anchor_e) =
-                                        am.n_to_c(TranscriptPos(last_idx))?;
-                                    Some(BaseOffsetPosition {
-                                        base: c_pos_e_index.to_hgvs(),
-                                        offset: None,
-                                        anchor: anchor_e,
-                                        uncertain: false,
-                                    })
-                                } else {
-                                    None
-                                },
-                                uncertain: false,
-                            });
-                            new_v.posedit.edit = edit;
+                            new_v.posedit.pos = Some(new_pos);
+                            new_v.posedit.edit = new_edit;
                             return Ok(SequenceVariant::NonCoding(new_v));
                         }
                     }
@@ -888,6 +813,57 @@ impl<'a> VariantEquivalence<'a> {
                 Ok(var.clone())
             }
             _ => Ok(var.clone()),
+        }
+    }
+
+    fn normalize_ins_to_dup_boi(
+        &self,
+        ac: &str,
+        pos: &BaseOffsetInterval,
+        seq: &str,
+        uncertain: bool,
+        transcript: Box<dyn Transcript>,
+    ) -> Result<Option<(BaseOffsetInterval, NaEdit)>, HgvsError> {
+        if pos.start.offset.is_some()
+            || pos.end.as_ref().map_or(false, |e| e.offset.is_some())
+        {
+            return Ok(None);
+        }
+        let (start_idx_usize, _) = self.mapper.get_c_indices(pos, &transcript)?;
+        let start_idx = start_idx_usize as i32;
+
+        if let Some((check_start, last_idx, edit)) = self.try_normalize_to_dup(
+            ac,
+            IdentifierKind::Transcript,
+            start_idx,
+            seq,
+            uncertain,
+        )? {
+            let am = crate::transcript_mapper::TranscriptMapper::new(transcript)?;
+            let (c_pos_index, _, anchor) = am.n_to_c(TranscriptPos(check_start))?;
+            let new_pos = BaseOffsetInterval {
+                start: BaseOffsetPosition {
+                    base: c_pos_index.to_hgvs(),
+                    offset: None,
+                    anchor,
+                    uncertain: false,
+                },
+                end: if check_start != last_idx {
+                    let (c_pos_e_index, _, anchor_e) = am.n_to_c(TranscriptPos(last_idx))?;
+                    Some(BaseOffsetPosition {
+                        base: c_pos_e_index.to_hgvs(),
+                        offset: None,
+                        anchor: anchor_e,
+                        uncertain: false,
+                    })
+                } else {
+                    None
+                },
+                uncertain: false,
+            };
+            Ok(Some((new_pos, edit)))
+        } else {
+            Ok(None)
         }
     }
 
@@ -1164,5 +1140,28 @@ mod tests {
         assert_eq!(norm_gm.to_string(), "NC_000001.11:g.1_4dupACGT");
 
         Ok(())
+    }
+
+    #[test]
+    fn test_normalize_format_question_equals_xaa() {
+        let hdp = MockDataProvider;
+        let search = MockSearch;
+        let eq = VariantEquivalence::new(&hdp, &search);
+
+        // '?' should normalize to 'X', the same as 'Xaa' -> 'X'.
+        // This ensures p.Met1? and p.Met1Xaa compare equal after normalization.
+        let q = eq.normalize_format("NP_000001.1:p.Met1?");
+        let xaa = eq.normalize_format("NP_000001.1:p.Met1Xaa");
+        assert_eq!(q, xaa, "p.Met1? and p.Met1Xaa should normalize identically");
+
+        // Parentheses and predicted markers are still stripped.
+        let predicted = eq.normalize_format("NP_000001.1:p.(Met1Val)");
+        let bare = eq.normalize_format("NP_000001.1:p.Met1Val");
+        assert_eq!(predicted, bare);
+
+        // 3-letter codes normalize to 1-letter.
+        let three = eq.normalize_format("NP_000001.1:p.Met1Val");
+        let one = eq.normalize_format("NP_000001.1:p.M1V");
+        assert_eq!(three, one);
     }
 }

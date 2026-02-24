@@ -3,6 +3,18 @@ use crate::structs::{AaEdit, NaEdit};
 use crate::utils::{decompose_aa, normalize_aa};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+fn push_dna_tokens(res: &mut Vec<ResidueToken>, seq: Option<&str>) {
+    if let Some(s) = seq {
+        res.extend(s.chars().map(|c| ResidueToken::Known(c.to_string())));
+    }
+}
+
+fn push_aa_tokens(res: &mut Vec<ResidueToken>, aa_str: &str) {
+    if let Ok(aas) = decompose_aa(aa_str) {
+        res.extend(aas.into_iter().map(|r| ResidueToken::Known(r.to_string())));
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ResidueToken {
     Known(String),
@@ -147,27 +159,13 @@ pub fn apply_aa_edit_to_sparse(
     let mut res = Vec::new();
 
     match edit {
-        AaEdit::Subst { alt, .. } => {
-            if let Ok(aas) = decompose_aa(alt) {
-                res.extend(aas.into_iter().map(|r| ResidueToken::Known(r.to_string())));
-            }
-        }
+        AaEdit::Subst { alt, .. } => push_aa_tokens(&mut res, alt),
         AaEdit::Del { .. } => {}
-        AaEdit::Ins { alt, .. } => {
-            if let Ok(aas) = decompose_aa(alt) {
-                res.extend(aas.into_iter().map(|r| ResidueToken::Known(r.to_string())));
-            }
-        }
-        AaEdit::DelIns { alt, .. } => {
-            if let Ok(aas) = decompose_aa(alt) {
-                res.extend(aas.into_iter().map(|r| ResidueToken::Known(r.to_string())));
-            }
-        }
+        AaEdit::Ins { alt, .. } => push_aa_tokens(&mut res, alt),
+        AaEdit::DelIns { alt, .. } => push_aa_tokens(&mut res, alt),
         AaEdit::RefAlt { alt, .. } => {
             if let Some(alt) = alt {
-                if let Ok(aas) = decompose_aa(alt) {
-                    res.extend(aas.into_iter().map(|r| ResidueToken::Known(r.to_string())));
-                }
+                push_aa_tokens(&mut res, alt);
             }
         }
         AaEdit::Dup { .. } => {
@@ -179,11 +177,7 @@ pub fn apply_aa_edit_to_sparse(
                 res.extend(sref.project_range(start, end).0);
             }
         }
-        AaEdit::Ext { alt, .. } => {
-            if let Ok(aas) = decompose_aa(alt) {
-                res.extend(aas.into_iter().map(|r| ResidueToken::Known(r.to_string())));
-            }
-        }
+        AaEdit::Ext { alt, .. } => push_aa_tokens(&mut res, alt),
         AaEdit::Fs {
             alt, length, term, ..
         } => {
@@ -230,6 +224,10 @@ pub fn apply_aa_edit_to_sparse(
         }
         AaEdit::Special { value, .. } if value == "=" => {
             res.extend(sref.project_range(start, end).0);
+        }
+        AaEdit::Special { value, .. } if value == "?" => {
+            // p.Met1? means unknown amino acid change — treat as Any for equivalence
+            res.push(ResidueToken::Any);
         }
         _ => {}
     }
@@ -308,21 +306,9 @@ pub fn apply_na_edit_to_sparse(
 ) -> ProjectedSequence {
     let mut res = Vec::new();
     match edit {
-        NaEdit::RefAlt { alt, .. } => {
-            if let Some(alt) = alt {
-                for c in alt.chars() {
-                    res.push(ResidueToken::Known(c.to_string()));
-                }
-            }
-        }
+        NaEdit::RefAlt { alt, .. } => push_dna_tokens(&mut res, alt.as_deref()),
         NaEdit::Del { .. } => {}
-        NaEdit::Ins { alt, .. } => {
-            if let Some(alt) = alt {
-                for c in alt.chars() {
-                    res.push(ResidueToken::Known(c.to_string()));
-                }
-            }
-        }
+        NaEdit::Ins { alt, .. } => push_dna_tokens(&mut res, alt.as_deref()),
         NaEdit::Dup { .. } => {
             res.extend(sref.project_range(start, end).0);
             res.extend(sref.project_range(start, end).0);
@@ -550,4 +536,60 @@ pub fn reconcile_projections(v1: &[ResidueToken], v2: &[ResidueToken]) -> bool {
     }
 
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::edits::AaEdit;
+
+    #[test]
+    fn test_apply_aa_edit_special_question_produces_any() {
+        // AaEdit::Special { "?" } should produce ResidueToken::Any so that
+        // p.Met1? is considered analogous to p.Met1Xaa in equivalence checks.
+        let sref = SparseReference::new();
+        let edit = AaEdit::Special {
+            value: "?".to_string(),
+            uncertain: false,
+        };
+        let result = apply_aa_edit_to_sparse(&edit, 0, 0, &sref);
+        assert_eq!(result.0.len(), 1);
+        assert!(
+            matches!(result.0[0], ResidueToken::Any),
+            "Expected ResidueToken::Any for '?', got {:?}",
+            result.0[0]
+        );
+    }
+
+    #[test]
+    fn test_reconcile_any_matches_known() {
+        // ResidueToken::Any should unify with any Known token (including Xaa).
+        let v1 = vec![ResidueToken::Any];
+        let v2 = vec![ResidueToken::Known("Xaa".to_string())];
+        assert!(reconcile_projections(&v1, &v2));
+
+        let v3 = vec![ResidueToken::Known("Val".to_string())];
+        assert!(reconcile_projections(&v1, &v3));
+    }
+
+    #[test]
+    fn test_p_met1_question_analogous_to_met1_xaa() {
+        // End-to-end: project_aa_variant for p.Met1? and p.Met1Xaa should be analogous.
+        let sref = SparseReference::new();
+        let edit_q = AaEdit::Special {
+            value: "?".to_string(),
+            uncertain: false,
+        };
+        let edit_xaa = AaEdit::Subst {
+            ref_: "Met".to_string(),
+            alt: "Xaa".to_string(),
+            uncertain: false,
+        };
+        let res_q = project_aa_variant(&edit_q, 0, 0, 0, 0, &sref);
+        let res_xaa = project_aa_variant(&edit_xaa, 0, 0, 0, 0, &sref);
+        assert!(
+            res_q.is_analogous_to(&res_xaa),
+            "p.Met1? should be analogous to p.Met1Xaa"
+        );
+    }
 }
