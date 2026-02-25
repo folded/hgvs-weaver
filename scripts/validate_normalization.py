@@ -378,7 +378,7 @@ def validate(input_path, mismatch_path=None):
                                 f"Mismatch at row {stats['total']} [{match_str}]: {variant_str}\n"
                                 f"  ID: Found {v_id}, Expected {expected_id} (Build {build})\n"
                                 f"  C:  Found {res_c}, Expected {expected_c}\n"
-                                f"  P:  Found {res_p}, Expected {expected_p}"
+                                f"  P:  Found {res_p}, Expected {expected_p}",
                             )
 
                         if mismatch_writer:
@@ -394,12 +394,12 @@ def validate(input_path, mismatch_path=None):
                                     "found_c": res_c,
                                     "expected_p": expected_p,
                                     "found_p": res_p,
-                                }
+                                },
                             )
 
                     if stats["total"] % 100 == 0:
                         print(
-                            f"Processed {stats['total']}... Matches: ID={stats['id_match']}, C={stats['c_match']}, P={stats['p_match']}"
+                            f"Processed {stats['total']}... Matches: ID={stats['id_match']}, C={stats['c_match']}, P={stats['p_match']}",
                         )
 
                 except Exception as e:

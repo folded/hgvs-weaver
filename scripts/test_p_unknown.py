@@ -1,5 +1,6 @@
-import weaver
 import json
+
+import weaver
 
 
 def test_parse(s):

@@ -47,6 +47,20 @@ class Variant:
         Returns True if the reference sequence matches, False otherwise.
         May raise ValueError if coordinates are out of bounds.
         """
+    def transform(self, settings: VariantTransformSettings) -> Variant:
+        r"""
+        Returns a new variant with the given transform settings applied.
+
+        Currently transforms protein variants according to the start_codon convention.
+        All other variant types are returned unchanged.
+
+        Args:
+            settings: A VariantTransformSettings object.
+
+        Returns:
+            A new Variant with the settings applied.
+        """
+
 @typing.final
 class VariantMapper:
     r"""
@@ -115,6 +129,22 @@ class VariantMapper:
         Returns:
             A new Variant object in 'p.' coordinates.
         """
+    def p_to_c(self, var_p: Variant, transcript_ac: builtins.str | None = None) -> tuple[Variant, builtins.bool]:
+        r"""
+        Back-converts a protein substitution (p.) to a coding variant (c.).
+
+        Currently handles single amino acid substitutions only. When multiple codons
+        could produce the target amino acid, the one requiring the fewest nucleotide
+        changes is chosen.
+
+        Args:
+            var_p: The protein Variant to back-convert.
+            transcript_ac: Optional transcript accession (NM_). Required if the DataProvider cannot resolve NP to NM.
+
+        Returns:
+            A tuple of (Variant in 'c.' coordinates, is_unique: bool).
+            is_unique is True if the back-conversion is unambiguous.
+        """
     def normalize_variant(self, var: Variant) -> Variant:
         r"""
         Normalizes a variant by shifting it to its 3'-most position.
@@ -169,7 +199,23 @@ class VariantMapper:
         by expanding the variant range to cover the entire ambiguous region of a repeat or homopolymer.
         """
 
-class TranscriptMismatchError(builtins.Exception): ...
+@typing.final
+class VariantTransformSettings:
+    r"""
+    Settings that control how a variant is transformed before formatting or comparison.
+
+    Create with keyword arguments:
+        settings = VariantTransformSettings(start_codon=StartCodonConvention.HgvsQuestion)
+    """
+    @property
+    def start_codon(self) -> StartCodonConvention: ...
+    def __new__(cls, start_codon: StartCodonConvention = ...) -> VariantTransformSettings:
+        r"""
+        Creates a new VariantTransformSettings.
+
+        Args:
+            start_codon: Convention for start-codon protein variants. Defaults to Specific.
+        """
 
 @typing.final
 class EquivalenceLevel(enum.Enum):
@@ -178,7 +224,7 @@ class EquivalenceLevel(enum.Enum):
     Different = ...
     Unknown = ...
 
-    def __eq__(self, other: builtins.object) -> builtins.bool: ...
+    def __eq__(self, other: EquivalenceLevel) -> builtins.bool: ...
     def __hash__(self) -> builtins.int: ...
 
 @typing.final
@@ -189,7 +235,28 @@ class IdentifierType(enum.Enum):
     GeneSymbol = ...
     Unknown = ...
 
-    def __eq__(self, other: builtins.object) -> builtins.bool: ...
+    def __eq__(self, other: IdentifierType) -> builtins.bool: ...
+    def __hash__(self) -> builtins.int: ...
+
+@typing.final
+class StartCodonConvention(enum.Enum):
+    r"""
+    Controls how start-codon protein variants are represented.
+
+    Used in VariantTransformSettings to select between keeping the specific
+    predicted amino acid change or using the HGVS p.Met1? notation.
+    """
+
+    Specific = ...
+    r"""
+    Keep the specific predicted amino acid change (e.g., `p.(Met1Val)`). Default.
+    """
+    HgvsQuestion = ...
+    r"""
+    Use the HGVS `p.Met1?` notation for any non-silent change at the first codon.
+    """
+
+    def __eq__(self, other: StartCodonConvention) -> builtins.bool: ...
     def __hash__(self) -> builtins.int: ...
 
 def parse(input: builtins.str) -> Variant:

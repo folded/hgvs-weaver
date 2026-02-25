@@ -1356,7 +1356,7 @@ impl<'a> VariantMapper<'a> {
                     )));
                 }
                                         let idx = checked_usize(end_i, "genomic end index")?;
-                
+
                 if is_ins {
                     // Mirror normalize_variant: use the end position as the insertion
                     // anchor so that expand_unambiguous_range sees start == end and
