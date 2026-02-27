@@ -371,7 +371,7 @@ class RefSeqDataProvider:
                 refs = self.versionless_tx_to_refs.get(base_ac)
                 if refs:
                     # Resolve to actual accession in transcripts
-                    for t_id, _ in self.transcripts.keys():
+                    for t_id, _ in self.transcripts:
                         if t_id.startswith(base_ac + "."):
                             ac = t_id
                             break
@@ -487,10 +487,13 @@ class RefSeqDataProvider:
                     return [("protein_accession", tx["protein_id"])]
             except Exception:
                 pass
-        if source_kind == IdentifierKind.Protein and target_kind == IdentifierKind.Transcript:
-            if symbol in self.accession_map:
-                tx_id, _chrom = self.accession_map[symbol]
-                return [("transcript_accession", tx_id)]
+        if (
+            source_kind == IdentifierKind.Protein
+            and target_kind == IdentifierKind.Transcript
+            and symbol in self.accession_map
+        ):
+            tx_id, _chrom = self.accession_map[symbol]
+            return [("transcript_accession", tx_id)]
         if symbol in self.gene_to_transcripts:
             return [("transcript_accession", tx_ac) for tx_ac in self.gene_to_transcripts[symbol]]
         return [("gene_symbol", symbol)]

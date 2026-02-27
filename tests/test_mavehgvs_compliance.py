@@ -106,7 +106,7 @@ def test_valid_mavehgvs_parsing(variant_string: str) -> None:
         v = weaver.parse(variant_string)
         assert v is not None
         assert str(v)  # Should verify formatting too
-    except ValueError as e:
+    except (ValueError, weaver.HGVSError) as e:
         # weaver strictly requires Accession:Variant. Try prepending a dummy accession
         # if one is missing, to verify the variant syntax itself.
         if ":" not in variant_string:
@@ -117,7 +117,7 @@ def test_valid_mavehgvs_parsing(variant_string: str) -> None:
                 assert v is not None
                 # Passing with modification is acceptable for compatibility checking
                 return
-            except ValueError as e2:
+            except (ValueError, weaver.HGVSError) as e2:
                 pytest.fail(f"Failed to parse valid variant {variant_string} (even with prefix {retry_string}): {e2}")
 
         # If it had a colon or failed even with prefix
@@ -141,6 +141,6 @@ def test_mavehgvs_xfail(variant_string: str) -> None:
 def test_invalid_mavehgvs_parsing(variant_string: str) -> None:
     """Ensure weaver rejects variants considered invalid by mavehgvs."""
     # Note: weaver might be permissive for some (e.g. casing?)
-    # But usually it should raise ValueError
-    with pytest.raises(ValueError, match="variant"):
+    # But usually it should raise ParseError
+    with pytest.raises((ValueError, weaver.HGVSError)):
         weaver.parse(variant_string)

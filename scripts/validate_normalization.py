@@ -1,4 +1,5 @@
 import bz2
+import contextlib
 import csv
 import logging
 import sys
@@ -132,7 +133,7 @@ def is_hgvs_equivalent(v1, v2_str, mapper, searcher):
     """
     Check if a Variant object is equivalent to an HGVS string.
     """
-    if not v1 or not v2_str or v2_str == "None" or v2_str == "?":
+    if not v1 or not v2_str or v2_str in {"None", "?"}:
         return False
     # Basic string match after stripping parentheses
     s1 = v1.format().strip("()")
@@ -149,7 +150,7 @@ def is_hgvs_equivalent(v1, v2_str, mapper, searcher):
         return s1 == s2
 
 
-def validate(input_path, mismatch_path=None):
+def validate(input_path, mismatch_path=None) -> None:
     logger.info("Loading providers...")
     rp37 = provider.RefSeqDataProvider(GFF_37, FASTA_37)
     rp38 = provider.RefSeqDataProvider(GFF_38, FASTA_38)
@@ -194,7 +195,7 @@ def validate(input_path, mismatch_path=None):
 
                 try:
                     # Robust parsing: if variant_str is just c. or p., try to prepend accession from expected_c
-                    if ":" not in variant_str and (variant_str.startswith("c.") or variant_str.startswith("p.")):
+                    if ":" not in variant_str and (variant_str.startswith(("c.", "p."))):
                         ac = expected_c.split(":")[0] if ":" in expected_c else None
                         if ac:
                             variant_str = f"{ac}:{variant_str}"
@@ -299,14 +300,14 @@ def validate(input_path, mismatch_path=None):
                                     current_rp = other_rp
                                     v_g = v_g_other
                             except Exception:
-                                pass
+                                logging.exception("Failed to map to genomic")
 
                         # Generate c. and p. — normalize the input for position comparison
                         try:
                             v_norm = current_mapper.normalize_variant(v)
                             res_c = str(v_norm)
                             v_c = v_norm
-                        except BaseException:
+                        except weaver.HGVSError:
                             res_c = str(v)
                             v_c = v
                         res_p = "N/A"
@@ -343,10 +344,8 @@ def validate(input_path, mismatch_path=None):
                         expected_tx = expected_c.split(":")[0] if ":" in expected_c else None
                         if expected_tx and v_c and v_c.ac.split(".")[0] != expected_tx.split(".")[0]:
                             gene = None
-                            try:
+                            with contextlib.suppress(Exception):
                                 gene = current_rp.get_transcript(v_c.ac, None).get("gene")
-                            except Exception:
-                                pass
                             mane_tx = current_rp.mane_select.get(gene) if gene else None
                             if mane_tx:
                                 try:
@@ -375,10 +374,20 @@ def validate(input_path, mismatch_path=None):
 
                         if stats["total"] <= 20:
                             logger.warning(
-                                f"Mismatch at row {stats['total']} [{match_str}]: {variant_str}\n"
-                                f"  ID: Found {v_id}, Expected {expected_id} (Build {build})\n"
-                                f"  C:  Found {res_c}, Expected {expected_c}\n"
-                                f"  P:  Found {res_p}, Expected {expected_p}",
+                                "Mismatch at row %s [%s]: %s\n"
+                                "  ID: Found %s, Expected %s (Build %s)\n"
+                                "  C:  Found %s, Expected %s\n"
+                                "  P:  Found %s, Expected %s",
+                                stats["total"],
+                                match_str,
+                                variant_str,
+                                v_id,
+                                expected_id,
+                                build,
+                                res_c,
+                                expected_c,
+                                res_p,
+                                expected_p,
                             )
 
                         if mismatch_writer:
@@ -405,14 +414,14 @@ def validate(input_path, mismatch_path=None):
                 except Exception as e:
                     stats["errors"] += 1
                     if stats["total"] <= 50:
-                        logger.error(f"Error processing {variant_str}: {e}")
+                        logger.error("Error processing %s: %s", variant_str, e)
     finally:
         if mismatch_file:
             mismatch_file.close()
 
     print("\nFinal Results:")
-    for k, v in stats.items():
-        print(f"{k}: {v}")
+    for k, variant in stats.items():
+        print(f"{k}: {variant}")
 
 
 if __name__ == "__main__":
