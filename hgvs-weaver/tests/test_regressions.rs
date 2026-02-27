@@ -23,14 +23,14 @@ impl DataProvider for RegressionProvider {
             gene: "TEST".to_string(),
             cds_start_index: Some(TranscriptPos(cds_start)),
             cds_end_index: Some(TranscriptPos(2000)),
-            strand: 1,
+            strand: hgvs_weaver::data::Strand::Plus,
             reference_accession: "NC_TEST".to_string(),
             exons: vec![ExonData {
                 transcript_start: TranscriptPos(0),
                 transcript_end: TranscriptPos(2000),
                 reference_start: GenomicPos(1000),
                 reference_end: GenomicPos(3000),
-                alt_strand: 1,
+                alt_strand: hgvs_weaver::data::Strand::Plus,
                 cigar: "2000M".to_string(),
             }],
         }))
@@ -160,7 +160,7 @@ impl DataProvider for RepeatProvider {
             gene: "TEST".to_string(),
             cds_start_index: Some(TranscriptPos(0)),
             cds_end_index: Some(TranscriptPos(14)),
-            strand: 1,
+            strand: hgvs_weaver::data::Strand::Plus,
             reference_accession: "NC_001.1".to_string(),
             exons: vec![],
         }))
@@ -261,8 +261,8 @@ impl DataProvider for DelinsMismatchProvider {
             fn gene(&self) -> &str {
                 "TEST"
             }
-            fn strand(&self) -> i32 {
-                1
+            fn strand(&self) -> hgvs_weaver::data::Strand {
+                hgvs_weaver::data::Strand::Plus
             }
             fn cds_start_index(&self) -> Option<TranscriptPos> {
                 Some(TranscriptPos(0))
@@ -283,7 +283,7 @@ impl DataProvider for DelinsMismatchProvider {
             transcript_end: TranscriptPos(5000),
             reference_start: GenomicPos(0),
             reference_end: GenomicPos(5000),
-            alt_strand: 1,
+            alt_strand: hgvs_weaver::data::Strand::Plus,
             cigar: "5000M".to_string(),
         }];
 

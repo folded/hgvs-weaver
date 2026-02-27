@@ -39,7 +39,7 @@ impl DataProvider for MockDataProvider {
                 transcript_end: TranscriptPos(100),
                 reference_start: GenomicPos(1000),
                 reference_end: GenomicPos(1100),
-                alt_strand: 1,
+                alt_strand: hgvs_weaver::data::Strand::Plus,
                 cigar: "100M".to_string(),
             }];
             let td = TranscriptData {
@@ -47,7 +47,7 @@ impl DataProvider for MockDataProvider {
                 gene: "MOCK".to_string(),
                 cds_start_index: Some(TranscriptPos(10)), // n.11 is c.1
                 cds_end_index: Some(TranscriptPos(50)),
-                strand: 1,
+                strand: hgvs_weaver::data::Strand::Plus,
                 reference_accession: "NC_0001.10".to_string(),
                 exons,
             };

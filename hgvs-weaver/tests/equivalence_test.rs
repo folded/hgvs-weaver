@@ -18,14 +18,14 @@ impl DataProvider for SimpleProvider {
             gene: "TEST".to_string(),
             cds_start_index: Some(TranscriptPos(0)),
             cds_end_index: Some(TranscriptPos(100)),
-            strand: 1,
+            strand: hgvs_weaver::data::Strand::Plus,
             reference_accession: "NC_TEST.1".to_string(),
             exons: vec![ExonData {
                 transcript_start: TranscriptPos(0),
                 transcript_end: TranscriptPos(100),
                 reference_start: GenomicPos(1000),
                 reference_end: GenomicPos(1100),
-                alt_strand: 1,
+                alt_strand: hgvs_weaver::data::Strand::Plus,
                 cigar: "100M".to_string(),
             }],
         }))
@@ -121,7 +121,7 @@ fn test_parity_match_unification() -> Result<(), HgvsError> {
                 gene: "TEST".to_string(),
                 cds_start_index: Some(TranscriptPos(0)),
                 cds_end_index: Some(TranscriptPos(1000)),
-                strand: 1,
+                strand: hgvs_weaver::data::Strand::Plus,
                 reference_accession: "NC_TEST.1".to_string(),
                 exons: vec![],
             }))

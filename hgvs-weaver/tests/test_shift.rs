@@ -17,14 +17,14 @@ impl DataProvider for HomopolymerProvider {
             gene: "TEST".to_string(),
             cds_start_index: Some(TranscriptPos(0)),
             cds_end_index: Some(TranscriptPos(100)),
-            strand: 1,
+            strand: hgvs_weaver::data::Strand::Plus,
             reference_accession: "NC_TEST.1".to_string(),
             exons: vec![ExonData {
                 transcript_start: TranscriptPos(0),
                 transcript_end: TranscriptPos(100),
                 reference_start: GenomicPos(1000),
                 reference_end: GenomicPos(1100),
-                alt_strand: 1,
+                alt_strand: hgvs_weaver::data::Strand::Plus,
                 cigar: "100M".to_string(),
             }],
         }))
@@ -107,14 +107,14 @@ impl DataProvider for RepeatProvider {
             gene: "TEST".to_string(),
             cds_start_index: Some(TranscriptPos(0)),
             cds_end_index: Some(TranscriptPos(100)),
-            strand: 1,
+            strand: hgvs_weaver::data::Strand::Plus,
             reference_accession: "NC_TEST.1".to_string(),
             exons: vec![ExonData {
                 transcript_start: TranscriptPos(0),
                 transcript_end: TranscriptPos(100),
                 reference_start: GenomicPos(1000),
                 reference_end: GenomicPos(1100),
-                alt_strand: 1,
+                alt_strand: hgvs_weaver::data::Strand::Minus,
                 cigar: "100M".to_string(),
             }],
         }))
@@ -180,7 +180,11 @@ fn test_multi_base_ins_3_prime_shifting() -> Result<(), HgvsError> {
     // If it shifts 1 block, it might be "...g.1005_1006insCAG"
     // Since we have many repeats, it should shift far.
     println!("Normalized: {}", nv1);
-    assert!(!nv1.to_string().contains("1002_1003"), "Should have shifted from original position 1002_1003. Got: {}", nv1);
+    assert!(
+        !nv1.to_string().contains("1002_1003"),
+        "Should have shifted from original position 1002_1003. Got: {}",
+        nv1
+    );
 
     Ok(())
 }

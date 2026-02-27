@@ -3,17 +3,16 @@ use crate::altseq_to_hgvsp::AltSeqToHgvsp;
 use crate::data::{DataProvider, IdentifierKind, IdentifierType, Transcript, TranscriptSearch};
 use crate::error::HgvsError;
 use crate::sequence::{LazySequence, MemSequence, RevCompSequence, Sequence, TranslatedSequence};
-use crate::structs::{BaseOffsetInterval, BaseOffsetPosition, CVariant, GVariant, NVariant, PVariant};
+use crate::structs::{
+    BaseOffsetInterval, BaseOffsetPosition, CVariant, GVariant, NVariant, PVariant,
+};
 use crate::transcript_mapper::TranscriptMapper;
 
 /// Converts a 0-based transcript index to a fresh `BaseOffsetPosition` via `n_to_c`.
 ///
 /// The returned position has `uncertain = false`; callers that need to propagate
 /// an existing uncertainty flag should overwrite that field after calling this.
-fn n_to_c_position(
-    am: &TranscriptMapper,
-    n: i32,
-) -> Result<BaseOffsetPosition, HgvsError> {
+fn n_to_c_position(am: &TranscriptMapper, n: i32) -> Result<BaseOffsetPosition, HgvsError> {
     let (c_pos, offset, anchor) = am.n_to_c(crate::coords::TranscriptPos(n))?;
     Ok(BaseOffsetPosition {
         base: c_pos.to_hgvs(),
@@ -54,8 +53,11 @@ fn make_simple_position(base: crate::coords::HgvsGenomicPos) -> crate::structs::
     }
 }
 
-fn apply_strand_complement(edit: crate::edits::NaEdit, strand: i32) -> crate::edits::NaEdit {
-    if strand == -1 {
+fn apply_strand_complement(
+    edit: crate::edits::NaEdit,
+    strand: crate::data::Strand,
+) -> crate::edits::NaEdit {
+    if strand == crate::data::Strand::Minus {
         edit.map_sequence(|s| {
             let seq = MemSequence(s.to_string());
             RevCompSequence { inner: &seq }.to_string()
@@ -87,13 +89,23 @@ fn extract_edit_sequences(
             let r = if let Some(r) = ref_ {
                 r.clone()
             } else {
-                hdp.get_seq(ac, start as i32, end as i32, IdentifierType::GenomicAccession)?
+                hdp.get_seq(
+                    ac,
+                    start as i32,
+                    end as i32,
+                    IdentifierType::GenomicAccession,
+                )?
             };
             let a = r.repeat(*max as usize);
             Some((r, a))
         }
         crate::edits::NaEdit::Inv { .. } => {
-            let r = hdp.get_seq(ac, start as i32, end as i32, IdentifierType::GenomicAccession)?;
+            let r = hdp.get_seq(
+                ac,
+                start as i32,
+                end as i32,
+                IdentifierType::GenomicAccession,
+            )?;
             let a = crate::sequence::rev_comp(&r);
             Some((r, a))
         }
@@ -178,8 +190,7 @@ impl<'a> VariantMapper<'a> {
         }
 
         let (c_pos_index, c_offset, anchor) = am.n_to_c(n_pos)?;
-        let pos_c =
-            make_base_offset_position(c_pos_index.to_hgvs(), c_offset.0 + offset.0, anchor);
+        let pos_c = make_base_offset_position(c_pos_index.to_hgvs(), c_offset.0 + offset.0, anchor);
 
         let edit = apply_strand_complement(var_g.posedit.edit.clone(), am.transcript.strand());
 
@@ -464,7 +475,6 @@ impl<'a> VariantMapper<'a> {
                     },
                 });
             }
-
         }
 
         let transcript = self.hdp.get_transcript(transcript_ac, None)?;
@@ -745,15 +755,15 @@ impl<'a> VariantMapper<'a> {
         var: crate::SequenceVariant,
     ) -> Result<crate::SequenceVariant, HgvsError> {
         match var {
-            crate::SequenceVariant::Coding(v_c) => {
-                Ok(crate::SequenceVariant::Coding(self.normalize_coding_variant(v_c)?))
-            }
-            crate::SequenceVariant::Genomic(v_g) => {
-                Ok(crate::SequenceVariant::Genomic(self.normalize_genomic_variant(v_g)?))
-            }
-            crate::SequenceVariant::NonCoding(v_n) => {
-                Ok(crate::SequenceVariant::NonCoding(self.normalize_noncoding_variant(v_n)?))
-            }
+            crate::SequenceVariant::Coding(v_c) => Ok(crate::SequenceVariant::Coding(
+                self.normalize_coding_variant(v_c)?,
+            )),
+            crate::SequenceVariant::Genomic(v_g) => Ok(crate::SequenceVariant::Genomic(
+                self.normalize_genomic_variant(v_g)?,
+            )),
+            crate::SequenceVariant::NonCoding(v_n) => Ok(crate::SequenceVariant::NonCoding(
+                self.normalize_noncoding_variant(v_n)?,
+            )),
             _ => Ok(var),
         }
     }
@@ -813,9 +823,7 @@ impl<'a> VariantMapper<'a> {
                     if pos_after.start.offset.is_none()
                         && pos_after.end.as_ref().map_or(true, |e| e.offset.is_none())
                     {
-                        if let Ok((cur_n_start, _)) =
-                            self.get_c_indices(pos_after, &transcript)
-                        {
+                        if let Ok((cur_n_start, _)) = self.get_c_indices(pos_after, &transcript) {
                             let n = ins_seq.len() as i32;
                             let check_start = cur_n_start as i32 - n + 1;
                             if check_start >= 0 {
@@ -826,21 +834,16 @@ impl<'a> VariantMapper<'a> {
                                     IdentifierKind::Transcript.into_identifier_type(),
                                 ) {
                                     if ref_seq == ins_seq {
-                                        let am2 = TranscriptMapper::new(
-                                            dyn_clone::clone_box(&*transcript),
-                                        )?;
+                                        let am2 = TranscriptMapper::new(dyn_clone::clone_box(
+                                            &*transcript,
+                                        ))?;
                                         if let Some(pos_mut) = &mut v_c.posedit.pos {
-                                            pos_mut.start =
-                                                n_to_c_position(&am2, check_start)?;
-                                            pos_mut.end =
-                                                if check_start != cur_n_start as i32 {
-                                                    Some(n_to_c_position(
-                                                        &am2,
-                                                        cur_n_start as i32,
-                                                    )?)
-                                                } else {
-                                                    None
-                                                };
+                                            pos_mut.start = n_to_c_position(&am2, check_start)?;
+                                            pos_mut.end = if check_start != cur_n_start as i32 {
+                                                Some(n_to_c_position(&am2, cur_n_start as i32)?)
+                                            } else {
+                                                None
+                                            };
                                         }
                                         v_c.posedit.edit = crate::edits::NaEdit::Dup {
                                             ref_: Some(ins_seq),
@@ -1002,7 +1005,6 @@ impl<'a> VariantMapper<'a> {
         ))
     }
 
-
     fn shift_3_prime(
         &self,
         ac: &str,
@@ -1011,11 +1013,10 @@ impl<'a> VariantMapper<'a> {
         end: usize,
         edit: &crate::edits::NaEdit,
     ) -> Result<(usize, usize), HgvsError> {
-        let (ref_owned, alt_owned) =
-            match extract_edit_sequences(self.hdp, ac, start, end, edit)? {
-                None => return Ok((start, end)),
-                Some(seqs) => seqs,
-            };
+        let (ref_owned, alt_owned) = match extract_edit_sequences(self.hdp, ac, start, end, edit)? {
+            None => return Ok((start, end)),
+            Some(seqs) => seqs,
+        };
         let ref_str = ref_owned.as_str();
         let alt_str = alt_owned.as_str();
 
@@ -1152,11 +1153,10 @@ impl<'a> VariantMapper<'a> {
         end: usize,
         edit: &crate::edits::NaEdit,
     ) -> Result<(usize, usize), HgvsError> {
-        let (ref_owned, alt_owned) =
-            match extract_edit_sequences(self.hdp, ac, start, end, edit)? {
-                None => return Ok((start, end)),
-                Some(seqs) => seqs,
-            };
+        let (ref_owned, alt_owned) = match extract_edit_sequences(self.hdp, ac, start, end, edit)? {
+            None => return Ok((start, end)),
+            Some(seqs) => seqs,
+        };
         let ref_str = ref_owned.as_str();
         let alt_str = alt_owned.as_str();
 
@@ -1355,7 +1355,7 @@ impl<'a> VariantMapper<'a> {
                         end_i
                     )));
                 }
-                                        let idx = checked_usize(end_i, "genomic end index")?;
+                let idx = checked_usize(end_i, "genomic end index")?;
 
                 if is_ins {
                     // Mirror normalize_variant: use the end position as the insertion

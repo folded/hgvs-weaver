@@ -16,20 +16,27 @@ impl TranscriptMapper {
     /// Creates a new `TranscriptMapper` for the given transcript.
     pub fn new(transcript: Box<dyn Transcript>) -> Result<Self, HgvsError> {
         let mut exons = transcript.exons().to_vec();
-        if transcript.strand() == 1 {
+        if transcript.strand() == crate::data::Strand::Plus {
             exons.sort_by_key(|e| e.reference_start.0);
         } else {
             exons.sort_by_key(|e| std::cmp::Reverse(e.reference_start.0));
         }
         let mut cigar_mappers = Vec::with_capacity(exons.len());
         for exon in &exons {
-            if !exon.cigar.is_empty() && exon.cigar != format!("{}M", (exon.reference_end.0 - exon.reference_start.0) + 1) && exon.cigar != format!("{}=", (exon.reference_end.0 - exon.reference_start.0) + 1) {
+            if !exon.cigar.is_empty()
+                && exon.cigar != format!("{}M", (exon.reference_end.0 - exon.reference_start.0) + 1)
+                && exon.cigar != format!("{}=", (exon.reference_end.0 - exon.reference_start.0) + 1)
+            {
                 cigar_mappers.push(Some(crate::cigar::CigarMapper::new(&exon.cigar)?));
             } else {
                 cigar_mappers.push(None);
             }
         }
-        Ok(TranscriptMapper { transcript, exons, cigar_mappers })
+        Ok(TranscriptMapper {
+            transcript,
+            exons,
+            cigar_mappers,
+        })
     }
 
     /// Maps a 0-based genomic position to a 0-based transcript position and intronic offset.
@@ -40,7 +47,7 @@ impl TranscriptMapper {
             // e_start and e_end are 0-based inclusive
             if g_pos.0 >= e_start.0 && g_pos.0 <= e_end.0 {
                 let offset_in_exon = if let Some(cm) = &self.cigar_mappers[i] {
-                    let g_offset = if exon.alt_strand == 1 {
+                    let g_offset = if exon.alt_strand == crate::data::Strand::Plus {
                         g_pos.0 - e_start.0
                     } else {
                         e_end.0 - g_pos.0
@@ -48,7 +55,7 @@ impl TranscriptMapper {
                     let (t_offset, _intronic, _op) = cm.map_ref_to_tgt(g_offset, "start", true)?;
                     t_offset
                 } else {
-                    if exon.alt_strand == 1 {
+                    if exon.alt_strand == crate::data::Strand::Plus {
                         g_pos.0 - e_start.0
                     } else {
                         e_end.0 - g_pos.0
@@ -76,13 +83,13 @@ impl TranscriptMapper {
             if d < best_dist {
                 best_dist = d;
                 best_offset = if g_pos.0 < e_start.0 {
-                    if exon.alt_strand == 1 {
+                    if exon.alt_strand == crate::data::Strand::Plus {
                         g_pos.0 - e_start.0
                     } else {
                         e_start.0 - g_pos.0
                     }
                 } else {
-                    if exon.alt_strand == 1 {
+                    if exon.alt_strand == crate::data::Strand::Plus {
                         g_pos.0 - e_end.0
                     } else {
                         e_end.0 - g_pos.0
@@ -179,19 +186,20 @@ impl TranscriptMapper {
             if n_pos.0 >= curr_n && n_pos.0 < curr_n + e_tgt_len {
                 let offset_in_exon_tgt = n_pos.0 - curr_n;
                 let g_offset = if let Some(cm) = &self.cigar_mappers[i] {
-                    let (g_off, _intronic, _op) = cm.map_tgt_to_ref(offset_in_exon_tgt, "start", true)?;
+                    let (g_off, _intronic, _op) =
+                        cm.map_tgt_to_ref(offset_in_exon_tgt, "start", true)?;
                     g_off
                 } else {
                     offset_in_exon_tgt
                 };
-                let g_base = if exon.alt_strand == 1 {
+                let g_base = if exon.alt_strand == crate::data::Strand::Plus {
                     e_start.0 + g_offset
                 } else {
                     e_end.0 - g_offset
                 };
                 return Ok(GenomicPos(
                     g_base
-                        + if exon.alt_strand == 1 {
+                        + if exon.alt_strand == crate::data::Strand::Plus {
                             offset.0
                         } else {
                             -offset.0
@@ -211,7 +219,10 @@ mod tests {
     use super::*;
     use crate::data::{ExonData, TranscriptData};
 
-    fn create_mock_transcript(strand: i32, exons: Vec<ExonData>) -> Box<dyn Transcript> {
+    fn create_mock_transcript(
+        strand: crate::data::Strand,
+        exons: Vec<ExonData>,
+    ) -> Box<dyn Transcript> {
         Box::new(TranscriptData {
             ac: "NM_0001.1".to_string(),
             gene: "TEST".to_string(),
@@ -233,7 +244,7 @@ mod tests {
                 transcript_end: TranscriptPos(100),
                 reference_start: GenomicPos(1000),
                 reference_end: GenomicPos(1100),
-                alt_strand: -1,
+                alt_strand: crate::data::Strand::Minus,
                 cigar: "101M".to_string(),
             },
             ExonData {
@@ -241,11 +252,11 @@ mod tests {
                 transcript_end: TranscriptPos(201),
                 reference_start: GenomicPos(2000),
                 reference_end: GenomicPos(2100),
-                alt_strand: -1,
+                alt_strand: crate::data::Strand::Minus,
                 cigar: "101M".to_string(),
             },
         ];
-        let tx = create_mock_transcript(-1, exons);
+        let tx = create_mock_transcript(crate::data::Strand::Minus, exons);
         let mapper = TranscriptMapper::new(tx).unwrap();
 
         // Genomic 2100 should be n.0
@@ -267,10 +278,10 @@ mod tests {
             transcript_end: TranscriptPos(10),
             reference_start: GenomicPos(1000),
             reference_end: GenomicPos(1010),
-            alt_strand: 1,
+            alt_strand: crate::data::Strand::Plus,
             cigar: "11M".to_string(),
         }];
-        let tx = create_mock_transcript(1, exons);
+        let tx = create_mock_transcript(crate::data::Strand::Plus, exons);
         let mapper = TranscriptMapper::new(tx).unwrap();
 
         // Genomic 999 is 1bp upstream of exon start (1000)
@@ -295,10 +306,10 @@ mod tests {
             transcript_end: TranscriptPos(9),
             reference_start: GenomicPos(1000),
             reference_end: GenomicPos(1010),
-            alt_strand: 1,
+            alt_strand: crate::data::Strand::Plus,
             cigar: "5=1D5=".to_string(),
         }];
-        let tx = create_mock_transcript(1, exons);
+        let tx = create_mock_transcript(crate::data::Strand::Plus, exons);
         let mapper = TranscriptMapper::new(tx).unwrap();
 
         // g.1000 -> n.0

@@ -28,8 +28,8 @@ impl EquivalenceLevel {
 
 // Migrated to analogous_edit.rs
 
-fn strand_aware_edit(edit: &NaEdit, strand: i32) -> NaEdit {
-    if strand == -1 {
+fn strand_aware_edit(edit: &NaEdit, strand: crate::data::Strand) -> NaEdit {
+    if strand == crate::data::Strand::Minus {
         edit.reverse_complement()
     } else {
         edit.clone()
@@ -780,9 +780,9 @@ impl<'a> VariantEquivalence<'a> {
                     } = &v.posedit.edit
                     {
                         let transcript = self.hdp.get_transcript(&v.ac, None)?;
-                        if let Some((new_pos, new_edit)) = self.normalize_ins_to_dup_boi(
-                            &v.ac, pos, seq, *uncertain, transcript,
-                        )? {
+                        if let Some((new_pos, new_edit)) =
+                            self.normalize_ins_to_dup_boi(&v.ac, pos, seq, *uncertain, transcript)?
+                        {
                             let mut new_v = v.clone();
                             new_v.posedit.pos = Some(new_pos);
                             new_v.posedit.edit = new_edit;
@@ -800,9 +800,9 @@ impl<'a> VariantEquivalence<'a> {
                     } = &v.posedit.edit
                     {
                         let transcript = self.hdp.get_transcript(&v.ac, None)?;
-                        if let Some((new_pos, new_edit)) = self.normalize_ins_to_dup_boi(
-                            &v.ac, pos, seq, *uncertain, transcript,
-                        )? {
+                        if let Some((new_pos, new_edit)) =
+                            self.normalize_ins_to_dup_boi(&v.ac, pos, seq, *uncertain, transcript)?
+                        {
                             let mut new_v = v.clone();
                             new_v.posedit.pos = Some(new_pos);
                             new_v.posedit.edit = new_edit;
@@ -824,21 +824,15 @@ impl<'a> VariantEquivalence<'a> {
         uncertain: bool,
         transcript: Box<dyn Transcript>,
     ) -> Result<Option<(BaseOffsetInterval, NaEdit)>, HgvsError> {
-        if pos.start.offset.is_some()
-            || pos.end.as_ref().map_or(false, |e| e.offset.is_some())
-        {
+        if pos.start.offset.is_some() || pos.end.as_ref().map_or(false, |e| e.offset.is_some()) {
             return Ok(None);
         }
         let (start_idx_usize, _) = self.mapper.get_c_indices(pos, &transcript)?;
         let start_idx = start_idx_usize as i32;
 
-        if let Some((check_start, last_idx, edit)) = self.try_normalize_to_dup(
-            ac,
-            IdentifierKind::Transcript,
-            start_idx,
-            seq,
-            uncertain,
-        )? {
+        if let Some((check_start, last_idx, edit)) =
+            self.try_normalize_to_dup(ac, IdentifierKind::Transcript, start_idx, seq, uncertain)?
+        {
             let am = crate::transcript_mapper::TranscriptMapper::new(transcript)?;
             let (c_pos_index, _, anchor) = am.n_to_c(TranscriptPos(check_start))?;
             let new_pos = BaseOffsetInterval {
@@ -1049,14 +1043,14 @@ mod tests {
                     gene: "ABC".to_string(),
                     cds_start_index: Some(TranscriptPos(0)),
                     cds_end_index: Some(TranscriptPos(19)),
-                    strand: 1,
+                    strand: crate::data::Strand::Plus,
                     reference_accession: "NC_000001.11".to_string(),
                     exons: vec![ExonData {
                         transcript_start: TranscriptPos(0),
                         transcript_end: TranscriptPos(19),
                         reference_start: GenomicPos(0),
                         reference_end: GenomicPos(19),
-                        alt_strand: 1,
+                        alt_strand: crate::data::Strand::Plus,
                         cigar: "20M".to_string(),
                     }],
                 }))
