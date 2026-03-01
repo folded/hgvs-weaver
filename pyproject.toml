@@ -18,6 +18,9 @@ validation = [
     "tqdm",
     "parsley",
     "bioutils",
+    "seaborn",
+    "matplotlib",
+    "pandas",
 ]
 
 [project.scripts]
