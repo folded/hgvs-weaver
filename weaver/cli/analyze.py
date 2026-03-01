@@ -5,6 +5,7 @@ import csv
 import io
 import json
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -38,9 +39,10 @@ def get_tags(repo_root: Path) -> dict[str, str]:
     """Returns a mapping of commit hash to tag name."""
     tags = {}
     try:
+        git_path = shutil.which("git") or "git"
         lines = (
             subprocess.check_output(  # noqa: S603
-                ["git", "show-ref", "--tags"],
+                [git_path, "show-ref", "--tags"],
                 text=True,
                 cwd=repo_root,
                 shell=False,
@@ -69,9 +71,9 @@ def get_current_version(repo_root: Path) -> str:
 
 
 def generate_svg(data_points: list[dict], mode: str = "light") -> str:
-    import matplotlib.pyplot as plt
-    import pandas as pd
-    import seaborn as sns
+    import matplotlib.pyplot as plt  # noqa: PLC0415
+    import pandas as pd  # noqa: PLC0415
+    import seaborn as sns  # noqa: PLC0415
 
     # Prepare data for plotting
     results_df = pd.DataFrame(data_points)
@@ -177,7 +179,7 @@ def update_performance_graphs(repo_root: Path) -> None:
         return
 
     try:
-        import pandas as pd  # noqa: F401
+        import pandas as pd  # noqa: F401, PLC0415
     except ImportError:
         print("Warning: pandas/seaborn/matplotlib not found. Skipping graph update.")
         return
@@ -207,7 +209,7 @@ def update_performance_graphs(repo_root: Path) -> None:
                     "identity": entry.get("w_identity", entry.get("p_match", 0)),
                     "analogous": entry.get("w_analogous", 0),
                     "total": entry["total"],
-                }
+                },
             )
             data_points.append(
                 {
@@ -216,7 +218,7 @@ def update_performance_graphs(repo_root: Path) -> None:
                     "identity": entry.get("ref_identity", 0),
                     "analogous": entry.get("ref_analogous", 0),
                     "total": entry["total"],
-                }
+                },
             )
 
     data_points.reverse()
@@ -367,6 +369,7 @@ def main() -> None:
         f"| weaver         |  {rs_p_str}  | {rs_ana_str} | {rs_spdi_str} | {rs_err_str} |",
         f"| ref-hgvs       |  {ref_p_str}  | {ref_ana_str} | {ref_spdi_str} | {ref_err_str} |",
         "",
+        "",
         f"RefSeq Data Mismatches: {rs_ref_mismatch:,} ({rs_ref_mismatch / total * 100:.1f}%)",
         "",
         "#### Protein Translation Agreement",
@@ -382,6 +385,7 @@ def main() -> None:
         "| :------------------ | :------------: | :---------------: |",
         f"| **weaver Match**    |     {spdi_stats['both']:,}     |     {spdi_stats['rs_only']:,}     |",
         f"| **weaver Mismatch** |     {spdi_stats['ref_only']:,}     |     {spdi_stats['neither']:,}     |",
+        "",
     ]
 
     out_text = "\n".join(report)

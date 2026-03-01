@@ -187,6 +187,7 @@ Summary of results comparing `weaver` and `ref-hgvs` against ClinVar ground trut
 | weaver         |  **93.869%**  | **4.355%** | **98.224%** | **0** |
 | ref-hgvs       |  93.352%  | 0.687% | 94.039% | 394 |
 
+
 RefSeq Data Mismatches: 0 (0.0%)
 
 #### Protein Translation Agreement
@@ -202,6 +203,7 @@ RefSeq Data Mismatches: 0 (0.0%)
 | :------------------ | :------------: | :---------------: |
 | **weaver Match**    |     93,936     |     4,288     |
 | **weaver Mismatch** |     103     |     1,673     |
+
 - **Variant Equivalence**: Check if two variants are biologically equivalent using advanced cross-coordinate mapping and normalization. [See Algorithm](docs/source/equivalence_logic.md).
 
 ## Troubleshooting
