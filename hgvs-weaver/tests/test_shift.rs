@@ -189,4 +189,20 @@ fn test_multi_base_ins_3_prime_shifting() -> Result<(), HgvsError> {
     Ok(())
 }
 
+#[test]
+fn test_ins_5_prime_shifting_no_panic() -> Result<(), HgvsError> {
+    let hdp = HomopolymerProvider;
+    let mapper = VariantMapper::new(&hdp);
+
+    // NC_TEST.1:g.1005_1006insA
+    // This will attempt to shift left (5') because the prefix is 'A's.
+    let v1 = hgvs_weaver::parse_hgvs_variant("NC_TEST.1:g.1005_1006insA")?;
+
+    // This calls expand_unambiguous_range -> shift_5_prime, which previously panicked.
+    let spdi = mapper.to_spdi_unambiguous(&v1)?;
+    assert!(spdi.contains("NC_TEST.1:0:")); // Should expand to start of sequence
+
+    Ok(())
+}
+
 use hgvs_weaver::SequenceVariant;

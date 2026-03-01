@@ -1243,7 +1243,9 @@ impl<'a> VariantMapper<'a> {
                     break;
                 }
 
-                if prev_base.as_bytes()[0] == alt_bytes[(curr_start - start + n - 1) % n] {
+                let rel_pos =
+                    (curr_start as i64 - start as i64 + n as i64 - 1).rem_euclid(n as i64) as usize;
+                if prev_base.as_bytes()[0] == alt_bytes[rel_pos] {
                     curr_start -= 1;
                     curr_end -= 1;
                 } else {
