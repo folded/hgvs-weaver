@@ -134,7 +134,9 @@ def generate_svg(data_points: list[dict], mode: str = "light") -> str:
     plt.title("Protein Projection Performance (100k ClinVar Variants)", fontsize=18, pad=20)
     plt.xlabel("Release", fontsize=14)
     plt.ylabel("Match %", fontsize=14)
-    plt.ylim(85, 100)  # Zoom in on the high performance range
+    min_y_axis = 85
+    max_y_axis = 100
+    plt.ylim(min_y_axis, max_y_axis)  # Zoom in on the high performance range
     plt.xticks(x, versions)
 
     # Legend cleanup

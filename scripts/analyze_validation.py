@@ -139,6 +139,7 @@ if __name__ == "__main__":
         print("Usage: python analyze_validation.py <results_file> [gff] [fasta]")
         sys.exit(1)
 
+    min_args_with_gff_fasta = 4
     results_file = sys.argv[1]
     gff_arg = sys.argv[2] if len(sys.argv) > MIN_ARGS else DEFAULT_GFF
     fasta_arg = sys.argv[3] if len(sys.argv) > (MIN_ARGS + 1) else DEFAULT_FASTA

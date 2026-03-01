@@ -485,7 +485,7 @@ class RefSeqDataProvider:
                 tx = self.get_transcript(symbol, None)
                 if tx and tx.get("protein_id"):
                     return [("protein_accession", tx["protein_id"])]
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         if (
             source_kind == IdentifierKind.Protein
