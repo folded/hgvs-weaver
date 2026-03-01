@@ -182,10 +182,10 @@ To rerun the validation, you need the RefSeq annotation and genomic sequence fil
 
 Summary of results comparing `weaver` and `ref-hgvs` against ClinVar ground truth:
 
-| Implementation | Protein Match | SPDI Match  | Parse Errors |
-| :------------- | :-----------: | :---------: | :----------: |
-| weaver         |  **93.869%**  | **98.224%** | **0** |
-| ref-hgvs       |  93.352%  | 94.039% | 394 |
+| Implementation | Protein Identity | Protein Analogous | SPDI (Genomic) | Parse Errors |
+| :------------- | :--------------: | :---------------: | :------------: | :----------: |
+| weaver         |  **93.869%**  | **4.355%** | **98.224%** | **0** |
+| ref-hgvs       |  93.352%  | 0.687% | 94.039% | 394 |
 
 RefSeq Data Mismatches: 0 (0.0%)
 
