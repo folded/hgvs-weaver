@@ -12,6 +12,7 @@
 import argparse
 import concurrent.futures
 import csv
+import logging
 import sys
 import typing
 
@@ -164,9 +165,9 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
                         v_ref_p = weaver.parse(ref_p)
                         ref_equiv = str(_rs_mapper.equivalent_level(v_ref_p, v_gt, _rp)).split(".")[-1]
                     except Exception:
-                        pass
+                        logging.exception("Failed to judge equivalence")
         except Exception:
-            pass
+            logging.exception("Failed to judge equivalence")
 
     res_row = row.copy()
     res_row.update(
@@ -180,11 +181,6 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
         },
     )
 
-    # Ensure no extra fields that would crash DictWriter
-    # NOTE: fieldnames is not defined in this scope, this line will cause a NameError.
-    # Assuming it's meant to be a global or passed in, or removed.
-    # For faithful reproduction, it's included as per instruction.
-    # return {k: v for k, v in row.items() if k in fieldnames}
     return res_row
 
 

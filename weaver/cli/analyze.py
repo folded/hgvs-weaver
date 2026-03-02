@@ -293,7 +293,7 @@ def main() -> None:
             if ref_p_raw.startswith("ERR:Parse"):
                 ref_parse_err += 1
 
-            if rs_p_raw.startswith("ERR:ReferenceMismatch") or rs_p_raw.startswith("ERR:ValueError: Transcript"):
+            if rs_p_raw.startswith(("ERR:ReferenceMismatch", "ERR:ValueError: Transcript")):
                 rs_ref_mismatch += 1
 
             rs_p_ok = is_p_match(rs_p_raw, cv_p)
