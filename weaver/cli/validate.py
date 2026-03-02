@@ -206,7 +206,7 @@ def main() -> None:
             for f in (reader.fieldnames or [])
             if f not in {"rs_p", "rs_spdi", "ref_p", "ref_spdi", "rs_equiv", "ref_equiv", "equivalence_level"}
         ]
-        fieldnames = base_fields + ["rs_p", "rs_spdi", "ref_p", "ref_spdi", "rs_equiv", "ref_equiv"]
+        fieldnames = [*base_fields, "rs_p", "rs_spdi", "ref_p", "ref_spdi", "rs_equiv", "ref_equiv"]
         rows: list[dict[str, str]] = (
             [next(reader) for _ in range(args.max_variants)] if args.max_variants else list(reader)
         )
