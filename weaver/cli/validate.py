@@ -94,7 +94,7 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
                     "rs_spdi": "ERR:MapperNotInit",
                     "rs_equiv": "ERR:MapperNotInit",
                     "ref_equiv": "ERR:MapperNotInit",
-                }
+                },
             )
             return res_row
 
@@ -177,7 +177,7 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
             "ref_spdi": ref_spdi or "",
             "rs_equiv": rs_equiv,
             "ref_equiv": ref_equiv,
-        }
+        },
     )
 
     # Ensure no extra fields that would crash DictWriter
