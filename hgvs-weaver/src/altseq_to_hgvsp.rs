@@ -320,6 +320,11 @@ impl<'a> AltSeqToHgvsp<'a> {
 
         // Detect pure insertion
         if del_seq.is_empty() && !ins_seq.is_empty() {
+            if start_idx == 0 {
+                return Err(HgvsError::UnsupportedOperation(
+                    "N-terminal protein insertions are not supported".into(),
+                ));
+            }
             let start_pos_0 = ProteinPos((start_idx as i32).saturating_sub(1));
             let end_pos_0 = ProteinPos(start_idx as i32);
             let aa_start = aa1_to_aa3(
@@ -523,5 +528,69 @@ impl<'a> AltSeqToHgvsp<'a> {
                 predicted: false,
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::altseq::AltTranscriptData;
+    use crate::coords::{HgvsTranscriptPos, TranscriptPos};
+    use crate::structs::{Anchor, BaseOffsetInterval, BaseOffsetPosition, CVariant, NaEdit};
+
+    #[test]
+    fn test_n_terminal_insertion() {
+        // Ref: Met Ala ... (M A ...)
+        // Alt: Val Met Ala ... (V M A ...)
+        // This is an insertion at start_idx = 0.
+        let alt_data = AltTranscriptData {
+            transcript_sequence: "GTGMAG*".to_string(),
+            aa_sequence: "VMA*".to_string(),
+            protein_accession: "NP_0001.1".to_string(),
+            variant_start_aa: Some(ProteinPos(0)),
+            is_frameshift: false,
+            frameshift_start: None,
+            is_substitution: false,
+            is_ambiguous: false,
+            variant_start_idx: 0,
+            variant_end_idx: 0,
+            c_variant: CVariant {
+                ac: "NM_0001.1".to_string(),
+                gene: None,
+                posedit: PosEdit {
+                    pos: Some(BaseOffsetInterval {
+                        start: BaseOffsetPosition {
+                            base: HgvsTranscriptPos(1),
+                            offset: None,
+                            anchor: Anchor::CdsStart,
+                            uncertain: false,
+                        },
+                        end: Some(BaseOffsetPosition {
+                            base: HgvsTranscriptPos(1),
+                            offset: None,
+                            anchor: Anchor::CdsStart,
+                            uncertain: false,
+                        }),
+                        uncertain: false,
+                    }),
+                    edit: NaEdit::Ins { alt: Some("GTG".to_string()), uncertain: false },
+                    uncertain: false,
+                    predicted: false,
+                },
+            },
+            cds_start_index: TranscriptPos(0),
+            cds_end_index: TranscriptPos(6),
+        };
+
+        let converter = AltSeqToHgvsp {
+            ref_aa: "MA*".to_string(),
+            ref_cds_start_idx: 0,
+            ref_cds_end_idx: 6,
+            alt_data: &alt_data,
+        };
+
+        let res = converter.build_hgvsp();
+        assert!(res.is_err());
+        assert!(format!("{:?}", res).contains("N-terminal protein insertions are not supported"));
     }
 }

@@ -269,7 +269,7 @@ impl<'a> AltSeqBuilder<'a> {
                 .to_string();
                 (false, false, res)
             }
-            NaEdit::Repeat { min, ref_, .. } => {
+            NaEdit::Repeat { max, ref_, .. } => {
                 let unit = if let Some(r) = ref_ {
                     r.clone()
                 } else {
@@ -300,7 +300,7 @@ impl<'a> AltSeqBuilder<'a> {
                 }
 
                 let mut total_str = String::new();
-                for _ in 0..*min {
+                for _ in 0..*max {
                     total_str.push_str(&unit);
                 }
                 let alt_seq = MemSequence(total_str);
@@ -324,7 +324,7 @@ impl<'a> AltSeqBuilder<'a> {
                 .to_string();
 
                 let net_change =
-                    (unit.len() as i32 * (*min as i32)) - (current_idx as i32 - start_idx as i32);
+                    (unit.len() as i32 * (*max as i32)) - (current_idx as i32 - start_idx as i32);
                 (false, net_change % 3 != 0, res)
             }
             NaEdit::None => (false, false, self.transcript_sequence.to_string()),

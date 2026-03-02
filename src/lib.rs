@@ -1,3 +1,4 @@
+use ::hgvs_weaver::transform::{transform_variant, StartCodonConvention, VariantTransformSettings};
 use ::hgvs_weaver::{
     DataProvider, HgvsError, IdentifierKind, SequenceVariant, Transcript, TranscriptSearch,
     Variant as VariantTrait, VariantMapper,
@@ -8,14 +9,21 @@ use pyo3::{Bound, PyErr};
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::*};
 use serde_json;
 
-pyo3::create_exception!(
-    _weaver,
-    TranscriptMismatchError,
-    pyo3::exceptions::PyValueError
-);
+pyo3_stub_gen::create_exception!(_weaver, HGVSError, pyo3::exceptions::PyException);
+pyo3_stub_gen::create_exception!(_weaver, ParseError, HGVSError);
+pyo3_stub_gen::create_exception!(_weaver, ValidationError, HGVSError);
+pyo3_stub_gen::create_exception!(_weaver, DataProviderError, HGVSError);
+pyo3_stub_gen::create_exception!(_weaver, UnsupportedOperationError, HGVSError);
+pyo3_stub_gen::create_exception!(_weaver, CigarError, HGVSError);
+pyo3_stub_gen::create_exception!(_weaver, TranscriptMismatchError, HGVSError);
 
 fn map_hgvs_error(e: HgvsError) -> PyErr {
     match e {
+        HgvsError::PestError(msg) => ParseError::new_err(msg),
+        HgvsError::ValidationError(msg) => ValidationError::new_err(msg),
+        HgvsError::DataProviderError(msg) => DataProviderError::new_err(msg),
+        HgvsError::UnsupportedOperation(msg) => UnsupportedOperationError::new_err(msg),
+        HgvsError::CigarError(msg) => CigarError::new_err(msg),
         HgvsError::TranscriptMismatch {
             expected,
             found,
@@ -25,7 +33,7 @@ fn map_hgvs_error(e: HgvsError) -> PyErr {
             "expected {}, found {} at transcript indices {}..{}",
             expected, found, start, end
         )),
-        e => pyo3::exceptions::PyValueError::new_err(e.to_string()),
+        HgvsError::Other(msg) => HGVSError::new_err(msg),
     }
 }
 
@@ -129,6 +137,80 @@ impl PyEquivalenceLevel {
     }
 }
 
+#[gen_stub_pyclass_enum]
+#[pyclass(name = "StartCodonConvention", module = "weaver._weaver")]
+#[doc = "Controls how start-codon protein variants are represented.\n\nUsed in VariantTransformSettings to select between keeping the specific\npredicted amino acid change or using the HGVS p.Met1? notation."]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PyStartCodonConvention {
+    /// Keep the specific predicted amino acid change (e.g., `p.(Met1Val)`). Default.
+    Specific,
+    /// Use the HGVS `p.Met1?` notation for any non-silent change at the first codon.
+    HgvsQuestion,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl PyStartCodonConvention {
+    fn __repr__(&self) -> String {
+        format!("StartCodonConvention.{:?}", self)
+    }
+    fn __eq__(&self, other: &Self) -> bool {
+        self == other
+    }
+    fn __hash__(&self) -> u64 {
+        let mut s = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(self, &mut s);
+        std::hash::Hasher::finish(&s)
+    }
+}
+
+impl From<PyStartCodonConvention> for StartCodonConvention {
+    fn from(c: PyStartCodonConvention) -> Self {
+        match c {
+            PyStartCodonConvention::Specific => StartCodonConvention::Specific,
+            PyStartCodonConvention::HgvsQuestion => StartCodonConvention::HgvsQuestion,
+        }
+    }
+}
+
+#[gen_stub_pyclass]
+#[pyclass(name = "VariantTransformSettings", module = "weaver._weaver")]
+#[doc = "Settings that control how a variant is transformed before formatting or comparison.\n\nCreate with keyword arguments:\n    settings = VariantTransformSettings(start_codon=StartCodonConvention.HgvsQuestion)"]
+#[derive(Clone)]
+pub struct PyVariantTransformSettings {
+    pub inner: VariantTransformSettings,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl PyVariantTransformSettings {
+    #[new]
+    #[pyo3(signature = (start_codon = PyStartCodonConvention::Specific))]
+    #[doc = "Creates a new VariantTransformSettings.\n\nArgs:\n    start_codon: Convention for start-codon protein variants. Defaults to Specific."]
+    fn new(start_codon: PyStartCodonConvention) -> Self {
+        PyVariantTransformSettings {
+            inner: VariantTransformSettings {
+                start_codon: start_codon.into(),
+            },
+        }
+    }
+
+    #[getter]
+    fn start_codon(&self) -> PyStartCodonConvention {
+        match self.inner.start_codon {
+            StartCodonConvention::Specific => PyStartCodonConvention::Specific,
+            StartCodonConvention::HgvsQuestion => PyStartCodonConvention::HgvsQuestion,
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "VariantTransformSettings(start_codon={:?})",
+            self.inner.start_codon
+        )
+    }
+}
+
 #[gen_stub_pyclass]
 #[pyclass(name = "Variant", module = "weaver._weaver")]
 #[doc = "Represents a parsed HGVS variant.\n\nProvides access to the variant's accession, gene symbol, and coordinate type.\nVariants can be formatted back to HGVS strings or converted to JSON/dict representations."]
@@ -185,7 +267,7 @@ impl PyVariant {
         format!("<weaver.Variant {}>", self.format())
     }
 
-    #[doc = "Validates the variant's reference sequence against the provided DataProvider.\n\nReturns True if the reference sequence matches, False otherwise.\nMay raise ValueError if coordinates are out of bounds."]
+    #[doc = "Validates the variant's reference sequence against the provided DataProvider.\n\nArgs:\n    provider: The data provider instance for sequence retrieval.\n\nReturns:\n    True if the reference sequence matches, False otherwise.\n\nRaises:\n    ValidationError: If transcript sequence is too short or coordinates are out of bounds.\n    DataProviderError: If sequence data cannot be retrieved."]
     fn validate(&self, _py: Python, provider: Py<PyAny>) -> PyResult<bool> {
         let bridge = PyDataProviderBridge { provider };
         let result = match &self.inner {
@@ -201,10 +283,11 @@ impl PyVariant {
         }
     }
 
-    #[doc = "Converts the variant to an SPDI string representation."]
-    fn to_spdi(&self, _py: Python, provider: Py<PyAny>) -> PyResult<String> {
-        let bridge = PyDataProviderBridge { provider };
-        self.inner.to_spdi(&bridge).map_err(map_hgvs_error)
+    #[doc = "Returns a new variant with the given transform settings applied.\n\nCurrently transforms protein variants according to the start_codon convention.\nAll other variant types are returned unchanged.\n\nArgs:\n    settings: A VariantTransformSettings object.\n\nReturns:\n    A new Variant with the settings applied."]
+    fn transform(&self, settings: &PyVariantTransformSettings) -> PyVariant {
+        PyVariant {
+            inner: transform_variant(&self.inner, &settings.inner),
+        }
     }
 }
 
@@ -298,11 +381,11 @@ impl PyVariant {
 
 #[gen_stub_pyfunction]
 #[pyfunction]
-#[doc = "Parses an HGVS string into a Variant object.\n\nSupported types include genomic (g.), coding cDNA (c.), non-coding (n.),\nmitochondrial (m.), and protein (p.) variants.\n\nArgs:\n    input: The HGVS string to parse.\n\nReturns:\n    A Variant object.\n\nRaises:\n    ValueError: If the HGVS string is malformed or unsupported."]
+#[doc = "Parses an HGVS string into a Variant object.\n\nSupported types include genomic (g.), coding cDNA (c.), non-coding (n.),\nmitochondrial (m.), and protein (p.) variants.\n\nArgs:\n    input: The HGVS string to parse.\n\nReturns:\n    A Variant object.\n\nRaises:\n    ParseError: If the HGVS string is malformed or unsupported."]
 fn parse(input: &str) -> PyResult<PyVariant> {
     match ::hgvs_weaver::parse_hgvs_variant(input) {
         Ok(inner) => Ok(PyVariant { inner }),
-        Err(e) => Err(pyo3::exceptions::PyValueError::new_err(e.to_string())),
+        Err(e) => Err(map_hgvs_error(e)),
     }
 }
 
@@ -511,7 +594,7 @@ impl PyVariantMapper {
         }
     }
     #[pyo3(signature = (var_g, transcript_ac))]
-    #[doc = "Maps a genomic variant (g.) to a coding cDNA variant (c.) for a specific transcript.\n\nArgs:\n    var_g: The genomic Variant to map.\n    transcript_ac: The accession of the target transcript.\n\nReturns:\n    A new Variant object in 'c.' coordinates."]
+    #[doc = "Maps a genomic variant (g.) to a coding cDNA variant (c.) for a specific transcript.\n\nArgs:\n    var_g: The genomic Variant to map.\n    transcript_ac: The accession of the target transcript.\n\nReturns:\n    A new Variant object in 'c.' coordinates.\n\nRaises:\n    ValueError: If var_g is not a genomic variant.\n    HGVSError: If mapping fails due to data or alignment issues."]
     fn g_to_c(&self, _py: Python, var_g: &PyVariant, transcript_ac: String) -> PyResult<PyVariant> {
         if let SequenceVariant::Genomic(v) = &var_g.inner {
             let mapper = VariantMapper::new(self.bridge.as_ref());
@@ -527,7 +610,7 @@ impl PyVariantMapper {
     }
 
     #[pyo3(signature = (var_g, searcher))]
-    #[doc = "Maps a genomic variant (g.) to all overlapping transcripts discovered via the searcher.\n\nArgs:\n    var_g: The genomic Variant to map.\n    searcher: An object implementing the TranscriptSearch protocol.\n\nReturns:\n    A list of Variant objects in 'c.' coordinates."]
+    #[doc = "Maps a genomic variant (g.) to all overlapping transcripts discovered via the searcher.\n\nArgs:\n    var_g: The genomic Variant to map.\n    searcher: An object implementing the TranscriptSearch protocol.\n\nReturns:\n    A list of Variant objects in 'c.' coordinates.\n\nRaises:\n    ValueError: If var_g is not a genomic variant.\n    HGVSError: If mapping fails due to data or alignment issues."]
     fn g_to_c_all(
         &self,
         _py: Python,
@@ -554,7 +637,7 @@ impl PyVariantMapper {
     }
 
     #[pyo3(signature = (var_c, reference_ac = None))]
-    #[doc = "Maps a coding cDNA variant (c.) to a genomic variant (g.).\n\nArgs:\n    var_c: The coding Variant to map.\n    reference_ac: Optional chromosomal accession. If not provided, the primary chromosome for the transcript will be used.\n\nReturns:\n    A new Variant object in 'g.' coordinates."]
+    #[doc = "Maps a coding cDNA variant (c.) to a genomic variant (g.).\n\nArgs:\n    var_c: The coding Variant to map.\n    reference_ac: Optional chromosomal accession. If not provided, the primary chromosome for the transcript will be used.\n\nReturns:\n    A new Variant object in 'g.' coordinates.\n\nRaises:\n    ValueError: If var_c is not a coding variant.\n    HGVSError: If mapping fails due to data or alignment issues."]
     fn c_to_g(
         &self,
         _py: Python,
@@ -577,7 +660,7 @@ impl PyVariantMapper {
     }
 
     #[pyo3(signature = (var_n, reference_ac = None))]
-    #[doc = "Maps a non-coding cDNA variant (n.) to a genomic variant (g.).\n\nArgs:\n    var_n: The non-coding Variant to map.\n    reference_ac: Optional chromosomal accession.\n\nReturns:\n    A new Variant object in 'g.' coordinates."]
+    #[doc = "Maps a non-coding cDNA variant (n.) to a genomic variant (g.).\n\nArgs:\n    var_n: The non-coding Variant to map.\n    reference_ac: Optional chromosomal accession.\n\nReturns:\n    A new Variant object in 'g.' coordinates.\n\nRaises:\n    ValueError: If var_n is not a non-coding variant.\n    HGVSError: If mapping fails due to data or alignment issues."]
     fn n_to_g(
         &self,
         _py: Python,
@@ -600,7 +683,7 @@ impl PyVariantMapper {
     }
 
     #[pyo3(signature = (var_c, protein_ac=None))]
-    #[doc = "Projects a coding cDNA variant (c.) to its protein consequence (p.).\n\nArgs:\n    var_c: The coding Variant to project.\n    protein_ac: Optional protein accession. If not provided, it will be retrieved from the DataProvider.\n\nReturns:\n    A new Variant object in 'p.' coordinates."]
+    #[doc = "Projects a coding cDNA variant (c.) to its protein consequence (p.).\n\nArgs:\n    var_c: The coding Variant to project.\n    protein_ac: Optional protein accession. If not provided, it will be retrieved from the DataProvider.\n\nReturns:\n    A new Variant object in 'p.' coordinates.\n\nRaises:\n    ValueError: If var_c is not a coding variant.\n    HGVSError: If projection fails due to data retrieval or out-of-bounds coordinates."]
     fn c_to_p(
         &self,
         _py: Python,
@@ -622,8 +705,34 @@ impl PyVariantMapper {
         }
     }
 
+    #[pyo3(signature = (var_p, transcript_ac=None))]
+    #[doc = "Back-converts a protein substitution (p.) to a coding variant (c.).\n\nCurrently handles single amino acid substitutions only. When multiple codons\ncould produce the target amino acid, the one requiring the fewest nucleotide\nchanges is chosen.\n\nArgs:\n    var_p: The protein Variant to back-convert.\n    transcript_ac: Optional transcript accession (NM_). Required if the DataProvider cannot resolve NP to NM.\n\nReturns:\n    A tuple of (Variant in 'c.' coordinates, is_unique: bool).\n    is_unique is True if the back-conversion is unambiguous.\n\nRaises:\n    ValueError: If var_p is not a protein variant.\n    HGVSError: If back-conversion fails due to unsupported consequence or missing transcript."]
+    fn p_to_c(
+        &self,
+        _py: Python,
+        var_p: &PyVariant,
+        transcript_ac: Option<String>,
+    ) -> PyResult<(PyVariant, bool)> {
+        if let SequenceVariant::Protein(v) = &var_p.inner {
+            let mapper = VariantMapper::new(self.bridge.as_ref());
+            let (res, is_unique) = mapper
+                .p_to_c(v, transcript_ac.as_deref())
+                .map_err(map_hgvs_error)?;
+            Ok((
+                PyVariant {
+                    inner: SequenceVariant::Coding(res),
+                },
+                is_unique,
+            ))
+        } else {
+            Err(pyo3::exceptions::PyValueError::new_err(
+                "Expected a protein variant (p.)",
+            ))
+        }
+    }
+
     #[pyo3(signature = (var))]
-    #[doc = "Normalizes a variant by shifting it to its 3'-most position.\n\nNormalization is performed in the coordinate space of the input variant.\n\nArgs:\n    var: The Variant object to normalize.\n\nReturns:\n    A new normalized Variant object."]
+    #[doc = "Normalizes a variant by shifting it to its 3'-most position.\n\nNormalization is performed in the coordinate space of the input variant.\n\nArgs:\n    var: The Variant object to normalize.\n\nReturns:\n    A new normalized Variant object.\n\nRaises:\n    HGVSError: If normalization fails due to reference sequence boundaries."]
     fn normalize_variant(&self, _py: Python, var: &PyVariant) -> PyResult<PyVariant> {
         let mapper = VariantMapper::new(self.bridge.as_ref());
         let res = mapper
@@ -633,7 +742,7 @@ impl PyVariantMapper {
     }
 
     #[pyo3(signature = (var1, var2, searcher))]
-    #[doc = "Determines if two variants are biologically equivalent.\n\nHandles normalization, cross-coordinate mapping (g. vs c.), and gene symbol expansion.\n\nArgs:\n    var1: The first Variant object.\n    var2: The second Variant object.\n    searcher: An object implementing the TranscriptSearch protocol.\n\nReturns:\n    True if the variants are equivalent, False otherwise."]
+    #[doc = "Determines if two variants are biologically equivalent.\n\nHandles normalization, cross-coordinate mapping (g. vs c.), and gene symbol expansion.\n\nArgs:\n    var1: The first Variant object.\n    var2: The second Variant object.\n    searcher: An object implementing the TranscriptSearch protocol.\n\nReturns:\n    True if the variants are equivalent, False otherwise.\n\nRaises:\n    HGVSError: If mapping, normalization, or data retrieval fails during equivalence checks."]
     fn equivalent(
         &self,
         _py: Python,
@@ -652,7 +761,7 @@ impl PyVariantMapper {
     }
 
     #[pyo3(signature = (var1, var2, searcher))]
-    #[doc = "Determines the granular equivalence level of two variants.\n\nArgs:\n    var1: The first Variant object.\n    var2: The second Variant object.\n    searcher: An object implementing the TranscriptSearch protocol.\n\nReturns:\n    An EquivalenceLevel enum value."]
+    #[doc = "Determines the granular equivalence level of two variants.\n\nArgs:\n    var1: The first Variant object.\n    var2: The second Variant object.\n    searcher: An object implementing the TranscriptSearch protocol.\n\nReturns:\n    An EquivalenceLevel enum value.\n\nRaises:\n    HGVSError: If mapping, normalization, or data retrieval fails during equivalence checks."]
     fn equivalent_level(
         &self,
         _py: Python,
@@ -672,7 +781,7 @@ impl PyVariantMapper {
     }
 
     #[pyo3(signature = (var, unambiguous = false))]
-    #[doc = "Converts a variant to a SPDI string format.\n\nArgs:\n    var: The Variant object to convert.\n    unambiguous: If True, expands the variant range to cover the entire ambiguous region of a repeat or homopolymer. Default is False."]
+    #[doc = "Converts a variant to a SPDI string format.\n\nArgs:\n    var: The Variant object to convert.\n    unambiguous: If True, expands the variant range to cover the entire ambiguous region of a repeat or homopolymer. Default is False.\n\nReturns:\n    A string representing the variant in SPDI format.\n\nRaises:\n    HGVSError: If the variant type cannot be converted to SPDI or sequence data is unavailable."]
     fn to_spdi(&self, _py: Python, var: &PyVariant, unambiguous: bool) -> PyResult<String> {
         let mapper = VariantMapper::new(self.bridge.as_ref());
         mapper
@@ -681,7 +790,7 @@ impl PyVariantMapper {
     }
 
     #[pyo3(signature = (var))]
-    #[doc = "Converts a variant to an unambiguous SPDI string format.\n\nThis format is independent of specific shifting conventions (like 3' or 5' shifting)\nby expanding the variant range to cover the entire ambiguous region of a repeat or homopolymer."]
+    #[doc = "Converts a variant to an unambiguous SPDI string format.\n\nThis format is independent of specific shifting conventions (like 3' or 5' shifting)\nby expanding the variant range to cover the entire ambiguous region of a repeat or homopolymer.\n\nArgs:\n    var: The Variant object to convert.\n\nReturns:\n    A string representing the variant in unambiguous SPDI format.\n\nRaises:\n    HGVSError: If the variant type cannot be converted to SPDI or sequence data is unavailable."]
     fn to_spdi_unambiguous(&self, _py: Python, var: &PyVariant) -> PyResult<String> {
         let mapper = VariantMapper::new(self.bridge.as_ref());
         mapper.to_spdi(&var.inner, true).map_err(map_hgvs_error)
@@ -695,6 +804,17 @@ fn _weaver(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyVariantMapper>()?;
     m.add_class::<PyIdentifierType>()?;
     m.add_class::<PyEquivalenceLevel>()?;
+    m.add_class::<PyStartCodonConvention>()?;
+    m.add_class::<PyVariantTransformSettings>()?;
+    m.add("HGVSError", m.py().get_type::<HGVSError>())?;
+    m.add("ParseError", m.py().get_type::<ParseError>())?;
+    m.add("ValidationError", m.py().get_type::<ValidationError>())?;
+    m.add("DataProviderError", m.py().get_type::<DataProviderError>())?;
+    m.add(
+        "UnsupportedOperationError",
+        m.py().get_type::<UnsupportedOperationError>(),
+    )?;
+    m.add("CigarError", m.py().get_type::<CigarError>())?;
     m.add(
         "TranscriptMismatchError",
         m.py().get_type::<TranscriptMismatchError>(),

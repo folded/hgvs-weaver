@@ -1,4 +1,3 @@
-use crate::error::HgvsError;
 use serde::{Deserialize, Serialize};
 use std::ops::{Add, Sub};
 
@@ -230,16 +229,6 @@ impl Variant for SequenceVariant {
             SequenceVariant::Mitochondrial(v) => v.coordinate_type(),
             SequenceVariant::NonCoding(v) => v.coordinate_type(),
             SequenceVariant::Rna(v) => v.coordinate_type(),
-        }
-    }
-    fn to_spdi(&self, data_provider: &dyn crate::data::DataProvider) -> Result<String, HgvsError> {
-        match self {
-            SequenceVariant::Genomic(v) => v.to_spdi(data_provider),
-            SequenceVariant::Coding(v) => v.to_spdi(data_provider),
-            SequenceVariant::Protein(v) => v.to_spdi(data_provider),
-            SequenceVariant::Mitochondrial(v) => v.to_spdi(data_provider),
-            SequenceVariant::NonCoding(v) => v.to_spdi(data_provider),
-            SequenceVariant::Rna(v) => v.to_spdi(data_provider),
         }
     }
 }

@@ -758,8 +758,8 @@ fn test_immediate_stop_normalization() -> Result<(), hgvs_weaver::error::HgvsErr
                 fn cds_end_index(&self) -> Option<TranscriptPos> {
                     Some(TranscriptPos(6))
                 }
-                fn strand(&self) -> i32 {
-                    1
+                fn strand(&self) -> hgvs_weaver::data::Strand {
+                    hgvs_weaver::data::Strand::Plus
                 }
                 fn reference_accession(&self) -> &str {
                     "NC_1.1"

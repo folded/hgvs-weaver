@@ -57,7 +57,7 @@ impl DataProvider for NormMockDataProvider {
             transcript_end: TranscriptPos(100),
             reference_start: GenomicPos(1000),
             reference_end: GenomicPos(1100),
-            alt_strand: 1,
+            alt_strand: hgvs_weaver::data::Strand::Minus,
             cigar: "100M".to_string(),
         }];
 
@@ -81,7 +81,7 @@ impl DataProvider for NormMockDataProvider {
             gene: "NORM".to_string(),
             cds_start_index: Some(TranscriptPos(cds_start)),
             cds_end_index: Some(TranscriptPos(cds_end)),
-            strand: 1,
+            strand: hgvs_weaver::data::Strand::Plus,
             reference_accession: "NC_0001.10".to_string(),
             exons,
         };

@@ -15,7 +15,7 @@ impl DataProvider for MockDataProvider {
                 gene: "TEST".to_string(),
                 cds_start_index: Some(TranscriptPos(0)),
                 cds_end_index: Some(TranscriptPos(3000)),
-                strand: -1,
+                strand: hgvs_weaver::data::Strand::Minus,
                 reference_accession: "NC_000001.1".to_string(),
                 exons: vec![],
             }))
@@ -25,7 +25,7 @@ impl DataProvider for MockDataProvider {
                 gene: "BRAF".to_string(),
                 cds_start_index: Some(TranscriptPos(0)),
                 cds_end_index: Some(TranscriptPos(3000)),
-                strand: 1, // Plus strand
+                strand: hgvs_weaver::data::Strand::Plus, // Plus strand
                 reference_accession: "NC_BRAF".to_string(),
                 exons: vec![],
             }))

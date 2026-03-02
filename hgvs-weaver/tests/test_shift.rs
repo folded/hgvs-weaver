@@ -17,14 +17,14 @@ impl DataProvider for HomopolymerProvider {
             gene: "TEST".to_string(),
             cds_start_index: Some(TranscriptPos(0)),
             cds_end_index: Some(TranscriptPos(100)),
-            strand: 1,
+            strand: hgvs_weaver::data::Strand::Plus,
             reference_accession: "NC_TEST.1".to_string(),
             exons: vec![ExonData {
                 transcript_start: TranscriptPos(0),
                 transcript_end: TranscriptPos(100),
                 reference_start: GenomicPos(1000),
                 reference_end: GenomicPos(1100),
-                alt_strand: 1,
+                alt_strand: hgvs_weaver::data::Strand::Plus,
                 cigar: "100M".to_string(),
             }],
         }))
@@ -92,6 +92,116 @@ fn test_ins_3_prime_shifting() -> Result<(), HgvsError> {
     let nv2 = mapper.normalize_variant(SequenceVariant::Genomic(v2_g))?;
 
     assert_eq!(nv1.to_string(), nv2.to_string());
+    Ok(())
+}
+
+struct RepeatProvider;
+impl DataProvider for RepeatProvider {
+    fn get_transcript(
+        &self,
+        ac: &str,
+        _ref_ac: Option<&str>,
+    ) -> Result<Box<dyn Transcript>, HgvsError> {
+        Ok(Box::new(TranscriptData {
+            ac: ac.to_string(),
+            gene: "TEST".to_string(),
+            cds_start_index: Some(TranscriptPos(0)),
+            cds_end_index: Some(TranscriptPos(100)),
+            strand: hgvs_weaver::data::Strand::Plus,
+            reference_accession: "NC_TEST.1".to_string(),
+            exons: vec![ExonData {
+                transcript_start: TranscriptPos(0),
+                transcript_end: TranscriptPos(100),
+                reference_start: GenomicPos(1000),
+                reference_end: GenomicPos(1100),
+                alt_strand: hgvs_weaver::data::Strand::Minus,
+                cigar: "100M".to_string(),
+            }],
+        }))
+    }
+    fn get_seq(
+        &self,
+        _ac: &str,
+        start: i32,
+        end: i32,
+        _kind: IdentifierType,
+    ) -> Result<String, HgvsError> {
+        // Return repeating "CAG"
+        let unit = "CAG";
+        let seq = unit.repeat(1000);
+        let s = start as usize;
+        let e = end as usize;
+        if s < seq.len() {
+            let actual_e = e.min(seq.len());
+            Ok(seq[s..actual_e].to_string())
+        } else {
+            Ok("".to_string())
+        }
+    }
+    fn get_symbol_accessions(
+        &self,
+        _s: &str,
+        _f: IdentifierKind,
+        _t: IdentifierKind,
+    ) -> Result<Vec<(IdentifierType, String)>, HgvsError> {
+        Ok(vec![])
+    }
+    fn get_identifier_type(&self, _id: &str) -> Result<IdentifierType, HgvsError> {
+        Ok(IdentifierType::GenomicAccession)
+    }
+    fn c_to_g(
+        &self,
+        transcript_ac: &str,
+        pos: TranscriptPos,
+        offset: IntronicOffset,
+    ) -> Result<(String, GenomicPos), HgvsError> {
+        let tx = self.get_transcript(transcript_ac, None)?;
+        Ok((
+            tx.reference_accession().to_string(),
+            GenomicPos(pos.0 + offset.0),
+        ))
+    }
+}
+
+#[test]
+fn test_multi_base_ins_3_prime_shifting() -> Result<(), HgvsError> {
+    let hdp = RepeatProvider;
+    let mapper = VariantMapper::new(&hdp);
+
+    // Reference is CAGCAGCAG... (at 1000, 1003, 1006, ...)
+    // Insertion g.1002_1003insCAG should shift to 3' end of the repeat.
+    let v1 = hgvs_weaver::parse_hgvs_variant("NC_TEST.1:g.1002_1003insCAG")?;
+    let SequenceVariant::Genomic(v1_g) = v1 else {
+        panic!()
+    };
+    let nv1 = mapper.normalize_variant(SequenceVariant::Genomic(v1_g))?;
+
+    // If it doesn't shift, nv1.to_string() will be "...g.1002_1003insCAG"
+    // If it shifts 1 block, it might be "...g.1005_1006insCAG"
+    // Since we have many repeats, it should shift far.
+    println!("Normalized: {}", nv1);
+    assert!(
+        !nv1.to_string().contains("1002_1003"),
+        "Should have shifted from original position 1002_1003. Got: {}",
+        nv1
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_ins_5_prime_shifting_no_panic() -> Result<(), HgvsError> {
+    let hdp = HomopolymerProvider;
+    let mapper = VariantMapper::new(&hdp);
+
+    // NC_TEST.1:g.1005_1006insA
+    // This will attempt to shift left (5') because the prefix is 'A's.
+    let v1 = hgvs_weaver::parse_hgvs_variant("NC_TEST.1:g.1005_1006insA")?;
+
+    // This calls expand_unambiguous_range -> shift_5_prime, which previously panicked.
+    let spdi = mapper.to_spdi_unambiguous(&v1)?;
+    assert!(spdi.contains("NC_TEST.1:0:")); // Should expand to start of sequence
+
     Ok(())
 }
 

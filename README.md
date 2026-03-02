@@ -168,7 +168,6 @@ To rerun the validation, you need the RefSeq annotation and genomic sequence fil
 
 <!-- markdownlint-disable MD033 -->
 <!-- PERFORMANCE_GRAPH_START -->
-
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="benchmark_results/performance_dark.svg">
@@ -176,7 +175,6 @@ To rerun the validation, you need the RefSeq annotation and genomic sequence fil
     <img alt="Performance Graph" src="benchmark_results/performance_light.svg" width="800">
   </picture>
 </p>
-
 <!-- PERFORMANCE_GRAPH_END -->
 <!-- markdownlint-enable MD033 -->
 
@@ -184,17 +182,27 @@ To rerun the validation, you need the RefSeq annotation and genomic sequence fil
 
 Summary of results comparing `weaver` and `ref-hgvs` against ClinVar ground truth:
 
-| Implementation | Identity Match | Analogous Match | Total Success |
-| :------------- | :------------: | :-------------: | :-----------: |
-| **weaver**     |   **93.85%**   |    **4.92%**    |  **98.77%**   |
-| ref-hgvs       |     93.34%     |      4.88%      |    98.22%     |
+| Implementation | Protein Identity | Protein Analogous | SPDI (Genomic) | Parse Errors |
+| :------------- | :--------------: | :---------------: | :------------: | :----------: |
+| weaver         |  **93.869%**  | 4.355% | **98.224%** | **0** |
+| ref-hgvs       |  93.352%  | **4.451%** | 97.803% | 394 |
+
 
 RefSeq Data Mismatches: 0 (0.0%)
 
+#### Protein Translation Agreement
 
-#### Comparison with Reference Tool
+|                     | ref-hgvs Match | ref-hgvs Mismatch |
+| :------------------ | :------------: | :---------------: |
+| **weaver Match**    |     93,345     |     524     |
+| **weaver Mismatch** |     7     |     6,124     |
 
-As shown in the visualization above, `weaver` now consistently outperforms existing implementations in protein projection accuracy and biological equivalence.
+#### SPDI Mapping Agreement
+
+|                     | ref-hgvs Match | ref-hgvs Mismatch |
+| :------------------ | :------------: | :---------------: |
+| **weaver Match**    |     97,576     |     648     |
+| **weaver Mismatch** |     227     |     1,549     |
 
 - **Variant Equivalence**: Check if two variants are biologically equivalent using advanced cross-coordinate mapping and normalization. [See Algorithm](docs/source/equivalence_logic.md).
 

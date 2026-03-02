@@ -1,11 +1,21 @@
 [
   {
     "total": 100000,
+    "w_identity": 93869,
+    "w_analogous": 4933,
+    "ref_identity": 93352,
+    "ref_analogous": 4888,
+    "commit": "a7ed6ee",
+    "date": "2026-03-02",
+    "message": "Release version 0.4.0"
+  },
+  {
+    "total": 100000,
     "w_identity": 93849,
     "w_analogous": 4923,
     "ref_identity": 93337,
     "ref_analogous": 4875,
-    "commit": "f0a94a7",
+    "commit": "93058ee",
     "date": "2026-02-21",
     "message": "Bump version to 0.3.0"
   },

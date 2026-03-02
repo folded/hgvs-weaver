@@ -15,8 +15,6 @@ pub trait Variant {
     fn gene(&self) -> Option<&str>;
     /// Returns the coordinate type code ("g", "c", "p", etc.).
     fn coordinate_type(&self) -> &str;
-    /// Converts the variant to an SPDI string representation.
-    fn to_spdi(&self, data_provider: &dyn crate::data::DataProvider) -> Result<String, HgvsError>;
 }
 
 macro_rules! impl_variant {
@@ -30,12 +28,6 @@ macro_rules! impl_variant {
             }
             fn coordinate_type(&self) -> &str {
                 $type_code
-            }
-            fn to_spdi(
-                &self,
-                data_provider: &dyn crate::data::DataProvider,
-            ) -> Result<String, HgvsError> {
-                self.posedit.to_spdi(&self.ac, data_provider)
             }
         }
     };
@@ -188,18 +180,6 @@ impl IntervalSpdi for BaseOffsetInterval {
     }
 }
 
-impl IntervalSpdi for AaInterval {
-    fn spdi_interval(
-        &self,
-        _ac: &str,
-        _data_provider: &dyn crate::data::DataProvider,
-    ) -> Result<(i32, i32, String), HgvsError> {
-        Err(HgvsError::UnsupportedOperation(
-            "SPDI not supported for protein variants (yet)".into(),
-        ))
-    }
-}
-
 pub trait EditSpdi {
     fn to_spdi(
         &self,
@@ -331,20 +311,6 @@ pub fn strip_common_prefix_suffix(
         String::from_utf8_lossy(r_bytes).to_string(),
         String::from_utf8_lossy(a_bytes).to_string(),
     )
-}
-
-impl EditSpdi for AaEdit {
-    fn to_spdi(
-        &self,
-        _ac: &str,
-        _start: i32,
-        _end: i32,
-        _data_provider: &dyn crate::data::DataProvider,
-    ) -> Result<String, HgvsError> {
-        Err(HgvsError::UnsupportedOperation(
-            "SPDI not supported for protein variants (yet)".into(),
-        ))
-    }
 }
 
 /// An interval spanning simple genomic or mitochondrial coordinates.

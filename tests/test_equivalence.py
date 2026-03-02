@@ -95,13 +95,14 @@ def test_equivalence_g_vs_c() -> None:
 
 
 def test_equivalence_c_vs_p() -> None:
-    """Tests c. vs p. equivalence."""
+    """Tests c. vs p. equivalence for a missense substitution."""
     provider = MockProvider()
     mapper = weaver.VariantMapper(provider)
 
-    # c.1A>G maps to p.Met1Val
-    vc = weaver.parse("NM_TEST:c.1A>G")
-    vp = weaver.parse("NP_TEST.1:p.Met1Val")
+    # Mock CDS: ATG(Met1) GGG(Gly2) CCC(Pro3) AAA(Lys4)...
+    # c.10A>G changes codon 4 AAA(Lys) → GAA(Glu): p.(Lys4Glu)
+    vc = weaver.parse("NM_TEST:c.10A>G")
+    vp = weaver.parse("NP_TEST.1:p.(Lys4Glu)")
 
     assert mapper.equivalent(vc, vp, provider)  # type: ignore[attr-defined]
 
@@ -131,13 +132,13 @@ def test_equivalence_symbol_c() -> None:
 
 
 def test_equivalence_g_vs_p() -> None:
-    """Tests g. vs p. equivalence."""
+    """Tests g. vs p. equivalence for a missense substitution (full g→c→p pipeline)."""
     provider = MockProvider()
     mapper = weaver.VariantMapper(provider)
 
-    # g.1011A>G -> c.1A>G -> p.Met1Val
-    vg = weaver.parse("NC_TEST.1:g.1011A>G")
-    vp = weaver.parse("NP_TEST.1:p.Met1Val")
+    # g.1020A>G → c.10A>G → codon 4 AAA(Lys) → GAA(Glu): p.(Lys4Glu)
+    vg = weaver.parse("NC_TEST.1:g.1020A>G")
+    vp = weaver.parse("NP_TEST.1:p.(Lys4Glu)")
 
     assert mapper.equivalent(vg, vp, provider)  # type: ignore[attr-defined]
 
@@ -161,5 +162,17 @@ def test_equivalence_protein_3letter() -> None:
 
     v1 = weaver.parse("NP_TEST.1:p.(G553E)")
     v2 = weaver.parse("NP_TEST.1:p.(Gly553Glu)")
+
+    assert mapper.equivalent(v1, v2, provider)  # type: ignore[attr-defined]
+
+
+def test_equivalence_met1_question_vs_xaa() -> None:
+    """Tests that p.Met1? is considered analogous to p.Met1Xaa."""
+    provider = MockProvider()
+    mapper = weaver.VariantMapper(provider)
+
+    # p.Met1? and p.Met1Xaa both represent "unknown amino acid change at position 1 (Met)"
+    v1 = weaver.parse("NP_TEST.1:p.Met1?")
+    v2 = weaver.parse("NP_TEST.1:p.Met1Xaa")
 
     assert mapper.equivalent(v1, v2, provider)  # type: ignore[attr-defined]

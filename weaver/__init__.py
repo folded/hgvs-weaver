@@ -1,24 +1,40 @@
 from typing import Protocol, TypedDict
 
-from ._weaver import (
+from ._weaver import (  # type: ignore[attr-defined]
+    CigarError,
+    DataProviderError,
     EquivalenceLevel,
+    HGVSError,
     IdentifierType,
+    ParseError,
+    StartCodonConvention,
     TranscriptMismatchError,
+    UnsupportedOperationError,
+    ValidationError,
     Variant,
     VariantMapper,
+    VariantTransformSettings,
     parse,
 )
 
 __all__ = [
+    "CigarError",
     "DataProvider",
+    "DataProviderError",
     "EquivalenceLevel",
     "ExonData",
+    "HGVSError",
     "IdentifierType",
+    "ParseError",
+    "StartCodonConvention",
     "TranscriptData",
     "TranscriptMismatchError",
     "TranscriptSearch",
+    "UnsupportedOperationError",
+    "ValidationError",
     "Variant",
     "VariantMapper",
+    "VariantTransformSettings",
     "parse",
 ]
 

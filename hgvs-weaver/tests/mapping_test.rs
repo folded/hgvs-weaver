@@ -39,7 +39,7 @@ impl DataProvider for MockDataProvider {
                 transcript_end: TranscriptPos(100),
                 reference_start: GenomicPos(1000),
                 reference_end: GenomicPos(1100),
-                alt_strand: 1,
+                alt_strand: hgvs_weaver::data::Strand::Plus,
                 cigar: "100M".to_string(),
             }];
             let td = TranscriptData {
@@ -47,7 +47,7 @@ impl DataProvider for MockDataProvider {
                 gene: "MOCK".to_string(),
                 cds_start_index: Some(TranscriptPos(10)), // n.11 is c.1
                 cds_end_index: Some(TranscriptPos(50)),
-                strand: 1,
+                strand: hgvs_weaver::data::Strand::Plus,
                 reference_accession: "NC_0001.10".to_string(),
                 exons,
             };
@@ -98,10 +98,11 @@ impl DataProvider for MockDataProvider {
 }
 
 #[test]
-fn test_mapper_c_to_p_subst() {
+fn test_mapper_c_to_p_start_codon_subst() {
     let hdp = MockDataProvider;
     let mapper = VariantMapper::new(&hdp);
 
+    // c.1A>T changes ATG(Met) → TTG(Leu): predicts the specific amino acid change p.(Met1Leu)
     let var_c = parse_hgvs_variant("NM_0001.3:c.1A>T").unwrap();
     if let SequenceVariant::Coding(v) = var_c {
         let var_p = mapper.c_to_p(&v, Some("NP_0001.1")).unwrap();
@@ -110,15 +111,55 @@ fn test_mapper_c_to_p_subst() {
 }
 
 #[test]
-fn test_mapper_c_to_p_fs() {
+fn test_mapper_c_to_p_start_codon_del() {
     let hdp = MockDataProvider;
     let mapper = VariantMapper::new(&hdp);
 
-    // c.2del deletes 'T' from 'ATG'
+    // c.2del removes 'T' from ATG start codon → frameshift from position 1
     let var_c = parse_hgvs_variant("NM_0001.3:c.2del").unwrap();
     if let SequenceVariant::Coding(v) = var_c {
         let var_p = mapper.c_to_p(&v, Some("NP_0001.1")).unwrap();
-        assert!(var_p.to_string().contains("fsTer"));
+        assert!(
+            var_p.to_string().contains("fsTer"),
+            "Expected frameshift annotation, got: {}",
+            var_p
+        );
+    }
+}
+
+#[test]
+fn test_mapper_c_to_p_missense() {
+    let hdp = MockDataProvider;
+    let mapper = VariantMapper::new(&hdp);
+
+    // Mock CDS: ATG(Met1) ATG(Met2) CAT(His3) GCA(Ala4)...
+    // c.7C>T changes codon 3 CAT(His) → TAT(Tyr): p.(His3Tyr)
+    let var_c = parse_hgvs_variant("NM_0001.3:c.7C>T").unwrap();
+    if let SequenceVariant::Coding(v) = var_c {
+        let var_p = mapper.c_to_p(&v, Some("NP_0001.1")).unwrap();
+        assert_eq!(var_p.to_string(), "NP_0001.1:p.(His3Tyr)");
+    } else {
+        panic!("Expected coding variant");
+    }
+}
+
+#[test]
+fn test_mapper_c_to_p_frameshift() {
+    let hdp = MockDataProvider;
+    let mapper = VariantMapper::new(&hdp);
+
+    // c.7del removes C from codon 3 (CAT=His), causing a frameshift: p.(His3...fsTer...)
+    let var_c = parse_hgvs_variant("NM_0001.3:c.7del").unwrap();
+    if let SequenceVariant::Coding(v) = var_c {
+        let var_p = mapper.c_to_p(&v, Some("NP_0001.1")).unwrap();
+        let p_str = var_p.to_string();
+        assert!(
+            p_str.contains("His3") && p_str.contains("fsTer"),
+            "Expected frameshift at His3, got: {}",
+            p_str
+        );
+    } else {
+        panic!("Expected coding variant");
     }
 }
 

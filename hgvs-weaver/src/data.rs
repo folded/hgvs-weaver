@@ -1,14 +1,61 @@
 use crate::error::HgvsError;
 use crate::structs::{GenomicPos, IntronicOffset, TranscriptPos};
 use dyn_clone::DynClone;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::convert::TryFrom;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Strand {
+    Plus,
+    Minus,
+}
+
+impl Strand {
+    pub fn value(&self) -> i32 {
+        match self {
+            Strand::Plus => 1,
+            Strand::Minus => -1,
+        }
+    }
+}
+
+impl TryFrom<i32> for Strand {
+    type Error = HgvsError;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(Strand::Plus),
+            -1 => Ok(Strand::Minus),
+            _ => Err(HgvsError::Other(format!("Invalid strand value: {}", value))),
+        }
+    }
+}
+
+impl Serialize for Strand {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_i32(self.value())
+    }
+}
+
+impl<'de> Deserialize<'de> for Strand {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = i32::deserialize(deserializer)?;
+        Strand::try_from(value).map_err(serde::de::Error::custom)
+    }
+}
 
 pub trait Exon: DynClone {
     fn transcript_start(&self) -> TranscriptPos;
     fn transcript_end(&self) -> TranscriptPos;
     fn reference_start(&self) -> GenomicPos;
     fn reference_end(&self) -> GenomicPos;
-    fn alt_strand(&self) -> i32;
+    fn alt_strand(&self) -> Strand;
     fn cigar(&self) -> &str;
 }
 dyn_clone::clone_trait_object!(Exon);
@@ -19,7 +66,7 @@ pub struct ExonData {
     pub transcript_end: TranscriptPos,
     pub reference_start: GenomicPos,
     pub reference_end: GenomicPos,
-    pub alt_strand: i32,
+    pub alt_strand: Strand,
     pub cigar: String,
 }
 
@@ -36,7 +83,7 @@ impl Exon for ExonData {
     fn reference_end(&self) -> GenomicPos {
         self.reference_end
     }
-    fn alt_strand(&self) -> i32 {
+    fn alt_strand(&self) -> Strand {
         self.alt_strand
     }
     fn cigar(&self) -> &str {
@@ -49,7 +96,7 @@ pub trait Transcript: DynClone {
     fn gene(&self) -> &str;
     fn cds_start_index(&self) -> Option<TranscriptPos>;
     fn cds_end_index(&self) -> Option<TranscriptPos>;
-    fn strand(&self) -> i32;
+    fn strand(&self) -> Strand;
     fn reference_accession(&self) -> &str;
     fn exons(&self) -> &[ExonData];
 }
@@ -61,7 +108,7 @@ pub struct TranscriptData {
     pub gene: String,
     pub cds_start_index: Option<TranscriptPos>,
     pub cds_end_index: Option<TranscriptPos>,
-    pub strand: i32,
+    pub strand: Strand,
     pub reference_accession: String,
     pub exons: Vec<ExonData>,
 }
@@ -79,7 +126,7 @@ impl Transcript for TranscriptData {
     fn cds_end_index(&self) -> Option<TranscriptPos> {
         self.cds_end_index
     }
-    fn strand(&self) -> i32 {
+    fn strand(&self) -> Strand {
         self.strand
     }
     fn reference_accession(&self) -> &str {
@@ -111,7 +158,10 @@ pub trait DataProvider {
         target_kind: IdentifierKind,
     ) -> Result<Vec<(IdentifierType, String)>, HgvsError>;
     fn get_identifier_type(&self, identifier: &str) -> Result<IdentifierType, HgvsError>;
-    /// Resolves a transcript position and offset to a genomic accession and position.
+    /// Resolves a CDS-relative position and offset to a genomic accession and position.
+    ///
+    /// For c. variants, the position is 0-based relative to the start codon.
+    /// For n. variants, it is 0-based relative to the transcript start.
     fn c_to_g(
         &self,
         transcript_ac: &str,
