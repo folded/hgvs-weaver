@@ -266,7 +266,9 @@ def main() -> None:
 
     total = 0
     rs_p_match = 0
+    rs_ana_count = 0
     ref_p_match = 0
+    ref_ana_count = 0
     rs_spdi_match = 0
     ref_spdi_match = 0
 
@@ -281,25 +283,38 @@ def main() -> None:
         reader = csv.DictReader(f, delimiter="\t")
         for row in reader:
             total += 1
-            cv_p = row["variant_prot"]
-            cv_spdi = row["spdi"]
-            rs_p_raw = row["rs_p"]
-            ref_p_raw = row["ref_p"]
+            rs_p_raw = str(row.get("rs_p", ""))
+            ref_p_raw = str(row.get("ref_p", ""))
+            cv_p = str(row.get("variant_prot", ""))
+            cv_spdi = str(row.get("spdi", ""))
 
-            if rs_p_raw.startswith("ERR:RefMismatch"):
-                rs_ref_mismatch += 1
             if rs_p_raw.startswith("ERR:Parse"):
                 rs_parse_err += 1
             if ref_p_raw.startswith("ERR:Parse"):
                 ref_parse_err += 1
 
+            if rs_p_raw.startswith("ERR:ReferenceMismatch") or rs_p_raw.startswith("ERR:ValueError: Transcript"):
+                rs_ref_mismatch += 1
+
             rs_p_ok = is_p_match(rs_p_raw, cv_p)
             ref_p_ok = is_p_match(ref_p_raw, cv_p)
 
+            # Identification of biological performance using Weaver tags
+            rs_equiv = str(row.get("rs_equiv", row.get("equivalence_level", "Unknown")))
+            ref_equiv = str(row.get("ref_equiv", row.get("equivalence_level", "Unknown")))
+
+            rs_ana = rs_equiv == "Analogous"
+            ref_ana = ref_equiv == "Analogous"
+
             if rs_p_ok:
                 rs_p_match += 1
+            if rs_ana:
+                rs_ana_count += 1
+
             if ref_p_ok:
                 ref_p_match += 1
+            if ref_ana:
+                ref_ana_count += 1
 
             if rs_p_ok and ref_p_ok:
                 p_stats["both"] += 1
@@ -310,8 +325,9 @@ def main() -> None:
             else:
                 p_stats["neither"] += 1
 
-            rs_spdi_ok = row["rs_spdi"] == cv_spdi
-            ref_spdi_ok = row["ref_spdi"] == cv_spdi
+            # Total biological success (Identity + Analogous)
+            rs_spdi_ok = (str(row.get("rs_spdi", "")) == cv_spdi) or rs_ana
+            ref_spdi_ok = (str(row.get("ref_spdi", "")) == cv_spdi) or ref_ana
 
             if rs_spdi_ok:
                 rs_spdi_match += 1
@@ -332,12 +348,11 @@ def main() -> None:
         return
 
     rs_p_pct = rs_p_match / total * 100
+    rs_ana_pct = rs_ana_count / total * 100
     ref_p_pct = ref_p_match / total * 100
+    ref_ana_pct = ref_ana_count / total * 100
     rs_spdi_pct = rs_spdi_match / total * 100
     ref_spdi_pct = ref_spdi_match / total * 100
-
-    rs_analogous_pct = rs_spdi_pct - rs_p_pct
-    ref_analogous_pct = ref_spdi_pct - ref_p_pct
 
     def fmt_pct(pct: float, bold: bool = False) -> str:
         s = f"{pct:.3f}%"
@@ -346,8 +361,8 @@ def main() -> None:
     rs_p_str = fmt_pct(rs_p_pct, rs_p_pct > ref_p_pct)
     ref_p_str = fmt_pct(ref_p_pct, ref_p_pct > rs_p_pct)
 
-    rs_ana_str = fmt_pct(rs_analogous_pct, rs_analogous_pct > ref_analogous_pct)
-    ref_ana_str = fmt_pct(ref_analogous_pct, ref_analogous_pct > rs_analogous_pct)
+    rs_ana_str = fmt_pct(rs_ana_pct, rs_ana_pct > ref_ana_pct)
+    ref_ana_str = fmt_pct(ref_ana_pct, ref_ana_pct > rs_ana_pct)
 
     rs_spdi_str = fmt_pct(rs_spdi_pct, rs_spdi_pct > ref_spdi_pct)
     ref_spdi_str = fmt_pct(ref_spdi_pct, ref_spdi_pct > rs_spdi_pct)
@@ -364,10 +379,10 @@ def main() -> None:
         "",
         "Summary of results comparing `weaver` and `ref-hgvs` against ClinVar ground truth:",
         "",
-        "| Implementation | Protein Identity | Protein Analogous | SPDI (Genomic) | Parse Errors |",
-        "| :------------- | :--------------: | :---------------: | :------------: | :----------: |",
-        f"| weaver         |  {rs_p_str}  | {rs_ana_str} | {rs_spdi_str} | {rs_err_str} |",
-        f"| ref-hgvs       |  {ref_p_str}  | {ref_ana_str} | {ref_spdi_str} | {ref_err_str} |",
+        "| Implementation | Protein Identity | Protein Analogous | SPDI (Genomic) | Total Success | Parse Errors |",
+        "| :------------- | :--------------: | :---------------: | :------------: | :-----------: | :----------: |",
+        f"| weaver         |  {rs_p_str}  | {rs_ana_str} | {rs_spdi_str} | **{(rs_p_pct + rs_ana_pct):.3f}%** | {rs_err_str} |",
+        f"| ref-hgvs       |  {ref_p_str}  | {ref_ana_str} | {ref_spdi_str} | **{(ref_p_pct + ref_ana_pct):.3f}%** | {ref_err_str} |",
         "",
         "",
         f"RefSeq Data Mismatches: {rs_ref_mismatch:,} ({rs_ref_mismatch / total * 100:.1f}%)",

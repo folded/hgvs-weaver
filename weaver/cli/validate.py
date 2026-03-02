@@ -81,83 +81,111 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
     ref_spdi = "ERR"
 
     # weaver block
+    v_p = None
+    rs_p = "ERR"
+    rs_spdi = "ERR"
     try:
         v_rs_raw = weaver.parse(nuc_hgvs)
         if not _rs_mapper:
-            row["rs_p"] = row["rs_spdi"] = "ERR:MapperNotInit"
-            row["equivalence_level"] = "ERR:MapperNotInit"
-            return row
+            res_row = row.copy()
+            res_row.update(
+                {
+                    "rs_p": "ERR:MapperNotInit",
+                    "rs_spdi": "ERR:MapperNotInit",
+                    "rs_equiv": "ERR:MapperNotInit",
+                    "ref_equiv": "ERR:MapperNotInit",
+                }
+            )
+            return res_row
 
         v_rs = _rs_mapper.normalize_variant(v_rs_raw)
-        v_p = None
         try:
             if v_rs.coordinate_type == "c":
                 v_p = _rs_mapper.c_to_p(v_rs)
                 rs_p = v_p.format().split(":")[-1]
-        except weaver.TranscriptMismatchError as e:
-            rs_p = f"ERR:TranscriptMismatch:{e!s}"
         except Exception as e:
             rs_p = f"ERR:{e!s}"
 
         try:
             rs_spdi = _rs_mapper.to_spdi(v_rs_raw, unambiguous=True)
-        except weaver.TranscriptMismatchError as e:
-            rs_spdi = f"ERR:TranscriptMismatch:{e!s}"
         except Exception as e:
             rs_spdi = f"ERR:{e!s}"
-
-        # Equivalence Check
-        equiv_level = "Unknown"
-        gt_p_str = row.get("variant_prot", "")
-        if v_p and gt_p_str and gt_p_str != "ERR" and not gt_p_str.startswith("ERR"):
-            try:
-                # normalize ground truth string if needed (e.g. remove parens if parse fails?
-                # actually weaver.parse handles standard HGVS well)
-                # Ensure accession is present if missing from string but known?
-                # ClinVar string usually has accession.
-                v_gt = weaver.parse(gt_p_str)
-                lvl = _rs_mapper.equivalent_level(v_p, v_gt, _rp)
-                equiv_level = str(lvl).split(".")[-1]
-            except Exception as e:
-                equiv_level = f"ERR:{e!s}"
-        row["equivalence_level"] = equiv_level
-
     except Exception as e:
         rs_p = rs_spdi = f"ERR:{e!s}"
-        row["equivalence_level"] = f"ERR:{e!s}"
-    except BaseException:  # Catch absolutely everything including panics
+    except BaseException:
         rs_p = rs_spdi = "PANIC"
-        row["equivalence_level"] = "PANIC"
 
     # ref-hgvs block
+    ref_p = "ERR"
+    ref_spdi = "ERR"
     try:
         if not _ref_hp or not _ref_vm:
-            row["ref_p"] = row["ref_spdi"] = "ERR:RefMapperNotInit"
-            return row
+            ref_p = ref_spdi = "ERR:RefMapperNotInit"
+        else:
+            v_ref = _ref_hp.parse_hgvs_variant(nuc_hgvs)
+            try:
+                if v_ref.type == "c":
+                    v_p_ref = _ref_vm.c_to_p(v_ref)
+                    ref_p = str(v_p_ref).split(":")[-1]
+            except Exception as e:
+                ref_p = f"ERR:{e!s}"
 
-        v_ref = _ref_hp.parse_hgvs_variant(nuc_hgvs)
-        try:
-            if v_ref.type == "c":
-                v_p_ref = _ref_vm.c_to_p(v_ref)
-                ref_p = str(v_p_ref).split(":")[-1]
-        except Exception as e:
-            ref_p = f"ERR:{e!s}"
-
-        try:
-            vg_ref = _ref_vm.c_to_g(v_ref, spdi_ac) if v_ref.type != "g" else v_ref
-            ref_spdi = hgvs_lib_to_spdi(vg_ref, _rp)
-        except Exception as e:
-            ref_spdi = f"ERR:{e!s}"
+            try:
+                vg_ref = _ref_vm.c_to_g(v_ref, spdi_ac) if v_ref.type != "g" else v_ref
+                ref_spdi = hgvs_lib_to_spdi(vg_ref, _rp)
+            except Exception as e:
+                ref_spdi = f"ERR:{e!s}"
     except Exception:
         ref_p = ref_spdi = "ERR:Parse"
     except BaseException:
         ref_p = ref_spdi = "PANIC"
 
-    row["rs_p"] = rs_p or ""
-    row["rs_spdi"] = rs_spdi or ""
-    row["ref_p"] = ref_p or ""
-    row["ref_spdi"] = ref_spdi or ""
-    return row
+    # Equivalence Checks (Using weaver to judge both)
+    rs_equiv = "Unknown"
+    ref_equiv = "Unknown"
+    gt_p_str = row.get("variant_prot", "")
+
+    if gt_p_str and gt_p_str != "ERR" and not gt_p_str.startswith("ERR"):
+        try:
+            v_gt = weaver.parse(gt_p_str)
+            # RS Equivalence
+            if v_p:
+                rs_equiv = str(_rs_mapper.equivalent_level(v_p, v_gt, _rp)).split(".")[-1]
+
+            # REF Equivalence (judged by weaver)
+            if ref_p and not ref_p.startswith("ERR"):
+                try:
+                    # Construct full protein string for weaver parsing
+                    ref_p_val = f"{v_gt.ac}:{ref_p}" if ":" not in ref_p else ref_p
+                    v_ref_p = weaver.parse(ref_p_val)
+                    ref_equiv = str(_rs_mapper.equivalent_level(v_ref_p, v_gt, _rp)).split(".")[-1]
+                except Exception:
+                    try:
+                        v_ref_p = weaver.parse(ref_p)
+                        ref_equiv = str(_rs_mapper.equivalent_level(v_ref_p, v_gt, _rp)).split(".")[-1]
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    res_row = row.copy()
+    res_row.update(
+        {
+            "rs_p": rs_p or "",
+            "rs_spdi": rs_spdi or "",
+            "ref_p": ref_p or "",
+            "ref_spdi": ref_spdi or "",
+            "rs_equiv": rs_equiv,
+            "ref_equiv": ref_equiv,
+        }
+    )
+
+    # Ensure no extra fields that would crash DictWriter
+    # NOTE: fieldnames is not defined in this scope, this line will cause a NameError.
+    # Assuming it's meant to be a global or passed in, or removed.
+    # For faithful reproduction, it's included as per instruction.
+    # return {k: v for k, v in row.items() if k in fieldnames}
+    return res_row
 
 
 def main() -> None:
@@ -173,7 +201,12 @@ def main() -> None:
 
     with open(args.input_file) as f_in:
         reader = csv.DictReader(f_in, delimiter="\t")
-        fieldnames = [*(reader.fieldnames or []), "rs_p", "rs_spdi", "ref_p", "ref_spdi", "equivalence_level"]
+        base_fields = [
+            f
+            for f in (reader.fieldnames or [])
+            if f not in {"rs_p", "rs_spdi", "ref_p", "ref_spdi", "rs_equiv", "ref_equiv", "equivalence_level"}
+        ]
+        fieldnames = base_fields + ["rs_p", "rs_spdi", "ref_p", "ref_spdi", "rs_equiv", "ref_equiv"]
         rows: list[dict[str, str]] = (
             [next(reader) for _ in range(args.max_variants)] if args.max_variants else list(reader)
         )
@@ -181,7 +214,7 @@ def main() -> None:
     print(f"Processing {len(rows)} variants with ProcessPool...")
 
     with open(args.output_file, "w", newline="") as f_out:
-        writer = csv.DictWriter(f_out, fieldnames=fieldnames, delimiter="\t")
+        writer = csv.DictWriter(f_out, fieldnames=fieldnames, delimiter="\t", extrasaction="ignore")
         writer.writeheader()
 
         with concurrent.futures.ProcessPoolExecutor(

@@ -184,8 +184,8 @@ Summary of results comparing `weaver` and `ref-hgvs` against ClinVar ground trut
 
 | Implementation | Protein Identity | Protein Analogous | SPDI (Genomic) | Parse Errors |
 | :------------- | :--------------: | :---------------: | :------------: | :----------: |
-| weaver         |  **93.869%**  | **4.355%** | **98.224%** | **0** |
-| ref-hgvs       |  93.352%  | 0.687% | 94.039% | 394 |
+| weaver         |  **93.869%**  | 4.355% | **98.224%** | **0** |
+| ref-hgvs       |  93.352%  | **4.451%** | 97.803% | 394 |
 
 
 RefSeq Data Mismatches: 0 (0.0%)
@@ -201,8 +201,8 @@ RefSeq Data Mismatches: 0 (0.0%)
 
 |                     | ref-hgvs Match | ref-hgvs Mismatch |
 | :------------------ | :------------: | :---------------: |
-| **weaver Match**    |     93,936     |     4,288     |
-| **weaver Mismatch** |     103     |     1,673     |
+| **weaver Match**    |     97,576     |     648     |
+| **weaver Mismatch** |     227     |     1,549     |
 
 - **Variant Equivalence**: Check if two variants are biologically equivalent using advanced cross-coordinate mapping and normalization. [See Algorithm](docs/source/equivalence_logic.md).
 

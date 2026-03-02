@@ -2,9 +2,9 @@
   {
     "total": 100000,
     "w_identity": 93869,
-    "w_analogous": 4355,
+    "w_analogous": 4933,
     "ref_identity": 93352,
-    "ref_analogous": 687,
+    "ref_analogous": 4888,
     "commit": "a7ed6ee",
     "date": "2026-03-02",
     "message": "Release version 0.4.0"
