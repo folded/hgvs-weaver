@@ -259,12 +259,34 @@ impl PyVariant {
         Ok(dict.unbind())
     }
 
+    #[staticmethod]
+    #[doc = "Constructs a Variant from a dictionary produced by to_dict.\n\nArgs:\n    d: A dict with the same structure as returned by to_dict.\n\nReturns:\n    A Variant object.\n\nRaises:\n    ValueError: If the dict cannot be deserialised into a valid variant."]
+    fn from_dict(py: Python, d: Py<PyAny>) -> PyResult<PyVariant> {
+        let json_mod = py.import("json")?;
+        let json_str: String = json_mod
+            .call_method1("dumps", (d,))?
+            .extract::<String>()?;
+        let inner: SequenceVariant = serde_json::from_str(&json_str)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(PyVariant { inner })
+    }
+
     fn __str__(&self) -> String {
         self.format()
     }
 
     fn __repr__(&self) -> String {
         format!("<weaver.Variant {}>", self.format())
+    }
+
+    fn __reduce__(&self, py: Python) -> PyResult<Py<PyAny>> {
+        let module = py.import("weaver._weaver")?;
+        let parse_fn: pyo3::Bound<'_, pyo3::PyAny> = module.getattr("parse")?;
+        let args: pyo3::Bound<'_, pyo3::PyAny> =
+            pyo3::types::PyTuple::new(py, [self.format()])?.into_any();
+        Ok(pyo3::types::PyTuple::new(py, [parse_fn, args])?
+            .into_any()
+            .unbind())
     }
 
     #[doc = "Validates the variant's reference sequence against the provided DataProvider.\n\nArgs:\n    provider: The data provider instance for sequence retrieval.\n\nReturns:\n    True if the reference sequence matches, False otherwise.\n\nRaises:\n    ValidationError: If transcript sequence is too short or coordinates are out of bounds.\n    DataProviderError: If sequence data cannot be retrieved."]

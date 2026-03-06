@@ -2,7 +2,7 @@ use crate::altseq::AltSeqBuilder;
 use crate::altseq_to_hgvsp::AltSeqToHgvsp;
 use crate::data::{DataProvider, IdentifierKind, IdentifierType, Transcript, TranscriptSearch};
 use crate::error::HgvsError;
-use crate::sequence::{LazySequence, MemSequence, RevCompSequence, Sequence, TranslatedSequence};
+use crate::sequence::{MemSequence, RevCompSequence, Sequence, TranslatedSequence};
 use crate::structs::{
     BaseOffsetInterval, BaseOffsetPosition, CVariant, GVariant, NVariant, PVariant,
 };
@@ -485,20 +485,14 @@ impl<'a> VariantMapper<'a> {
             IdentifierKind::Transcript.into_identifier_type(),
         )?;
 
-        let cds_start_idx = checked_usize(
-            transcript
-                .cds_start_index()
-                .ok_or_else(|| HgvsError::ValidationError("Missing CDS start".into()))?
-                .0,
-            "CDS start",
-        )?;
-        let cds_end_idx = checked_usize(
-            transcript
-                .cds_end_index()
-                .ok_or_else(|| HgvsError::ValidationError("Missing CDS end".into()))?
-                .0,
-            "CDS end",
-        )?;
+        let cds_start_tx = transcript
+            .cds_start_index()
+            .ok_or_else(|| HgvsError::ValidationError("Missing CDS start".into()))?;
+        let cds_end_tx = transcript
+            .cds_end_index()
+            .ok_or_else(|| HgvsError::ValidationError("Missing CDS end".into()))?;
+        let cds_start_idx = checked_usize(cds_start_tx.0, "CDS start")?;
+        let cds_end_idx = checked_usize(cds_end_tx.0, "CDS end")?;
 
         let ref_seq_obj = MemSequence(ref_seq);
 
@@ -518,23 +512,15 @@ impl<'a> VariantMapper<'a> {
             )));
         }
 
-        // Use Sequence abstraction for translation
-        let trans_obj = TranslatedSequence {
-            inner: &LazySequence {
-                hdp: self.hdp,
-                ac: transcript_ac.to_string(),
-                start: cds_start_idx,
-                end: ref_seq_obj.len(),
-                kind: IdentifierType::TranscriptAccession,
-            },
-        };
-        let ref_aa = trans_obj.to_string();
+        // Translate from the already-fetched transcript sequence (avoids a second provider call).
+        let cds_slice = ref_seq_obj.slice(cds_start_idx, ref_seq_obj.len());
+        let ref_aa = TranslatedSequence { inner: &cds_slice }.to_string();
 
         let builder = AltSeqBuilder {
             var_c,
             transcript_sequence: &ref_seq_obj,
-            cds_start_index: transcript.cds_start_index().unwrap(),
-            cds_end_index: transcript.cds_end_index().unwrap(),
+            cds_start_index: cds_start_tx,
+            cds_end_index: cds_end_tx,
             protein_accession: pro_ac_str,
         };
         let alt_data = builder.build_altseq()?;
