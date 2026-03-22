@@ -212,25 +212,31 @@ def run_ferro_normalize(variants: list[str], reference_dir: str) -> dict[str, st
 
     results: dict[str, str] = {}
     try:
+        import json  # noqa: PLC0415
         proc = subprocess.run(  # noqa: S603
-            [ferro_bin, "normalize", "--reference", reference_dir, "-i", tmp_in_path, "-f", "text"],
+            [ferro_bin, "normalize", "--reference", reference_dir, "-i", tmp_in_path, "-f", "json"],
             capture_output=True,
             text=True,
             check=False,
         )
-        # ferro outputs one result per line; failures are printed to stderr with the input echoed
-        # In text mode: success → normalized string; errors go to stderr as "ERR: <msg>"
-        out_lines = proc.stdout.splitlines()
-        for variant, out_line in zip(variants, out_lines):
-            stripped = out_line.strip()
-            if " -> " in stripped:
-                # Changed: "NM_x:c.1A>G -> NM_x:c.1A>G"
-                results[variant] = stripped.split(" -> ", 1)[1]
-            elif stripped:
-                results[variant] = stripped
-            else:
-                results[variant] = "ERR:EmptyOutput"
-        # Any variant without a result line (e.g. crashed) gets marked as error
+        # JSON mode: one JSON object per line with {input, success, output?, error?}
+        for line in proc.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                variant = obj.get("input", "")
+                if not variant:
+                    continue
+                if obj.get("success"):
+                    results[variant] = obj.get("output") or variant
+                else:
+                    err = obj.get("error") or "UnknownError"
+                    results[variant] = f"ERR:{err}"
+            except json.JSONDecodeError:
+                continue
+        # Any variant with no output line (e.g. ferro crashed mid-run)
         for variant in variants:
             if variant not in results:
                 results[variant] = "ERR:NoOutput"
