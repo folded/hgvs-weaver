@@ -44,7 +44,7 @@ _ref_hp: hgvs.parser.Parser | None = None
 _fh_results: dict[str, str] = {}
 
 
-def init_worker(gff: str, fasta: str, fh_results: dict[str, str] | None = None) -> None:
+def init_worker(gff: str, fasta: str, fh_results_path: str | None = None) -> None:
     """Initializes global mappers for worker processes."""
     global _rp, _rs_mapper, _ref_vm, _ref_hp, _fh_results
     _rp = provider.RefSeqDataProvider(gff, fasta)
@@ -52,8 +52,10 @@ def init_worker(gff: str, fasta: str, fh_results: dict[str, str] | None = None) 
     _ref_hdp = provider.ReferenceHgvsDataProvider(_rp)
     _ref_vm = hgvs.variantmapper.VariantMapper(_ref_hdp)
     _ref_hp = hgvs.parser.Parser()
-    if fh_results:
-        _fh_results = fh_results
+    if fh_results_path:
+        import json  # noqa: PLC0415
+        with open(fh_results_path) as f:
+            _fh_results = json.load(f)
 
 
 def hgvs_lib_to_spdi(v: typing.Any, data_provider: typing.Any) -> str | None:
@@ -258,6 +260,11 @@ def main() -> None:
         help="Path to ferro reference directory (produced by 'ferro prepare'). "
              "When provided, ferro normalize is run in batch before validation.",
     )
+    parser.add_argument(
+        "--no-ferro",
+        action="store_true",
+        help="Disable ferro-hgvs comparison entirely (fh_parse column will be SKIP).",
+    )
     args = parser.parse_args()
 
     with open(args.input_file) as f_in:
@@ -275,10 +282,15 @@ def main() -> None:
     print(f"Processing {len(rows)} variants with ProcessPool...")
 
     # Pre-run ferro normalize in batch if reference directory supplied
-    fh_results: dict[str, str] = {}
-    if args.ferro_reference:
+    fh_results_path: str | None = None
+    if not args.no_ferro and args.ferro_reference:
+        import json  # noqa: PLC0415
+        import tempfile  # noqa: PLC0415
         all_nuc = [row["variant_nuc"] for row in rows]
         fh_results = run_ferro_normalize(all_nuc, args.ferro_reference)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
+            json.dump(fh_results, tmp)
+            fh_results_path = tmp.name
 
     with open(args.output_file, "w", newline="") as f_out:
         writer = csv.DictWriter(f_out, fieldnames=fieldnames, delimiter="\t", extrasaction="ignore")
@@ -287,7 +299,7 @@ def main() -> None:
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=args.workers,
             initializer=init_worker,
-            initargs=(args.gff, args.fasta, fh_results),
+            initargs=(args.gff, args.fasta, fh_results_path),
         ) as executor:
             # map instead of executor.map to catch task-level errors
             results_iter = executor.map(process_variant, rows)
@@ -304,6 +316,10 @@ def main() -> None:
                     print(f"\nWorker crashed: {e}")
                     pbar.update(1)
             pbar.close()
+
+    if fh_results_path:
+        import os  # noqa: PLC0415
+        os.unlink(fh_results_path)
 
 
 if __name__ == "__main__":
