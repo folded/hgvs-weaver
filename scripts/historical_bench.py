@@ -15,6 +15,7 @@ class Stats(TypedDict, total=False):
     spdi_match: int
     p_perc: float
     spdi_perc: float
+    fh_parse_err: int
     commit: str
     date: str
     message: str
@@ -175,7 +176,8 @@ def analyze(results_file: Path | None) -> Stats | None:
     if not results_file or not results_file.exists():
         return None
 
-    stats: Stats = {"total": 0, "p_match": 0, "spdi_match": 0}
+    stats: Stats = {"total": 0, "p_match": 0, "spdi_match": 0, "fh_parse_err": 0}
+    fh_total = 0
     try:
         with open(results_file, encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter="\t")
@@ -190,6 +192,13 @@ def analyze(results_file: Path | None) -> Stats | None:
                 # SPDI Match
                 if row.get("spdi") and row.get("spdi") == row.get("rs_spdi"):
                     stats["spdi_match"] += 1
+
+                # ferro-hgvs parse errors
+                fh_parse = row.get("fh_parse", "SKIP")
+                if fh_parse != "SKIP":
+                    fh_total += 1
+                    if fh_parse.startswith("ERR:") or fh_parse == "PANIC":
+                        stats["fh_parse_err"] = stats.get("fh_parse_err", 0) + 1
     except (OSError, csv.Error) as e:
         print(f"Analysis failed: {e}")
         return None
@@ -199,6 +208,8 @@ def analyze(results_file: Path | None) -> Stats | None:
         stats["spdi_perc"] = (stats["spdi_match"] / stats["total"]) * 100
     else:
         stats["p_perc"] = stats["spdi_perc"] = 0.0
+    if fh_total == 0:
+        del stats["fh_parse_err"]
     return stats
 
 

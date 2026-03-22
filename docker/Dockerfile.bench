@@ -1,0 +1,60 @@
+# syntax=docker/dockerfile:1
+# Multi-stage build for the weaver benchmark environment.
+# Stage 1 builds both ferro-hgvs and weaver Python wheels (requires Rust).
+# Stage 2 is the lean runtime image used to run weaver-validate.
+
+# ── builder ──────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
+        git \
+        pkg-config \
+        libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust via rustup
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --default-toolchain stable --profile minimal
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install maturin
+RUN pip install --no-cache-dir maturin
+
+# ── build ferro-hgvs from source ─────────────────────────────────────────────
+RUN git clone --depth 1 https://github.com/fulcrumgenomics/ferro-hgvs.git /build/ferro-hgvs
+RUN cd /build/ferro-hgvs && maturin build --release --out /wheels
+
+# ── build weaver ──────────────────────────────────────────────────────────────
+COPY . /build/hgvs-rs
+RUN cd /build/hgvs-rs && maturin build --release --out /wheels
+
+# ── runtime ──────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libbz2-dev \
+        liblzma-dev \
+        libcurl4 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /wheels /wheels
+
+# Install wheels and validation dependencies.
+# hgvs (biocommons) is installed without its optional DB deps to avoid psycopg2.
+RUN pip install --no-cache-dir /wheels/*.whl \
+    && pip install --no-cache-dir --no-deps hgvs \
+    && pip install --no-cache-dir \
+        pysam \
+        tqdm \
+        parsley \
+        bioutils \
+        seaborn \
+        matplotlib \
+        pandas
+
+# Reference data and input files are mounted at runtime.
+WORKDIR /data
+
+ENTRYPOINT ["weaver-validate"]

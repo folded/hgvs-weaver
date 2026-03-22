@@ -40,16 +40,22 @@ _rp: provider.RefSeqDataProvider | None = None
 _rs_mapper: weaver.VariantMapper | None = None
 _ref_vm: hgvs.variantmapper.VariantMapper | None = None
 _ref_hp: hgvs.parser.Parser | None = None
+_fh_parse: typing.Callable[[str], typing.Any] | None = None
 
 
 def init_worker(gff: str, fasta: str) -> None:
     """Initializes global mappers for worker processes."""
-    global _rp, _rs_mapper, _ref_vm, _ref_hp
+    global _rp, _rs_mapper, _ref_vm, _ref_hp, _fh_parse
     _rp = provider.RefSeqDataProvider(gff, fasta)
     _rs_mapper = weaver.VariantMapper(_rp)
     _ref_hdp = provider.ReferenceHgvsDataProvider(_rp)
     _ref_vm = hgvs.variantmapper.VariantMapper(_ref_hdp)
     _ref_hp = hgvs.parser.Parser()
+    try:
+        import ferro_hgvs  # noqa: PLC0415
+        _fh_parse = ferro_hgvs.parse
+    except ImportError:
+        _fh_parse = None
 
 
 def hgvs_lib_to_spdi(v: typing.Any, data_provider: typing.Any) -> str | None:
@@ -141,6 +147,17 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
     except BaseException:
         ref_p = ref_spdi = "PANIC"
 
+    # ferro-hgvs block (parse only)
+    fh_parse = "SKIP"
+    if _fh_parse is not None:
+        try:
+            _fh_parse(nuc_hgvs)
+            fh_parse = "OK"
+        except Exception as e:
+            fh_parse = f"ERR:{e!s}"
+        except BaseException:
+            fh_parse = "PANIC"
+
     # Equivalence Checks (Using weaver to judge both)
     rs_equiv = "Unknown"
     ref_equiv = "Unknown"
@@ -178,6 +195,7 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
             "ref_spdi": ref_spdi or "",
             "rs_equiv": rs_equiv,
             "ref_equiv": ref_equiv,
+            "fh_parse": fh_parse,
         },
     )
 
@@ -200,9 +218,9 @@ def main() -> None:
         base_fields = [
             f
             for f in (reader.fieldnames or [])
-            if f not in {"rs_p", "rs_spdi", "ref_p", "ref_spdi", "rs_equiv", "ref_equiv", "equivalence_level"}
+            if f not in {"rs_p", "rs_spdi", "ref_p", "ref_spdi", "rs_equiv", "ref_equiv", "equivalence_level", "fh_parse"}
         ]
-        fieldnames = [*base_fields, "rs_p", "rs_spdi", "ref_p", "ref_spdi", "rs_equiv", "ref_equiv"]
+        fieldnames = [*base_fields, "rs_p", "rs_spdi", "ref_p", "ref_spdi", "rs_equiv", "ref_equiv", "fh_parse"]
         rows: list[dict[str, str]] = (
             [next(reader) for _ in range(args.max_variants)] if args.max_variants else list(reader)
         )

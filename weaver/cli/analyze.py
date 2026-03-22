@@ -274,6 +274,8 @@ def main() -> None:
 
     rs_parse_err = 0
     ref_parse_err = 0
+    fh_parse_err = 0
+    fh_total = 0
     rs_ref_mismatch = 0
 
     p_stats = {"both": 0, "rs_only": 0, "ref_only": 0, "neither": 0}
@@ -292,6 +294,12 @@ def main() -> None:
                 rs_parse_err += 1
             if ref_p_raw.startswith("ERR:Parse"):
                 ref_parse_err += 1
+
+            fh_parse_raw = str(row.get("fh_parse", "SKIP"))
+            if fh_parse_raw != "SKIP":
+                fh_total += 1
+                if fh_parse_raw.startswith("ERR:") or fh_parse_raw == "PANIC":
+                    fh_parse_err += 1
 
             if rs_p_raw.startswith(("ERR:ReferenceMismatch", "ERR:ValueError: Transcript")):
                 rs_ref_mismatch += 1
@@ -374,15 +382,26 @@ def main() -> None:
     elif ref_parse_err < rs_parse_err:
         ref_err_str = f"**{ref_err_str}**"
 
+    fh_rows: list[str] = []
+    if fh_total > 0:
+        fh_err_str = f"{fh_parse_err:,}"
+        if fh_parse_err < rs_parse_err and fh_parse_err < ref_parse_err:
+            fh_err_str = f"**{fh_err_str}**"
+        fh_rows = [f"| ferro-hgvs     |  N/A  | N/A | N/A | N/A | {fh_err_str} |"]
+
+    impl_description = (
+        "`weaver`, `ref-hgvs`, and `ferro-hgvs`" if fh_total > 0 else "`weaver` and `ref-hgvs`"
+    )
     report = [
         f"### Validation Results ({total:,} variants)",
         "",
-        "Summary of results comparing `weaver` and `ref-hgvs` against ClinVar ground truth:",
+        f"Summary of results comparing {impl_description} against ClinVar ground truth:",
         "",
         "| Implementation | Protein Identity | Protein Analogous | SPDI (Genomic) | Total Success | Parse Errors |",
         "| :------------- | :--------------: | :---------------: | :------------: | :-----------: | :----------: |",
         f"| weaver         |  {rs_p_str}  | {rs_ana_str} | {rs_spdi_str} | **{(rs_p_pct + rs_ana_pct):.3f}%** | {rs_err_str} |",
         f"| ref-hgvs       |  {ref_p_str}  | {ref_ana_str} | {ref_spdi_str} | **{(ref_p_pct + ref_ana_pct):.3f}%** | {ref_err_str} |",
+        *fh_rows,
         "",
         "",
         f"RefSeq Data Mismatches: {rs_ref_mismatch:,} ({rs_ref_mismatch / total * 100:.1f}%)",
