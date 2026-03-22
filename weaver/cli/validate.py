@@ -40,14 +40,13 @@ _rp: provider.RefSeqDataProvider | None = None
 _rs_mapper: weaver.VariantMapper | None = None
 _ref_vm: hgvs.variantmapper.VariantMapper | None = None
 _ref_hp: hgvs.parser.Parser | None = None
-_fh_parse: typing.Callable[[str], typing.Any] | None = None
 # Pre-computed ferro normalize results: nuc_hgvs → normalized_string | "ERR:..."
 _fh_results: dict[str, str] = {}
 
 
 def init_worker(gff: str, fasta: str, fh_results: dict[str, str] | None = None) -> None:
     """Initializes global mappers for worker processes."""
-    global _rp, _rs_mapper, _ref_vm, _ref_hp, _fh_parse, _fh_results
+    global _rp, _rs_mapper, _ref_vm, _ref_hp, _fh_results
     _rp = provider.RefSeqDataProvider(gff, fasta)
     _rs_mapper = weaver.VariantMapper(_rp)
     _ref_hdp = provider.ReferenceHgvsDataProvider(_rp)
@@ -55,11 +54,6 @@ def init_worker(gff: str, fasta: str, fh_results: dict[str, str] | None = None) 
     _ref_hp = hgvs.parser.Parser()
     if fh_results:
         _fh_results = fh_results
-    try:
-        import ferro_hgvs  # noqa: PLC0415
-        _fh_parse = ferro_hgvs.parse
-    except ImportError:
-        _fh_parse = None
 
 
 def hgvs_lib_to_spdi(v: typing.Any, data_provider: typing.Any) -> str | None:
@@ -151,18 +145,8 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
     except BaseException:
         ref_p = ref_spdi = "PANIC"
 
-    # ferro-hgvs block: use pre-computed normalize result when available, else parse
-    fh_parse = "SKIP"
-    if nuc_hgvs in _fh_results:
-        fh_parse = _fh_results[nuc_hgvs]
-    elif _fh_parse is not None:
-        try:
-            _fh_parse(nuc_hgvs)
-            fh_parse = "OK"
-        except Exception as e:
-            fh_parse = f"ERR:{e!s}"
-        except BaseException:
-            fh_parse = "PANIC"
+    # ferro-hgvs block: look up pre-computed normalize result
+    fh_parse = _fh_results.get(nuc_hgvs, "SKIP")
 
     # Equivalence Checks (Using weaver to judge both)
     rs_equiv = "Unknown"
