@@ -41,16 +41,20 @@ _rs_mapper: weaver.VariantMapper | None = None
 _ref_vm: hgvs.variantmapper.VariantMapper | None = None
 _ref_hp: hgvs.parser.Parser | None = None
 _fh_parse: typing.Callable[[str], typing.Any] | None = None
+# Pre-computed ferro normalize results: nuc_hgvs → normalized_string | "ERR:..."
+_fh_results: dict[str, str] = {}
 
 
-def init_worker(gff: str, fasta: str) -> None:
+def init_worker(gff: str, fasta: str, fh_results: dict[str, str] | None = None) -> None:
     """Initializes global mappers for worker processes."""
-    global _rp, _rs_mapper, _ref_vm, _ref_hp, _fh_parse
+    global _rp, _rs_mapper, _ref_vm, _ref_hp, _fh_parse, _fh_results
     _rp = provider.RefSeqDataProvider(gff, fasta)
     _rs_mapper = weaver.VariantMapper(_rp)
     _ref_hdp = provider.ReferenceHgvsDataProvider(_rp)
     _ref_vm = hgvs.variantmapper.VariantMapper(_ref_hdp)
     _ref_hp = hgvs.parser.Parser()
+    if fh_results:
+        _fh_results = fh_results
     try:
         import ferro_hgvs  # noqa: PLC0415
         _fh_parse = ferro_hgvs.parse
@@ -147,9 +151,11 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
     except BaseException:
         ref_p = ref_spdi = "PANIC"
 
-    # ferro-hgvs block (parse only)
+    # ferro-hgvs block: use pre-computed normalize result when available, else parse
     fh_parse = "SKIP"
-    if _fh_parse is not None:
+    if nuc_hgvs in _fh_results:
+        fh_parse = _fh_results[nuc_hgvs]
+    elif _fh_parse is not None:
         try:
             _fh_parse(nuc_hgvs)
             fh_parse = "OK"
@@ -202,6 +208,57 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
     return res_row
 
 
+def run_ferro_normalize(variants: list[str], reference_dir: str) -> dict[str, str]:
+    """Batch-normalizes variants via the ferro CLI; returns nuc_hgvs → result mapping."""
+    import shutil  # noqa: PLC0415
+    import subprocess  # noqa: PLC0415
+    import tempfile  # noqa: PLC0415
+
+    ferro_bin = shutil.which("ferro")
+    if not ferro_bin:
+        print("Warning: 'ferro' binary not found in PATH; skipping ferro normalization.")
+        return {}
+
+    print(f"Running ferro normalize on {len(variants):,} variants (reference: {reference_dir})...")
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp_in:
+        tmp_in.write("\n".join(variants))
+        tmp_in_path = tmp_in.name
+
+    results: dict[str, str] = {}
+    try:
+        proc = subprocess.run(  # noqa: S603
+            [ferro_bin, "normalize", "--reference", reference_dir, "-i", tmp_in_path, "-f", "text"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        # ferro outputs one result per line; failures are printed to stderr with the input echoed
+        # In text mode: success → normalized string; errors go to stderr as "ERR: <msg>"
+        out_lines = proc.stdout.splitlines()
+        for variant, out_line in zip(variants, out_lines):
+            stripped = out_line.strip()
+            if " -> " in stripped:
+                # Changed: "NM_x:c.1A>G -> NM_x:c.1A>G"
+                results[variant] = stripped.split(" -> ", 1)[1]
+            elif stripped:
+                results[variant] = stripped
+            else:
+                results[variant] = "ERR:EmptyOutput"
+        # Any variant without a result line (e.g. crashed) gets marked as error
+        for variant in variants:
+            if variant not in results:
+                results[variant] = "ERR:NoOutput"
+    except Exception as e:
+        print(f"Warning: ferro normalize failed: {e}")
+    finally:
+        import os  # noqa: PLC0415
+        os.unlink(tmp_in_path)
+
+    ok_count = sum(1 for v in results.values() if not v.startswith("ERR:"))
+    print(f"ferro normalize: {ok_count:,}/{len(variants):,} succeeded.")
+    return results
+
+
 def main() -> None:
     """Main entry point for validation."""
     parser = argparse.ArgumentParser(description="Full validation against ClinVar variants.")
@@ -211,6 +268,12 @@ def main() -> None:
     parser.add_argument("--gff", default="GRCh38_latest_genomic.gff.gz", help="Reference GFF file.")
     parser.add_argument("--fasta", default="GCF_000001405.40_GRCh38.p14_genomic.fna", help="Reference FASTA file.")
     parser.add_argument("--workers", type=int, default=4, help="Number of worker processes.")
+    parser.add_argument(
+        "--ferro-reference",
+        default=None,
+        help="Path to ferro reference directory (produced by 'ferro prepare'). "
+             "When provided, ferro normalize is run in batch before validation.",
+    )
     args = parser.parse_args()
 
     with open(args.input_file) as f_in:
@@ -227,6 +290,12 @@ def main() -> None:
 
     print(f"Processing {len(rows)} variants with ProcessPool...")
 
+    # Pre-run ferro normalize in batch if reference directory supplied
+    fh_results: dict[str, str] = {}
+    if args.ferro_reference:
+        all_nuc = [row["variant_nuc"] for row in rows]
+        fh_results = run_ferro_normalize(all_nuc, args.ferro_reference)
+
     with open(args.output_file, "w", newline="") as f_out:
         writer = csv.DictWriter(f_out, fieldnames=fieldnames, delimiter="\t", extrasaction="ignore")
         writer.writeheader()
@@ -234,7 +303,7 @@ def main() -> None:
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=args.workers,
             initializer=init_worker,
-            initargs=(args.gff, args.fasta),
+            initargs=(args.gff, args.fasta, fh_results),
         ) as executor:
             # map instead of executor.map to catch task-level errors
             results_iter = executor.map(process_variant, rows)
