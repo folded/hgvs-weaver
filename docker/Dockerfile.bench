@@ -23,7 +23,8 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 RUN pip install --no-cache-dir maturin
 
 # ── ferro-hgvs: Python wheel + CLI binary ────────────────────────────────────
-RUN git clone --depth 1 https://github.com/fulcrumgenomics/ferro-hgvs.git /build/ferro-hgvs
+RUN git clone --depth 1 --recurse-submodules --shallow-submodules \
+        https://github.com/fulcrumgenomics/ferro-hgvs.git /build/ferro-hgvs
 
 # Python wheel (for ferro_hgvs Python bindings)
 RUN cd /build/ferro-hgvs && maturin build --release --out /wheels

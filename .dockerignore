@@ -1,0 +1,29 @@
+# Large reference data files - mounted at runtime, not needed at build time
+*.fna
+*.fna.fai
+*.gff.gz
+*.gpff.gz
+*.bz2
+
+# Result / analysis TSVs
+*.tsv
+*.txt
+
+# Rust build artifacts
+target/
+
+# Python environment and distribution
+.venv/
+dist/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Benchmark outputs and reference data
+benchmark_results/
+ferro-reference/
+
+# Editor / OS
+.DS_Store
+*.swp
