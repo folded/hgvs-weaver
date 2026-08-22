@@ -10,9 +10,10 @@ readme = "../README.md"
 keywords = ["hgvs", "variant", "bioinformatics", "genomics", "mapping"]
 categories = ["science"]
 
+# Floors match Cargo.lock; see the note in the workspace root manifest.
 [dependencies]
-pest = "2.7"
-pest_derive = "2.7"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+pest = "2.8.6"
+pest_derive = "2.8.6"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
 dyn-clone = "1.0.20"
