@@ -40,16 +40,22 @@ _rp: provider.RefSeqDataProvider | None = None
 _rs_mapper: weaver.VariantMapper | None = None
 _ref_vm: hgvs.variantmapper.VariantMapper | None = None
 _ref_hp: hgvs.parser.Parser | None = None
+# Pre-computed ferro normalize results: nuc_hgvs → normalized_string | "ERR:..."
+_fh_results: dict[str, str] = {}
 
 
-def init_worker(gff: str, fasta: str) -> None:
+def init_worker(gff: str, fasta: str, fh_results_path: str | None = None) -> None:
     """Initializes global mappers for worker processes."""
-    global _rp, _rs_mapper, _ref_vm, _ref_hp
+    global _rp, _rs_mapper, _ref_vm, _ref_hp, _fh_results
     _rp = provider.RefSeqDataProvider(gff, fasta)
     _rs_mapper = weaver.VariantMapper(_rp)
     _ref_hdp = provider.ReferenceHgvsDataProvider(_rp)
     _ref_vm = hgvs.variantmapper.VariantMapper(_ref_hdp)
     _ref_hp = hgvs.parser.Parser()
+    if fh_results_path:
+        import json  # noqa: PLC0415
+        with open(fh_results_path) as f:
+            _fh_results = json.load(f)
 
 
 def hgvs_lib_to_spdi(v: typing.Any, data_provider: typing.Any) -> str | None:
@@ -141,6 +147,9 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
     except BaseException:
         ref_p = ref_spdi = "PANIC"
 
+    # ferro-hgvs block: look up pre-computed normalize result
+    fh_parse = _fh_results.get(nuc_hgvs, "SKIP")
+
     # Equivalence Checks (Using weaver to judge both)
     rs_equiv = "Unknown"
     ref_equiv = "Unknown"
@@ -178,10 +187,68 @@ def process_variant(row: dict[str, str]) -> dict[str, str]:
             "ref_spdi": ref_spdi or "",
             "rs_equiv": rs_equiv,
             "ref_equiv": ref_equiv,
+            "fh_parse": fh_parse,
         },
     )
 
     return res_row
+
+
+def run_ferro_normalize(variants: list[str], reference_dir: str) -> dict[str, str]:
+    """Batch-normalizes variants via the ferro CLI; returns nuc_hgvs → result mapping."""
+    import shutil  # noqa: PLC0415
+    import subprocess  # noqa: PLC0415
+    import tempfile  # noqa: PLC0415
+
+    ferro_bin = shutil.which("ferro")
+    if not ferro_bin:
+        print("Warning: 'ferro' binary not found in PATH; skipping ferro normalization.")
+        return {}
+
+    print(f"Running ferro normalize on {len(variants):,} variants (reference: {reference_dir})...")
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp_in:
+        tmp_in.write("\n".join(variants))
+        tmp_in_path = tmp_in.name
+
+    results: dict[str, str] = {}
+    try:
+        import json  # noqa: PLC0415
+        proc = subprocess.run(  # noqa: S603
+            [ferro_bin, "normalize", "--reference", reference_dir, "-i", tmp_in_path, "-f", "json"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        # JSON mode: one JSON object per line with {input, success, output?, error?}
+        for line in proc.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                variant = obj.get("input", "")
+                if not variant:
+                    continue
+                if obj.get("success"):
+                    results[variant] = obj.get("output") or variant
+                else:
+                    err = obj.get("error") or "UnknownError"
+                    results[variant] = f"ERR:{err}"
+            except json.JSONDecodeError:
+                continue
+        # Any variant with no output line (e.g. ferro crashed mid-run)
+        for variant in variants:
+            if variant not in results:
+                results[variant] = "ERR:NoOutput"
+    except Exception as e:
+        print(f"Warning: ferro normalize failed: {e}")
+    finally:
+        import os  # noqa: PLC0415
+        os.unlink(tmp_in_path)
+
+    ok_count = sum(1 for v in results.values() if not v.startswith("ERR:"))
+    print(f"ferro normalize: {ok_count:,}/{len(variants):,} succeeded.")
+    return results
 
 
 def main() -> None:
@@ -193,6 +260,17 @@ def main() -> None:
     parser.add_argument("--gff", default="GRCh38_latest_genomic.gff.gz", help="Reference GFF file.")
     parser.add_argument("--fasta", default="GCF_000001405.40_GRCh38.p14_genomic.fna", help="Reference FASTA file.")
     parser.add_argument("--workers", type=int, default=4, help="Number of worker processes.")
+    parser.add_argument(
+        "--ferro-reference",
+        default=None,
+        help="Path to ferro reference directory (produced by 'ferro prepare'). "
+             "When provided, ferro normalize is run in batch before validation.",
+    )
+    parser.add_argument(
+        "--no-ferro",
+        action="store_true",
+        help="Disable ferro-hgvs comparison entirely (fh_parse column will be SKIP).",
+    )
     args = parser.parse_args()
 
     with open(args.input_file) as f_in:
@@ -200,14 +278,25 @@ def main() -> None:
         base_fields = [
             f
             for f in (reader.fieldnames or [])
-            if f not in {"rs_p", "rs_spdi", "ref_p", "ref_spdi", "rs_equiv", "ref_equiv", "equivalence_level"}
+            if f not in {"rs_p", "rs_spdi", "ref_p", "ref_spdi", "rs_equiv", "ref_equiv", "equivalence_level", "fh_parse"}
         ]
-        fieldnames = [*base_fields, "rs_p", "rs_spdi", "ref_p", "ref_spdi", "rs_equiv", "ref_equiv"]
+        fieldnames = [*base_fields, "rs_p", "rs_spdi", "ref_p", "ref_spdi", "rs_equiv", "ref_equiv", "fh_parse"]
         rows: list[dict[str, str]] = (
             [next(reader) for _ in range(args.max_variants)] if args.max_variants else list(reader)
         )
 
     print(f"Processing {len(rows)} variants with ProcessPool...")
+
+    # Pre-run ferro normalize in batch if reference directory supplied
+    fh_results_path: str | None = None
+    if not args.no_ferro and args.ferro_reference:
+        import json  # noqa: PLC0415
+        import tempfile  # noqa: PLC0415
+        all_nuc = [row["variant_nuc"] for row in rows]
+        fh_results = run_ferro_normalize(all_nuc, args.ferro_reference)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
+            json.dump(fh_results, tmp)
+            fh_results_path = tmp.name
 
     with open(args.output_file, "w", newline="") as f_out:
         writer = csv.DictWriter(f_out, fieldnames=fieldnames, delimiter="\t", extrasaction="ignore")
@@ -216,7 +305,7 @@ def main() -> None:
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=args.workers,
             initializer=init_worker,
-            initargs=(args.gff, args.fasta),
+            initargs=(args.gff, args.fasta, fh_results_path),
         ) as executor:
             # map instead of executor.map to catch task-level errors
             results_iter = executor.map(process_variant, rows)
@@ -233,6 +322,10 @@ def main() -> None:
                     print(f"\nWorker crashed: {e}")
                     pbar.update(1)
             pbar.close()
+
+    if fh_results_path:
+        import os  # noqa: PLC0415
+        os.unlink(fh_results_path)
 
 
 if __name__ == "__main__":

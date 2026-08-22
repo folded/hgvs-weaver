@@ -2,6 +2,7 @@
 name = "hgvs-weaver-py"
 version = "0.4.1"
 edition = "2021"
+license = "Apache-2.0"
 
 [lib]
 name = "_weaver" # This will be the name of the python module
@@ -11,14 +12,18 @@ crate-type = ["cdylib", "rlib"]
 extension-module = ["pyo3/extension-module"]
 default = ["extension-module"]
 
+# Version floors are the versions Cargo.lock resolves to and CI tests. Caret
+# ranges are deliberate: Cargo.lock plus --locked in CI is what makes builds
+# reproducible, and hgvs-weaver is published, so = pins would force version
+# conflicts on downstream consumers without adding protection here.
 [dependencies]
-pyo3 = { version = "0.27.1", features = ["generate-import-lib"] }
-pyo3-stub-gen = "0.17.1"
-hgvs-weaver = { path = "./hgvs-weaver" }
-serde_json = "1.0"
+pyo3 = { version = "0.27.2", features = ["generate-import-lib"] }
+pyo3-stub-gen = "0.17.2"
+hgvs-weaver = { path = "./hgvs-weaver", version = "0.4.1" }
+serde_json = "1.0.149"
 
 [build-dependencies]
-pyo3-build-config = "0.27.1"
+pyo3-build-config = "0.27.2"
 
 [workspace]
 members = [

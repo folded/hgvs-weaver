@@ -4,6 +4,9 @@ on:
   release:
     types: [created]
 
+permissions:
+  contents: read
+
 jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
@@ -13,38 +16,41 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     env:
       MACOSX_DEPLOYMENT_TARGET: "10.12"
+      # maturin invokes cargo inside cibuildwheel, so --locked has to reach
+      # it through the build environment; without it the released wheel is
+      # built from a freshly resolved graph, not the committed Cargo.lock.
+      CIBW_ENVIRONMENT: MATURIN_PEP517_ARGS="--locked"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.10'
 
       - name: Set up QEMU
         if: matrix.os == 'ubuntu-latest'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
         with:
           platforms: all
 
+      # rustup ships on every GitHub runner image; actions-rs/toolchain was
+      # archived in 2023 and an unmaintained action is a takeover vector.
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-            toolchain: stable
-            override: true
+        run: rustup toolchain install stable --profile minimal && rustup default stable
 
       - name: Add macos target
         if: matrix.os == 'macos-latest'
         run: rustup target add x86_64-apple-darwin
 
       - name: Install dependencies
-        run: pip install cibuildwheel
+        run: pip install "cibuildwheel==2.23.4"
 
       - name: Build wheels
         run: cibuildwheel --output-dir wheelhouse
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: wheels-${{ matrix.os }}
           path: ./wheelhouse/*.whl
@@ -53,16 +59,16 @@ jobs:
     name: Build sdist
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.10'
       - name: Install maturin
-        run: pip install maturin
+        run: pip install "maturin==1.14.1"
       - name: Build sdist
         run: maturin sdist --out dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: sdist
           path: dist
@@ -75,12 +81,12 @@ jobs:
       contents: write
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: artifacts
           merge-multiple: true
       - name: Upload Wheels and sdist
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ github.event.release.tag_name }}
           files: artifacts/*
@@ -97,24 +103,23 @@ jobs:
       id-token: write # Required for trusted publishing
     steps:
       - name: Download all wheels and sdist
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: dist
           merge-multiple: true
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
 
   publish-to-crates-io:
     name: Publish to crates.io
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # rustup ships on every GitHub runner image; actions-rs/toolchain was
+      # archived in 2023 and an unmaintained action is a takeover vector.
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
       - name: Publish
         run: |
           cd hgvs-weaver
-          cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
+          cargo publish --locked --token ${{ secrets.CRATES_IO_TOKEN }}

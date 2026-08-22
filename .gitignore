@@ -10,7 +10,9 @@ __pycache__/
 dist/
 build/
 *.so
-Cargo.lock
+# Cargo.lock is committed: a pinned lockfile is what stops a compromised
+# upstream release from being resolved into a build.
+
 # Exclude the reference implementation if needed, but the user said "move some things out",
 # implying they might want to keep the rest but maybe as a submodule or just a separate dir.
 # For now I will include it unless it's huge.
@@ -161,7 +163,6 @@ dmypy.json
 .vscode
 
 # Rust / Cargo
-**/Cargo.lock
 **/target/
 *.tsv
 !data/*.tsv

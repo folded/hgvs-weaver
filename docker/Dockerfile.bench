@@ -1,0 +1,71 @@
+# syntax=docker/dockerfile:1
+# Multi-stage build for the weaver benchmark environment.
+# Stage 1 (builder) compiles both ferro-hgvs and weaver from source.
+# Stage 2 (runtime) is the lean image used to run weaver-validate and ferro prepare.
+
+# ── builder ──────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
+        git \
+        patchelf \
+        pkg-config \
+        libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust via rustup
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --default-toolchain stable --profile minimal
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install maturin for building Python wheels
+RUN pip install --no-cache-dir maturin
+
+# ── ferro-hgvs: Python wheel + CLI binary ────────────────────────────────────
+RUN git clone --depth 1 --recurse-submodules --shallow-submodules \
+        https://github.com/fulcrumgenomics/ferro-hgvs.git /build/ferro-hgvs
+
+# Python wheel (for ferro_hgvs Python bindings)
+RUN cd /build/ferro-hgvs && maturin build --release --out /wheels
+
+# CLI binary (for `ferro prepare` / `ferro normalize`)
+RUN cd /build/ferro-hgvs && cargo build --release --bin ferro
+RUN cp /build/ferro-hgvs/target/release/ferro /usr/local/bin/ferro
+
+# ── weaver: Python wheel ──────────────────────────────────────────────────────
+COPY . /build/hgvs-rs
+RUN cd /build/hgvs-rs && maturin build --release --out /wheels
+
+# ── runtime ──────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        libbz2-dev \
+        liblzma-dev \
+        libcurl4 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Bring in compiled artifacts from builder
+COPY --from=builder /wheels /wheels
+COPY --from=builder /usr/local/bin/ferro /usr/local/bin/ferro
+
+# Install wheels and validation dependencies.
+# hgvs (biocommons) is installed without its optional DB deps to avoid psycopg2.
+RUN pip install --no-cache-dir /wheels/*.whl \
+    && pip install --no-cache-dir --no-deps hgvs \
+    && pip install --no-cache-dir \
+        pysam \
+        tqdm \
+        parsley \
+        bioutils \
+        seaborn \
+        matplotlib \
+        pandas
+
+# Reference data and input files are mounted at runtime.
+WORKDIR /data
+
+ENTRYPOINT ["weaver-validate"]
