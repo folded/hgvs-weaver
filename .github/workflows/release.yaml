@@ -45,7 +45,7 @@ jobs:
         run: rustup target add x86_64-apple-darwin
 
       - name: Install dependencies
-        run: pip install "cibuildwheel==4.2.0"
+        run: pip install "cibuildwheel==2.23.4"
 
       - name: Build wheels
         run: cibuildwheel --output-dir wheelhouse
