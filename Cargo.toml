@@ -2,6 +2,7 @@
 name = "hgvs-weaver-py"
 version = "0.4.1"
 edition = "2021"
+license = "Apache-2.0"
 
 [lib]
 name = "_weaver" # This will be the name of the python module

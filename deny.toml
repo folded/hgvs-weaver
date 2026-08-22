@@ -1,0 +1,73 @@
+# Supply-chain policy, enforced in CI by `cargo deny check`.
+#
+# The advisories check is the point: it fails the build when any crate in the
+# graph — direct or transitive — matches a RUSTSEC advisory. `bans.deny` is a
+# tripwire for names that are known-malicious rather than merely vulnerable;
+# an advisory can be withdrawn or lag publication, a banned name cannot enter
+# the graph at all.
+
+[graph]
+all-features = true
+
+[advisories]
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "deny"
+
+# Unmaintained crates are reported for direct dependencies only. Every
+# unmaintained crate currently in the graph is a unic-* crate reached through
+# pyo3-stub-gen -> pyo3-stub-gen-derive -> rustpython-parser, all carry "no
+# safe upgrade is available", and none are actionable without dropping
+# pyo3-stub-gen. Scoping to the workspace keeps the check meaningful for
+# dependencies this repo actually chooses.
+unmaintained = "workspace"
+
+ignore = [
+    # RUSTSEC-2026-0176: out-of-bounds read in PyList/PyTuple iterator nth /
+    # nth_back. RUSTSEC-2026-0177: missing Sync bound on
+    # PyCFunction::new_closure. Both are fixed in pyo3 >=0.29; this crate pins
+    # ^0.27.1, and moving to 0.29 is an API-breaking bump that also drags
+    # numpy and pyo3-stub-gen, so it is tracked separately rather than done
+    # blind. Neither API is reached from this crate: there is no new_closure
+    # call site, and no PyList/PyTuple iterator is advanced with nth or
+    # nth_back (the only PyTuple use is PyTuple::new construction).
+    # Re-check when pyo3 is upgraded, and delete these.
+    "RUSTSEC-2026-0176",
+    "RUSTSEC-2026-0177",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+# Confirmed-malicious crates, banned by name so any version trips the check.
+deny = [
+    # RUSTSEC-2026-0260: pulled in by a malicious arrayref 0.3.10; the payload
+    # ran from its build script. Typosquat of proc-macro2.
+    { name = "proc-macro1" },
+    # RUSTSEC-2022-0071: typosquat of rust_decimal, shipped a payload.
+    { name = "rustdecimal" },
+    # 2025 crates.io campaign: credential stealers posing as logging crates.
+    { name = "faster_log" },
+    { name = "async_println" },
+]
+
+# Exactly the licenses present in the graph today. A dependency introducing
+# any other license fails the check, which is the intent: a new license is a
+# deliberate review, not a silent adoption.
+[licenses]
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    # tiny-keccak, build-time only via rustpython-parser.
+    "CC0-1.0",
+    "MIT",
+    "Unicode-3.0",
+    # unicode_names2, build-time only via rustpython-parser.
+    "Unicode-DFS-2016",
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
