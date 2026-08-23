@@ -6,16 +6,15 @@ use ::hgvs_weaver::{
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::{Bound, PyErr};
-use pyo3_stub_gen::{define_stub_info_gatherer, derive::*};
 use serde_json;
 
-pyo3_stub_gen::create_exception!(_weaver, HGVSError, pyo3::exceptions::PyException);
-pyo3_stub_gen::create_exception!(_weaver, ParseError, HGVSError);
-pyo3_stub_gen::create_exception!(_weaver, ValidationError, HGVSError);
-pyo3_stub_gen::create_exception!(_weaver, DataProviderError, HGVSError);
-pyo3_stub_gen::create_exception!(_weaver, UnsupportedOperationError, HGVSError);
-pyo3_stub_gen::create_exception!(_weaver, CigarError, HGVSError);
-pyo3_stub_gen::create_exception!(_weaver, TranscriptMismatchError, HGVSError);
+pyo3::create_exception!(_weaver, HGVSError, pyo3::exceptions::PyException);
+pyo3::create_exception!(_weaver, ParseError, HGVSError);
+pyo3::create_exception!(_weaver, ValidationError, HGVSError);
+pyo3::create_exception!(_weaver, DataProviderError, HGVSError);
+pyo3::create_exception!(_weaver, UnsupportedOperationError, HGVSError);
+pyo3::create_exception!(_weaver, CigarError, HGVSError);
+pyo3::create_exception!(_weaver, TranscriptMismatchError, HGVSError);
 
 fn map_hgvs_error(e: HgvsError) -> PyErr {
     match e {
@@ -37,7 +36,6 @@ fn map_hgvs_error(e: HgvsError) -> PyErr {
     }
 }
 
-#[gen_stub_pyclass_enum]
 #[pyclass(name = "IdentifierType", module = "weaver._weaver")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PyIdentifierType {
@@ -84,7 +82,6 @@ impl From<::hgvs_weaver::data::IdentifierType> for PyIdentifierType {
     }
 }
 
-#[gen_stub_pymethods]
 #[pymethods]
 impl PyIdentifierType {
     fn __repr__(&self) -> String {
@@ -100,7 +97,6 @@ impl PyIdentifierType {
     }
 }
 
-#[gen_stub_pyclass_enum]
 #[pyclass(name = "EquivalenceLevel", module = "weaver._weaver")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PyEquivalenceLevel {
@@ -121,7 +117,6 @@ impl From<::hgvs_weaver::equivalence::EquivalenceLevel> for PyEquivalenceLevel {
     }
 }
 
-#[gen_stub_pymethods]
 #[pymethods]
 impl PyEquivalenceLevel {
     fn __repr__(&self) -> String {
@@ -137,7 +132,6 @@ impl PyEquivalenceLevel {
     }
 }
 
-#[gen_stub_pyclass_enum]
 #[pyclass(name = "StartCodonConvention", module = "weaver._weaver")]
 #[doc = "Controls how start-codon protein variants are represented.\n\nUsed in VariantTransformSettings to select between keeping the specific\npredicted amino acid change or using the HGVS p.Met1? notation."]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -148,7 +142,6 @@ pub enum PyStartCodonConvention {
     HgvsQuestion,
 }
 
-#[gen_stub_pymethods]
 #[pymethods]
 impl PyStartCodonConvention {
     fn __repr__(&self) -> String {
@@ -173,7 +166,6 @@ impl From<PyStartCodonConvention> for StartCodonConvention {
     }
 }
 
-#[gen_stub_pyclass]
 #[pyclass(name = "VariantTransformSettings", module = "weaver._weaver")]
 #[doc = "Settings that control how a variant is transformed before formatting or comparison.\n\nCreate with keyword arguments:\n    settings = VariantTransformSettings(start_codon=StartCodonConvention.HgvsQuestion)"]
 #[derive(Clone)]
@@ -181,7 +173,6 @@ pub struct PyVariantTransformSettings {
     pub inner: VariantTransformSettings,
 }
 
-#[gen_stub_pymethods]
 #[pymethods]
 impl PyVariantTransformSettings {
     #[new]
@@ -211,7 +202,6 @@ impl PyVariantTransformSettings {
     }
 }
 
-#[gen_stub_pyclass]
 #[pyclass(name = "Variant", module = "weaver._weaver")]
 #[doc = "Represents a parsed HGVS variant.\n\nProvides access to the variant's accession, gene symbol, and coordinate type.\nVariants can be formatted back to HGVS strings or converted to JSON/dict representations."]
 #[derive(Clone)]
@@ -219,7 +209,6 @@ pub struct PyVariant {
     pub inner: SequenceVariant,
 }
 
-#[gen_stub_pymethods]
 #[pymethods]
 impl PyVariant {
     #[getter]
@@ -401,7 +390,6 @@ impl PyVariant {
     }
 }
 
-#[gen_stub_pyfunction]
 #[pyfunction]
 #[doc = "Parses an HGVS string into a Variant object.\n\nSupported types include genomic (g.), coding cDNA (c.), non-coding (n.),\nmitochondrial (m.), and protein (p.) variants.\n\nArgs:\n    input: The HGVS string to parse.\n\nReturns:\n    A Variant object.\n\nRaises:\n    ParseError: If the HGVS string is malformed or unsupported."]
 fn parse(input: &str) -> PyResult<PyVariant> {
@@ -598,14 +586,12 @@ impl TranscriptSearch for PyTranscriptSearchBridge {
     }
 }
 
-#[gen_stub_pyclass]
 #[pyclass(name = "VariantMapper", module = "weaver._weaver")]
 #[doc = "High-level variant mapping engine.\n\nCoordinates mapping between different reference sequences (e.g., g. to c.)\nand projects cDNA variants onto protein sequences (c. to p.).\nRequires a DataProvider to retrieve transcript and sequence information."]
 pub struct PyVariantMapper {
     pub bridge: std::sync::Arc<PyDataProviderBridge>,
 }
 
-#[gen_stub_pymethods]
 #[pymethods]
 impl PyVariantMapper {
     #[new]
@@ -843,5 +829,3 @@ fn _weaver(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     Ok(())
 }
-
-define_stub_info_gatherer!(stub_info);
